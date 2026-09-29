@@ -25,6 +25,7 @@ The README's two looping [phase-space](_static/movies/phase_space/figure.webp) a
 | Mobile-ion external and finite-reservoir control | Seeded matched loading, two-fluid mean oracle, work/energy and cell-local random kinetic ledgers; an [early paper-geometry pilot](kinetic.md) checks two loadings and nonzero-$k$ energy. Published nonlinear reproduction remains unverified |
 | Long-run AD, SOLVAX | Exact recurrence comparison and memory/timing in [performance](performance.md); broader horizon/device study pending |
 | Density calibration | Full fixed-window PIC optimum and independent cold oracle in [optimization](optimization.md) |
+| CUDA backend smoke | The published `2147911` source ran the quick density optimization and reverse-mode gradient on an NVIDIA RTX A4000 with JAX 0.6.2; finite-difference gradient error was $7.42\times10^{-12}$ ([record](_static/figures/gpu_smoke/run.json)). The parent source files matched pinned `83d3271` by checksum. This checks execution, not full GPU physics convergence or performance. |
 
 ![Full cold PIC and independent analytical reference](_static/figures/cold_exchange/figure.png)
 
