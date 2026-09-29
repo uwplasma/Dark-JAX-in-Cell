@@ -1,0 +1,33 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "716620fd3c9f44ccd589fe0ce5f513bbebdbd503-dirty",
+ "example": "dark_movie_slab_packet",
+ "settings": {
+  "preset": "illustration",
+  "cells": 128,
+  "particles_per_basis_per_species": 32,
+  "steps": 240,
+  "store_every": 8,
+  "eta": 0.05,
+  "mu_over_omega0": 0.6,
+  "theta_from": "docs/_static/figures/profile_design/run.json",
+  "theta": [
+   0.3095725080101341,
+   -0.6,
+   -0.6
+  ],
+  "incident_dark_energy_J_m2": 2.0000000000000005e-05
+ },
+ "results": {
+  "frames": 30,
+  "webp_bytes": 210772,
+  "closed_energy_relative_drift": -7.759077280011795e-06,
+  "max_dark_gauss_V_m2": 1.9810536674644275e-12
+ }
+}

@@ -4,6 +4,8 @@ The pinned parent is JAX-in-Cell `research-release` at `83d327118163833f93e2588e
 
 The clean parent clone passed `python -m pytest -q`: **304 passed, 3 skipped**, with one Matplotlib animation-lifetime warning in 855.88 s on the local macOS arm64 CPU. This is a baseline result, not dark-physics validation.
 
+The README's two looping [phase-space](_static/movies/phase_space/figure.webp) and [slab-packet](_static/movies/slab_packet/figure.webp) views show stored particle, field and energy histories from illustrative runs. Each movie has its own [phase-space record](_static/movies/phase_space/run.json) or [slab record](_static/movies/slab_packet/run.json). Regenerate both with `python docs/scripts/make_movies.py` after installing the `media` extra. Their short, lower-resolution settings are visual guides; the full numerical records below carry the validation claims.
+
 | Check | Current evidence |
 |---|---|
 | Compatible operators | Manufactured continuity and curl identities in `tests/test_proca.py` |

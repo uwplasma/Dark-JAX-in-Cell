@@ -1,0 +1,25 @@
+# A cold, periodic Maxwell–Proca exchange. Run: darkjaxincell examples/input.toml
+[domain]
+length = 1.8836515673  # 2 pi c / 1e9 metres
+cells = 32
+dt_over_dx_c = 0.2
+
+[[species]]
+name = "electrons"
+n = 128
+mass = "electron"
+charge = -1
+density = 2.5136622618e14  # 0.8 epsilon_0 m_e (1e9)^2 / e^2
+
+[run]
+steps = 160
+seed = 0
+store_every = 4
+store_particles = true
+
+# Keep [dark] last so the parent TOML loader can validate the plasma prefix.
+[dark]
+model = "field"
+omega = 1e9
+eta = 0.05
+initial_E = [0.0, 1e-5, 0.0]

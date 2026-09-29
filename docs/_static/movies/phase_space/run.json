@@ -1,0 +1,28 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "716620fd3c9f44ccd589fe0ce5f513bbebdbd503-dirty",
+ "example": "dark_movie_phase_space",
+ "settings": {
+  "preset": "illustration",
+  "cells": 64,
+  "particles": 4096,
+  "steps": 768,
+  "store_every": 24,
+  "eta": 0.3,
+  "omega_rad_s": 1151203038.72,
+  "thermal_m_s": 77946039.08,
+  "seed_displacement_over_1_k": 0.06
+ },
+ "results": {
+  "frames": 32,
+  "webp_bytes": 386454,
+  "closed_energy_relative_drift": 1.6243089171696923e-05,
+  "max_dark_gauss_V_m2": 3.6798155633732677e-09
+ }
+}

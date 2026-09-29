@@ -1,5 +1,6 @@
 """Independent field identities and parent-integration regressions."""
 
+import json
 import numpy as np
 import itertools
 import pytest
@@ -12,7 +13,7 @@ from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
 from jaxincell._core import curl_E
 from jaxincell.theory import landau_root
 from darkjaxincell import (DarkField, DarkSimulation, PrescribedDrive, gauss,
-                           load_state, midnight, save_state)
+                           load_state, load_toml, main, midnight, save_state)
 from darkjaxincell._proca import divergence, drift, gradient, kick
 from examples.optimize_dark_photon import build_objective, cold_reference
 from examples.dark_kinetic import mixed_root
@@ -28,6 +29,90 @@ N_REF = epsilon_0 * mass_electron * OMEGA**2 / e**2
 def plasma(density=0.0, n=16, cells=16, external_E=None):
     domain = Domain(length=2 * np.pi * c / OMEGA, cells=cells, dt_over_dx_c=0.2)
     return Simulation(domain, (Species.electrons(n, density=density),), external_E=external_E)
+
+
+def test_dark_toml_and_cli_save_complete_restart(tmp_path):
+    source = tmp_path / "input.toml"
+    source.write_text("""[domain]
+length = 1.0
+cells = 16
+dt_over_dx_c = 0.2
+[[species]]
+name = "electrons"
+n = 16
+mass = "electron"
+charge = -1
+density = 1e14
+[run]
+steps = 4
+store_every = 2
+[dark]
+omega = 1e9
+eta = 0.05
+initial_E = [0.0, 1e-5, 0.0]
+initial_A = [0.0, 0.0, 0.0]
+initial_phi = 0.0
+""")
+    sim, run = load_toml(source)
+    assert run["steps"] == 4 and isinstance(sim.dark, DarkField)
+    assert np.asarray(sim.dark.initial_E).shape == (16, 3)
+    folder = tmp_path / "saved"
+    assert main([str(source), "--steps", "4", "--seed", "2", "--eta", "0.04",
+                 "--omega", "1e9", "--save", str(folder)]) == 0
+    assert (folder / "run.json").exists() and (folder / "restart.npz").exists()
+    assert (folder / "input.toml").read_text() == source.read_text()
+    result = json.loads((folder / "run.json").read_text())["results"]
+    assert result["ordinary_gauss_max_V_m2"] < 1e-6
+    assert result["dark_gauss_max_V_m2"] < 1e-6
+    sim, _ = load_toml(source, eta=0.04, omega=1e9)
+    loaded = load_state(folder / "restart.npz", sim)
+    assert int(loaded.ordinary.steps) == 4
+    assert main([str(source)]) == 0
+
+
+def test_dark_toml_drive_and_errors(tmp_path):
+    source = tmp_path / "drive.toml"
+    prefix = """[domain]
+length = 1.0
+cells = 16
+dt_over_dx_c = 0.2
+[[species]]
+name = "electrons"
+n = 16
+mass = "electron"
+charge = -1
+density = 1e14
+[run]
+steps = 2
+store_particles = false
+"""
+
+    def check(section, error=None):
+        source.write_text(prefix + section)
+        if error:
+            with pytest.raises(ValueError, match=error):
+                load_toml(source)
+        else:
+            return load_toml(source)
+
+    check("", "final \\[dark\\] table")
+    check("[dark]\neta = 0.1\nomega = 1e9\n[run]\nsteps = 2\n", "final table")
+    check("[dark]\neta = 0.1\nomega = 1e9\nspook = 1\n", "unknown")
+    source.write_text(prefix.replace("store_particles = false", "verbose = true")
+                      + "[dark]\neta = 0.1\nomega = 1e9\n")
+    with pytest.raises(ValueError, match="unsupported dark \\[run\\] keys"):
+        load_toml(source)
+    check("[dark]\nomega = 1e9\n", "eta and omega")
+    check("[dark]\neta = 0.1\nomega = 1e9\namplitude = [1.0, 0.0, 0.0]\n", "belong")
+    check("[dark]\nmodel = 'drive'\neta = 0.1\nomega = 1e9\ninitial_E = [0.0, 0.0, 0.0]\n", "belong")
+    check("[dark]\nmodel = 'drive'\neta = 0.1\nomega = 1e9\n", "needs amplitude")
+    check("[dark]\nmodel = 'other'\neta = 0.1\nomega = 1e9\n", "field.*drive")
+    sim, run = check("[dark]\nmodel = 'drive'\neta = 0.1\nomega = 1e9\n"
+                     "amplitude = [1e-5, 0.0, 0.0]\nphase = 0.2\n")
+    assert isinstance(sim.dark, PrescribedDrive) and run["store_particles"] is False
+    assert main([str(source), "--save", str(tmp_path / "driven")]) == 0
+    result = json.loads((tmp_path / "driven/run.json").read_text())["results"]
+    assert result["dark_gauss_max_V_m2"] is None and result["energy_drift"] is None
 
 
 def test_compatible_kick_drift_and_continuity():

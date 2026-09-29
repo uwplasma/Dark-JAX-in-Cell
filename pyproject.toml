@@ -12,11 +12,16 @@ license = {file = "LICENSE"}
 authors = [{name = "UWPlasma, UW-Madison group", email = "rogerio.jorge@wisc.edu"}]
 dependencies = [
   "jaxincell @ git+https://github.com/uwplasma/JAX-in-Cell.git@83d327118163833f93e2588edcb5029241f6ba2a",
+  "tomli; python_version < '3.11'",
 ]
+
+[project.scripts]
+darkjaxincell = "darkjaxincell:main"
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "scipy", "flake8"]
 docs = ["sphinx", "myst-parser", "scipy"]
+media = ["pillow", "scipy"]
 
 [project.urls]
 Source = "https://github.com/uwplasma/Dark-JAX-in-Cell"

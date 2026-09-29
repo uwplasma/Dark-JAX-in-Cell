@@ -4,6 +4,7 @@ from ._simulation import DarkField, DarkOutput, DarkSimulation, DarkState, Presc
 from ._proca import energy, gauss
 from ._archive import load_state, save_state
 from ._style import midnight
+from ._cli import load_toml, main
 
 __all__ = ["DarkField", "DarkOutput", "DarkSimulation", "DarkState", "PrescribedDrive", "energy", "gauss",
-           "load_state", "save_state", "midnight"]
+           "load_state", "save_state", "midnight", "load_toml", "main"]
