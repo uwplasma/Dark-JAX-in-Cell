@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "396fc5367deb737cef01d1200e1589dad791864d-dirty",
+ "git": "15f82beaaab478d26a5958d778b29969c9f366e1-dirty",
  "example": "dark_saturation",
  "settings": {
   "preset": "full",
@@ -19,6 +19,11 @@
     "steps": 3200,
     "store_every": 20,
     "dt_omega_p": 0.025,
+    "sample_interval_omega_p": 0.5,
+    "late_window_omega_p": [
+     40,
+     80.0
+    ],
     "horizon_omega_p": 80.0
    },
    {
@@ -27,6 +32,37 @@
     "steps": 6400,
     "store_every": 40,
     "dt_omega_p": 0.0125,
+    "sample_interval_omega_p": 0.5,
+    "late_window_omega_p": [
+     40,
+     80.0
+    ],
+    "horizon_omega_p": 80.0
+   },
+   {
+    "cells": 64,
+    "particles_per_beam": 8000,
+    "steps": 6400,
+    "store_every": 40,
+    "dt_omega_p": 0.0125,
+    "sample_interval_omega_p": 0.5,
+    "late_window_omega_p": [
+     40,
+     80.0
+    ],
+    "horizon_omega_p": 80.0
+   },
+   {
+    "cells": 128,
+    "particles_per_beam": 4000,
+    "steps": 6400,
+    "store_every": 40,
+    "dt_omega_p": 0.0125,
+    "sample_interval_omega_p": 0.5,
+    "late_window_omega_p": [
+     40,
+     80.0
+    ],
     "horizon_omega_p": 80.0
    },
    {
@@ -35,6 +71,11 @@
     "steps": 6400,
     "store_every": 40,
     "dt_omega_p": 0.0125,
+    "sample_interval_omega_p": 0.5,
+    "late_window_omega_p": [
+     40,
+     80.0
+    ],
     "horizon_omega_p": 80.0
    }
   ],
@@ -52,6 +93,10 @@
     "late_mode_rms_V_m": {
      "parent": 69839.95876539919,
      "mixed": 67599.11642096653
+    },
+    "late_fluctuating_energy_over_initial": {
+     "parent": 0.09596814958756661,
+     "mixed": 0.08971252111529053
     },
     "bounce_over_growth": {
      "parent": 1.5441408803824048,
@@ -71,6 +116,10 @@
      "parent": 70948.5961580289,
      "mixed": 67974.10946651589
     },
+    "late_fluctuating_energy_over_initial": {
+     "parent": 0.09761427353989412,
+     "mixed": 0.08999800841374582
+    },
     "bounce_over_growth": {
      "parent": 1.5442284902248513,
      "mixed": 1.4705589139840036
@@ -82,12 +131,60 @@
    },
    {
     "fits": {
+     "parent": 0.33406673030481243,
+     "mixed": 0.3427586468591581
+    },
+    "late_mode_rms_V_m": {
+     "parent": 71020.38110659007,
+     "mixed": 67896.51652741109
+    },
+    "late_fluctuating_energy_over_initial": {
+     "parent": 0.09757662528329665,
+     "mixed": 0.09001419932791427
+    },
+    "bounce_over_growth": {
+     "parent": 1.5442284875593542,
+     "mixed": 1.4705589196076758
+    },
+    "parent_max_energy_drift": 0.007009473864456162,
+    "mixed_max_energy_drift": 0.00679665005545238,
+    "max_dark_work_residual_over_transfer": 4.8406341627556134e-06,
+    "max_dark_gauss": 4.98257577419281e-08
+   },
+   {
+    "fits": {
+     "parent": 0.3343469444950357,
+     "mixed": 0.34301742517648337
+    },
+    "late_mode_rms_V_m": {
+     "parent": 68600.42427751429,
+     "mixed": 65036.95176153235
+    },
+    "late_fluctuating_energy_over_initial": {
+     "parent": 0.09279068381030323,
+     "mixed": 0.08112549594862417
+    },
+    "bounce_over_growth": {
+     "parent": 1.5392261786685137,
+     "mixed": 1.4663048850905167
+    },
+    "parent_max_energy_drift": 0.0023438446122354684,
+    "mixed_max_energy_drift": 0.0018965590729422832,
+    "max_dark_work_residual_over_transfer": 6.899407261680198e-06,
+    "max_dark_gauss": 1.0541407391428947e-07
+   },
+   {
+    "fits": {
      "parent": 0.3343469445713588,
      "mixed": 0.34301742514915123
     },
     "late_mode_rms_V_m": {
      "parent": 68615.41911030709,
      "mixed": 64556.68334025353
+    },
+    "late_fluctuating_energy_over_initial": {
+     "parent": 0.09426717091831731,
+     "mixed": 0.08086516822944055
     },
     "bounce_over_growth": {
      "parent": 1.5392261709799206,

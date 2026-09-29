@@ -1,0 +1,96 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "15f82beaaab478d26a5958d778b29969c9f366e1-dirty",
+ "example": "dark_saturation",
+ "settings": {
+  "preset": "extended",
+  "eta": 0.3,
+  "mu_over_wp": 0.7,
+  "cases": [
+   {
+    "cells": 64,
+    "particles_per_beam": 4000,
+    "steps": 8000,
+    "store_every": 20,
+    "dt_omega_p": 0.025,
+    "sample_interval_omega_p": 0.5,
+    "late_window_omega_p": [
+     120,
+     200.0
+    ],
+    "horizon_omega_p": 200.0
+   },
+   {
+    "cells": 128,
+    "particles_per_beam": 8000,
+    "steps": 16000,
+    "store_every": 40,
+    "dt_omega_p": 0.0125,
+    "sample_interval_omega_p": 0.5,
+    "late_window_omega_p": [
+     120,
+     200.0
+    ],
+    "horizon_omega_p": 200.0
+   }
+  ],
+  "matched_loading": "same species x, v, weights and ordinary initial field"
+ },
+ "results": {
+  "ordinary_cold_growth_over_wp": 0.33847119301772016,
+  "mixed_cold_growth_over_wp": 0.3466973106006945,
+  "cases": [
+   {
+    "fits": {
+     "parent": 0.3322838970369684,
+     "mixed": 0.34069381642582297
+    },
+    "late_mode_rms_V_m": {
+     "parent": 64255.921896058775,
+     "mixed": 46696.4191071804
+    },
+    "late_fluctuating_energy_over_initial": {
+     "parent": 0.07615521671425134,
+     "mixed": 0.03925241799517559
+    },
+    "bounce_over_growth": {
+     "parent": 1.5441408803824048,
+     "mixed": 1.4705101133085927
+    },
+    "parent_max_energy_drift": 0.006995738263068096,
+    "mixed_max_energy_drift": 0.006771281662053319,
+    "max_dark_work_residual_over_transfer": 1.9092349200638694e-05,
+    "max_dark_gauss": 4.528556019067764e-08
+   },
+   {
+    "fits": {
+     "parent": 0.3343469445713588,
+     "mixed": 0.34301742514915123
+    },
+    "late_mode_rms_V_m": {
+     "parent": 48368.13613762925,
+     "mixed": 43651.13773889723
+    },
+    "late_fluctuating_energy_over_initial": {
+     "parent": 0.04336935139922348,
+     "mixed": 0.034173841749607234
+    },
+    "bounce_over_growth": {
+     "parent": 1.5392261709799206,
+     "mixed": 1.4663048813621424
+    },
+    "parent_max_energy_drift": 0.0023438461900617824,
+    "mixed_max_energy_drift": 0.0018965581798358055,
+    "max_dark_work_residual_over_transfer": 6.905524195073576e-06,
+    "max_dark_gauss": 1.1979136615991592e-07
+   }
+  ],
+  "scope": "cold two-stream long-time numerical comparison; no new-physics claim"
+ }
+}

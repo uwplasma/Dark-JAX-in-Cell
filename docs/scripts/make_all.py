@@ -78,6 +78,25 @@ for name, result in (("two_stream", two), ("weibel", weibel)):
     measured[f"{name}_pic"] = f"{result['pic_fits'][0]['growth_over_wp']:.5f}"
     measured[f"{name}_refined"] = f"{result['pic_fits'][1]['growth_over_wp']:.5f}"
     measured[f"{name}_zero_pic"] = f"{result['zero_coupling_pic_growth_over_wp']:.5f}"
+saturation = {}
+for preset, folder in (("--full", "two_stream_saturation"),
+                       ("--extended", "two_stream_extended")):
+    path = EVIDENCE.parent / folder
+    subprocess.run([sys.executable, str(ROOT / "examples" / "dark_saturation.py"), preset,
+                    "--output", str(path)], cwd=ROOT, check=True)
+    saturation[folder] = json.loads((path / "run.json").read_text())
+short = saturation["two_stream_saturation"]["results"]["cases"]
+long = saturation["two_stream_extended"]["results"]["cases"]
+for label, cases in (("short", short), ("long", long)):
+    coarse = cases[1] if label == "short" else cases[0]
+    measured[f"saturation_{label}_coarse_drift_percent"] = f"{100 * coarse['mixed_max_energy_drift']:.3f}"
+    measured[f"saturation_{label}_refined_drift_percent"] = f"{100 * cases[-1]['mixed_max_energy_drift']:.3f}"
+for i, name in enumerate(("coarse", "refined")):
+    case = long[i]
+    rms = case["late_mode_rms_V_m"]
+    fields = case["late_fluctuating_energy_over_initial"]
+    measured[f"saturation_long_{name}_mode_drop_percent"] = f"{100 * (1 - rms['mixed'] / rms['parent']):.1f}"
+    measured[f"saturation_long_{name}_field_drop_percent"] = f"{100 * (1 - fields['mixed'] / fields['parent']):.1f}"
 null = EVIDENCE.parent / "homogeneous_null"
 subprocess.run([sys.executable, str(ROOT / "examples" / "dark_null.py"), "--full",
                 "--output", str(null)], cwd=ROOT, check=True)
@@ -143,6 +162,10 @@ measured["_provenance"] = {"cold_exchange": provenance(record, "cold_exchange"),
                            "oblique_3v": provenance(oblique_record, "oblique_3v"),
                            "mixed_kinetic": provenance(kinetic_record, "mixed_kinetic"),
                            "mixed_two_stream": provenance(two_record, "mixed_two_stream"),
+                           "two_stream_saturation": provenance(saturation["two_stream_saturation"],
+                                                               "two_stream_saturation"),
+                           "two_stream_extended": provenance(saturation["two_stream_extended"],
+                                                             "two_stream_extended"),
                            "mixed_weibel": provenance(instability_records["mixed_weibel"], "mixed_weibel"),
                            "homogeneous_null": provenance(null_record, "homogeneous_null"),
                            "mobile_ions": provenance(mobile_record, "mobile_ions"),
