@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
+ "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
  "example": "optimize_dark_photon",
  "settings": {
   "preset": "full",
@@ -36,9 +36,9 @@
   "gradient_cold_at_0p97": 5.341304441317959,
   "cold_objective_at_0p97": 0.8621955386240382,
   "gradient_fd_min_error": 2.1855015575056314e-09,
-  "primal_compile_s": 0.709109166986309,
-  "gradient_compile_s": 1.3992883340106346,
-  "scan_101_s": 1.592854249989614,
+  "primal_compile_s": 0.47513983299722895,
+  "gradient_compile_s": 1.2149823340005241,
+  "scan_101_s": 1.5828669170150533,
   "trials": [
    {
     "start": 0.75,

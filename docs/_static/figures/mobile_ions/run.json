@@ -1,0 +1,163 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+ "example": "dark_reservoir",
+ "settings": {
+  "cells": 128,
+  "particles_per_species": 8000,
+  "steps": 2000,
+  "dt_omega_p": 0.02,
+  "horizon_omega_p": 40.0,
+  "omega_p_rad_s": 1000000000.0,
+  "length_c_over_omega_p": 6.283185307179586,
+  "T_e_over_mec2": 0.001,
+  "T_i_over_mec2": 0.001,
+  "ion_to_electron_mass": 1836.1526734400013,
+  "force_V_m": 2286.8388275913976,
+  "drive_quiver_over_electron_vth": 0.03,
+  "velocity_mode_seed_over_vth": 0.01,
+  "model": "periodic 1D3V with 1V thermal loading; co-located neutral species",
+  "preset": "full",
+  "refinements": [
+   {
+    "cells": 64,
+    "particles_per_species": 4000,
+    "steps": 1000,
+    "dt_omega_p": 0.04,
+    "horizon_omega_p": 40.0,
+    "omega_p_rad_s": 1000000000.0,
+    "length_c_over_omega_p": 6.283185307179586,
+    "T_e_over_mec2": 0.001,
+    "T_i_over_mec2": 0.001,
+    "ion_to_electron_mass": 1836.1526734400013,
+    "force_V_m": 2286.8388275913976,
+    "drive_quiver_over_electron_vth": 0.03,
+    "velocity_mode_seed_over_vth": 0.01,
+    "model": "periodic 1D3V with 1V thermal loading; co-located neutral species"
+   },
+   {
+    "cells": 128,
+    "particles_per_species": 8000,
+    "steps": 2000,
+    "dt_omega_p": 0.02,
+    "horizon_omega_p": 40.0,
+    "omega_p_rad_s": 1000000000.0,
+    "length_c_over_omega_p": 6.283185307179586,
+    "T_e_over_mec2": 0.001,
+    "T_i_over_mec2": 0.001,
+    "ion_to_electron_mass": 1836.1526734400013,
+    "force_V_m": 2286.8388275913976,
+    "drive_quiver_over_electron_vth": 0.03,
+    "velocity_mode_seed_over_vth": 0.01,
+    "model": "periodic 1D3V with 1V thermal loading; co-located neutral species"
+   }
+  ]
+ },
+ "results": {
+  "cases": {
+   "zero": {
+    "mean_error": 0.0006655810853559195,
+    "initial_energy": [
+     0.048365369846692374,
+     1.8423842428106734e-30,
+     0.0
+    ],
+    "final_energy": [
+     0.04833607813867588,
+     7.18970171485075e-05,
+     0.0
+    ],
+    "local_random_initial": 0.048345807270742794,
+    "local_random_final": 0.04797916403186883,
+    "work": 0.0,
+    "balance_over_scale": 0.000880905268936478
+   },
+   "external": {
+    "mean_error": 0.006465806420050679,
+    "initial_energy": [
+     0.048365369846692374,
+     1.8423842428106734e-30,
+     0.0
+    ],
+    "final_energy": [
+     0.055784706036925376,
+     0.009691400118647454,
+     0.0
+    ],
+    "local_random_initial": 0.048345807270742794,
+    "local_random_final": 0.04797360717007292,
+    "work": 0.017064051215824844,
+    "balance_over_scale": 0.0009652586799933005
+   },
+   "small_reservoir": {
+    "mean_error": 0.0026687635106732444,
+    "initial_energy": [
+     0.048365369846692374,
+     1.8423842428106734e-30,
+     0.0010902608790221149
+    ],
+    "final_energy": [
+     0.04868378724453096,
+     0.00030291621637628573,
+     0.0005150796568584415
+    ],
+    "local_random_initial": 0.048345807270742794,
+    "local_random_final": 0.047981749348989695,
+    "work": -0.000575192532324199,
+    "balance_over_scale": 0.000954244580316262
+   },
+   "large_reservoir": {
+    "mean_error": 0.011982716692409134,
+    "initial_energy": [
+     0.048365369846692374,
+     1.8423842428106734e-30,
+     0.10902608790221155
+    ],
+    "final_energy": [
+     0.0554552320369713,
+     0.00914923254361147,
+     0.09283831749854117
+    ],
+    "local_random_initial": 0.048345807270742794,
+    "local_random_final": 0.0479698784693913,
+    "work": -0.01619284337578428,
+    "balance_over_scale": 0.0004707527455818067
+   }
+  },
+  "refinements": [
+   {
+    "zero": 0.001898075184734345,
+    "external": 0.023221875332128494,
+    "small_reservoir": 0.0075879399465874076,
+    "large_reservoir": 0.04536726375476885
+   },
+   {
+    "zero": 0.0006655810853559195,
+    "external": 0.006465806420050679,
+    "small_reservoir": 0.0026687635106732444,
+    "large_reservoir": 0.011982716692409134
+   }
+  ],
+  "claim": "bounded-time mobile-ion control; long SHARP reproduction unverified",
+  "finite_vs_external": {
+   "small_reservoir": {
+    "pump_error_early_over_initial_force": 0.09687900567524066,
+    "pump_error_full_over_initial_force": 1.975071390463874,
+    "initial_dark_over_initial_particle_energy": 0.022542180127599624,
+    "dark_depletion_fraction": 0.5275629284979658
+   },
+   "large_reservoir": {
+    "pump_error_early_over_initial_force": 0.0010418165521949296,
+    "pump_error_full_over_initial_force": 0.07007548711248412,
+    "initial_dark_over_initial_particle_energy": 2.2542180127599636,
+    "dark_depletion_fraction": 0.14847611902015256
+   }
+  }
+ }
+}

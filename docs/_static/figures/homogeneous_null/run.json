@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
+ "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
  "example": "dark_null",
  "settings": {
   "preset": "full",
@@ -31,10 +31,10 @@
  },
  "results": {
   "max_mode_amplitude_difference_over_initial": [
-   0.0006393504159371865,
-   0.0005791103431093697
+   0.00027839847545119183,
+   3.937775101434407e-05
   ],
-  "refinement_ratio": 1.1040217525806477,
+  "refinement_ratio": 7.069943515813792,
   "claim": "restricted accelerating-frame null, not nonlinear reproduction"
  }
 }

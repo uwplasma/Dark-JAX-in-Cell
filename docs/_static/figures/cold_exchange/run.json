@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
+ "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
  "example": "dark_photon",
  "settings": {
   "preset": "full",
