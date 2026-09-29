@@ -1,0 +1,66 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "deaeffaaeb622fa22c7aa435b7d483115fbdb724-dirty",
+ "example": "dark_reservoir_paper_geometry_pilot",
+ "settings": {
+  "cells": 1000,
+  "particles_per_species": [
+   20000,
+   40000
+  ],
+  "steps": 4000,
+  "dt_omega_p": 0.02,
+  "horizon_omega_p": 80.0,
+  "omega_p_rad_s": 1000000000.0,
+  "length_c_over_omega_p": 40,
+  "T_e_over_mec2": 0.001,
+  "T_i_over_mec2": 0.001,
+  "ion_to_electron_mass": 1836.1526734400013,
+  "force_V_m": 2286.8388275913976,
+  "drive_quiver_over_electron_vth": 0.03,
+  "velocity_mode_seed_over_vth": 0.01,
+  "model": "periodic 1D3V with 1V thermal loading; co-located neutral species",
+  "preset": "early paper-geometry pilot",
+  "source": "Hook, Huang and Shalaby arXiv:2510.13956v1, Appendix B",
+  "limits": "short horizon; quadratic shape; loading below inferred published count"
+ },
+ "results": {
+  "cases": {
+   "20000": {
+    "zero": {
+     "mean_oracle_error_over_force": 0.008650913880057719,
+     "energy_work_balance_over_scale": 0.002576780453607428,
+     "nonzero_field_energy_peak_over_initial_particle": 0.016110286500537366,
+     "local_random_final_over_initial": 0.9701393658521801
+    },
+    "external": {
+     "mean_oracle_error_over_force": 0.02768566703902664,
+     "energy_work_balance_over_scale": 0.0014338195611475165,
+     "nonzero_field_energy_peak_over_initial_particle": 0.016556681217537866,
+     "local_random_final_over_initial": 0.9670260689023406
+    }
+   },
+   "40000": {
+    "zero": {
+     "mean_oracle_error_over_force": 0.0010262692586917484,
+     "energy_work_balance_over_scale": 0.0011431378677804116,
+     "nonzero_field_energy_peak_over_initial_particle": 0.004717367950050463,
+     "local_random_final_over_initial": 0.985004574664367
+    },
+    "external": {
+     "mean_oracle_error_over_force": 0.030704893625364882,
+     "energy_work_balance_over_scale": 0.0006555315041523675,
+     "nonzero_field_energy_peak_over_initial_particle": 0.004436798217286183,
+     "local_random_final_over_initial": 0.9849789988971082
+    }
+   }
+  },
+  "claim": "early control only; nonlinear reproduction unverified"
+ }
+}

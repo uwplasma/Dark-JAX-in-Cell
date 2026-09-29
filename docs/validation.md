@@ -20,7 +20,7 @@ The README's two looping [phase-space](_static/movies/phase_space/figure.webp) a
 | Mixed kinetic and unstable modes | One seeded Maxwellian Landau case, current-neutral cold two-stream, and transverse anisotropy compared with independent determinants; [fit and limits](kinetic.md). Broad parameter/ensemble convergence pending |
 | Homogeneous pump null | Matched zero-drive and prescribed-drive seeded Maxwellian runs: largest normalized mode-amplitude differences **{{ null_coarse_error }}** (64 cells, 4,000 particles) and **{{ null_fine_error }}** (128 cells, 16,000 particles). This pair has not established an asymptotic convergence rate |
 | Constrained slab conversion | Outgoing photon flux, independent cold scattering, fixed-column profile constraints, held-out and refined PIC, finite-amplitude replay in [profile design](profile.md). One slab family only |
-| Mobile-ion external and finite-reservoir control | Seeded matched loading, two fluid mean oracle, work/energy and cell-local random kinetic ledgers in [kinetic controls](kinetic.md). Bounded time; published nonlinear reproduction remains unverified |
+| Mobile-ion external and finite-reservoir control | Seeded matched loading, two-fluid mean oracle, work/energy and cell-local random kinetic ledgers; an [early paper-geometry pilot](kinetic.md) checks two loadings and nonzero-$k$ energy. Published nonlinear reproduction remains unverified |
 | Long-run AD, SOLVAX | Exact recurrence comparison and memory/timing in [performance](performance.md); broader horizon/device study pending |
 | Density calibration | Full fixed-window PIC optimum and independent cold oracle in [optimization](optimization.md) |
 

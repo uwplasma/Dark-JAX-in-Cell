@@ -111,25 +111,28 @@ def run_case(plasma, model, steps, store_every, force, wp):
                                    - oracle[:, :2] * np.array([1, float(model.eta)])))
     field = np.asarray(out.ordinary.E[:, :, 0])
     mode = np.abs(np.fft.rfft(field, axis=1)[:, 1]) / plasma.domain.cells
+    fluctuation = field - field.mean(axis=1, keepdims=True)
+    nonzero_energy = 0.5 * epsilon_0 * plasma.domain.dx * np.sum(fluctuation**2, axis=1)
     initial_energy, final_energy = energy_parts(start, plasma, model), energy_parts(end, plasma, model)
     work = float(np.asarray(out.work[-1]))
     balance = (sum(final_energy) - sum(initial_energy) - (work if driven else 0))
     energy_scale = max(initial_energy[0], initial_energy[2], abs(work))
     return dict(t=t, pump=pump, mean_E=field.mean(axis=1) / force,
-                mode=mode, cold_mean=oracle[:, 0], mean_error=float(mean_error),
+                mode=mode, nonzero_energy=nonzero_energy, cold_mean=oracle[:, 0],
+                mean_error=float(mean_error),
                 initial_energy=initial_energy.tolist(), final_energy=final_energy.tolist(),
                 local_random_initial=local_random(start, plasma),
                 local_random_final=local_random(end, plasma),
                 work=work, balance_over_scale=float(balance / energy_scale))
 
 
-def experiment(cells, particles, dtau, horizon):
+def experiment(cells, particles, dtau, horizon, length_units=2 * np.pi, model_names=None):
     """Use co-located neutral species and one deterministic kinetic seed."""
     wp, mass_ratio = 1e9, mass_proton / mass_electron
     density = wp**2 * epsilon_0 * mass_electron / e**2
     vth_e = np.sqrt(2e-3) * c
     vth_i = vth_e / np.sqrt(mass_ratio)
-    length = 2 * np.pi * c / wp
+    length = length_units * c / wp
     x, v = quiet_start(particles, length, vth=(vth_e, 0, 0))
     ions_v = v.at[:, 0].set(v[:, 0] / np.sqrt(mass_ratio))
     v = v.at[:, 0].add(0.01 * vth_e * jnp.sin(2 * np.pi * x[:, 0] / length))
@@ -145,11 +148,13 @@ def experiment(cells, particles, dtau, horizon):
     for eta, label in ((0.2, "small_reservoir"), (0.02, "large_reservoir")):
         initial = jnp.tile(jnp.array([force / eta, 0.0, 0.0]), (cells, 1))
         cases[label] = DarkField(wp, eta, initial_E=initial)
+    if model_names is not None:
+        cases = {name: cases[name] for name in model_names}
     histories = {label: run_case(plasma, model, steps, 20, force, wp)
                  for label, model in cases.items()}
     return histories, dict(cells=cells, particles_per_species=particles, steps=steps,
                            dt_omega_p=dtau, horizon_omega_p=steps * dtau,
-                           omega_p_rad_s=wp, length_c_over_omega_p=2 * np.pi,
+                           omega_p_rad_s=wp, length_c_over_omega_p=length_units,
                            T_e_over_mec2=1e-3, T_i_over_mec2=1e-3,
                            ion_to_electron_mass=mass_ratio, force_V_m=force,
                            drive_quiver_over_electron_vth=0.03,
@@ -157,18 +162,77 @@ def experiment(cells, particles, dtau, horizon):
                            model="periodic 1D3V with 1V thermal loading; co-located neutral species")
 
 
+def paper_geometry_pilot(folder):
+    """Early strong-drive check at SHARP's box/grid, with two loading counts."""
+    runs = [experiment(1000, particles, 0.02, 80, length_units=40,
+                       model_names=("zero", "external")) for particles in (20000, 40000)]
+    histories, settings = runs[-1]
+    t = histories["zero"]["t"]
+    results = {str(config["particles_per_species"]): {
+        name: {"mean_oracle_error_over_force": case["mean_error"],
+               "energy_work_balance_over_scale": case["balance_over_scale"],
+               "nonzero_field_energy_peak_over_initial_particle": float(
+                   np.max(case["nonzero_energy"]) / case["initial_energy"][0]),
+               "local_random_final_over_initial": case["local_random_final"] / case["local_random_initial"]}
+        for name, case in records.items()} for records, config in runs}
+    with midnight():
+        fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout="constrained")
+        for records, config in runs:
+            count = config["particles_per_species"]
+            for name, color in (("zero", "#8f899e"), ("external", "#bd93f9")):
+                case = records[name]
+                label = f"{name}, {count // 1000}k/species"
+                linestyle = "-" if count == 40000 else "--"
+                axes[0, 1].semilogy(t, np.maximum(case["nonzero_energy"] / case["initial_energy"][0], 1e-15),
+                                    color=color, ls=linestyle, label=label)
+                axes[1, 0].semilogy(t, case["mode"] / case["mode"][0],
+                                    color=color, ls=linestyle)
+        axes[0, 0].plot(t, histories["external"]["mean_E"], color="#50fae4", label="PIC")
+        axes[0, 0].plot(t, histories["external"]["cold_mean"], "--", color="#ffb86c",
+                        label="independent cold two-fluid")
+        bars = [results[str(count)][name]["local_random_final_over_initial"]
+                for count in (20000, 40000) for name in ("zero", "external")]
+        axes[1, 1].bar(range(4), bars, color=["#8f899e", "#bd93f9"] * 2)
+        axes[1, 1].set_xticks(range(4), ("20k zero", "20k drive", "40k zero", "40k drive"), rotation=15)
+        axes[0, 0].set(xlabel=r"$\omega_p t$", ylabel="mean $E_x/F$", title="The early mean response")
+        axes[0, 1].set(xlabel=r"$\omega_p t$", ylabel="nonzero-$k$ E energy / initial particle",
+                       title="Higher modes, including noise")
+        axes[1, 0].set(xlabel=r"$\omega_p t$", ylabel="seeded $k_1$ amplitude / initial",
+                       title="One seeded mode")
+        axes[1, 1].set(ylabel="cell-local random kinetic / initial", title=r"At $\omega_p t=80$")
+        for ax in axes.flat:
+            ax.grid(alpha=0.25)
+        axes[0, 0].legend(facecolor="#232334", edgecolor="#8f899e")
+        axes[0, 1].legend(facecolor="#232334", edgecolor="#8f899e", fontsize=8)
+        curves = {f"{config['particles_per_species']}_{name}_{key}": case[key]
+                  for records, config in runs for name, case in records.items()
+                  for key in ("mode", "nonzero_energy", "mean_E", "cold_mean")}
+        save_run(folder, "dark_reservoir_paper_geometry_pilot",
+                 {**settings, "preset": "early paper-geometry pilot", "particles_per_species": [20000, 40000],
+                  "source": "Hook, Huang and Shalaby arXiv:2510.13956v1, Appendix B",
+                  "limits": "short horizon; quadratic shape; loading below inferred published count"},
+                 {"cases": results, "claim": "early control only; nonlinear reproduction unverified"}, fig,
+                 t=t, **curves)
+        plt.close(fig)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Follow a mobile-ion ghost and its finite reservoir")
-    parser.add_argument("--full", action="store_true", help="two physical resolutions")
+    preset = parser.add_mutually_exclusive_group()
+    preset.add_argument("--full", action="store_true", help="two physical resolutions")
+    preset.add_argument("--paper-pilot", action="store_true", help="short paper-geometry loading check")
     parser.add_argument("--output", type=Path, default=Path("artifacts/dark_reservoir"))
     args = parser.parse_args()
+    if args.paper_pilot:
+        paper_geometry_pilot(args.output)
+        return
     presets = ((64, 4000, 0.04, 40), (128, 8000, 0.02, 40)) if args.full else (
         (32, 1000, 0.08, 20),)
     runs = [experiment(*preset) for preset in presets]
     histories, settings = runs[-1]
     t = histories["external"]["t"]
     zero = histories["zero"]["mode"]
-    curves = ("t", "pump", "mean_E", "mode", "cold_mean")
+    curves = ("t", "pump", "mean_E", "mode", "nonzero_energy", "cold_mean")
     results = {"cases": {name: {key: value for key, value in record.items() if key not in curves}
                          for name, record in histories.items()},
                "refinements": [{name: record["mean_error"] for name, record in cases.items()}
