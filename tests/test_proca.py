@@ -9,9 +9,12 @@ from scipy.linalg import expm
 from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
                        epsilon_0, mass_electron, speed_of_light as c)
 from jaxincell._core import curl_E
+from jaxincell.theory import landau_root
 from darkjaxincell import (DarkField, DarkSimulation, PrescribedDrive, gauss,
                            load_state, save_state)
 from darkjaxincell._proca import divergence, drift, gradient, kick
+from examples.optimize_dark_photon import build_objective, cold_reference
+from examples.dark_kinetic import mixed_root
 
 
 OMEGA = 1e9
@@ -86,6 +89,27 @@ def test_prescribed_static_drive_equals_parent_external_field_and_work():
     np.testing.assert_allclose(out.ordinary.E, reference.E, rtol=0, atol=1e-18)
     np.testing.assert_allclose(out.ordinary.v, reference.v, rtol=1e-13, atol=1e-18)
     assert float(out.work[-1]) != 0.0
+
+
+@pytest.mark.parametrize("density_ratio", [0.8, 1.0])
+def test_time_dependent_drive_matches_cold_oracle_and_work(density_ratio):
+    base = plasma(density=density_ratio * N_REF, n=128, cells=32)
+    amplitude = 1e-5
+    sim = DarkSimulation(base, PrescribedDrive(0.05, jnp.array([0.0, amplitude, 0.0]), OMEGA))
+    out = sim.run(250)
+    time = np.asarray(out.ordinary.t)
+    wp = OMEGA * np.sqrt(density_ratio)
+    if density_ratio == 1.0:
+        expected = -0.05 * wp * amplitude / 2 * time * np.sin(wp * time)
+    else:
+        expected = (0.05 * wp**2 * amplitude / (wp**2 - OMEGA**2)
+                    * (np.cos(wp * time) - np.cos(OMEGA * time)))
+    measured = np.asarray(out.ordinary.E[:, :, 1].mean(axis=1))
+    assert np.max(np.abs(measured - expected)) / amplitude < 1e-4
+    total = np.asarray(out.energy()["total"])
+    work = np.asarray(out.work)
+    transfer = work[-1] - work[0]
+    assert abs((total[-1] - total[0]) - transfer) / abs(transfer) < 1e-3
 
 
 def test_dark_coupling_gradient_matches_finite_difference():
@@ -203,3 +227,91 @@ def test_initial_potential_solves_dark_gauss_and_output_is_jittable():
     assert result.E.shape == (2, base.domain.cells, 3)
     with pytest.raises(ValueError, match="zero mean"):
         DarkSimulation(base, DarkField(OMEGA, 0.1, initial_phi=jnp.ones(base.domain.cells)))
+
+
+def test_oblique_magnetized_cold_3v_matrix_response():
+    p, eta, amplitude = 0.8, 0.1, 1e-5
+    d = plasma(cells=32).domain
+    magnetic = np.array([0.2, -0.15, 0.1]) * mass_electron * OMEGA / e
+    base = Simulation(d, (Species.electrons(128, density=p * N_REF),),
+                      external_B=jnp.broadcast_to(magnetic, (d.cells, 3)))
+    wave = jnp.broadcast_to(jnp.array([1.0, 0.4, -0.2]) * amplitude, (d.cells, 3))
+    out = DarkSimulation(base, DarkField(OMEGA, eta, initial_E=wave)).run(200)
+    generator = np.zeros((12, 12))
+    eye = np.eye(3)
+    generator[0:3, 9:12] = -eye
+    generator[3:6, 6:9] = eye
+    generator[3:6, 9:12] = -eta * eye
+    generator[6:9, 3:6] = -eye
+    generator[9:12, 0:3] = p * eye
+    generator[9:12, 3:6] = eta * p * eye
+    bx, by, bz = magnetic
+    cross_right = np.array([[0, bz, -by], [-bz, 0, bx], [by, -bx, 0]])
+    generator[9:12, 9:12] = -e / (mass_electron * OMEGA) * cross_right
+    initial = np.r_[np.zeros(3), [1.0, 0.4, -0.2], np.zeros(6)]
+    reference = np.array([expm(generator * t * OMEGA) @ initial
+                          for t in np.asarray(out.ordinary.t)])
+    fields = np.c_[np.asarray(out.ordinary.E).mean(axis=1) / amplitude,
+                   np.asarray(out.E).mean(axis=1) / amplitude]
+    np.testing.assert_allclose(fields, reference[:, :6], atol=6e-4)
+    current = (-e * p * N_REF * np.asarray(out.ordinary.v).mean(axis=1)
+               / (epsilon_0 * OMEGA * amplitude))
+    np.testing.assert_allclose(current, reference[:, 9:12], atol=2e-4)
+
+
+def test_density_derivative_includes_loading_and_energy_metric():
+    objective, value_grad, _ = build_objective(16, 64, 2.0, 5.0)
+    p = 0.9
+    value, derivative = value_grad(p)
+    cold_value, cold_derivative = cold_reference(p, 2.0, 5.0)
+    np.testing.assert_allclose(value, cold_value, rtol=0.006)
+    np.testing.assert_allclose(derivative, cold_derivative, rtol=0.006)
+    h = 1e-4
+    finite = (objective(p + h) - objective(p - h)) / (2 * h)
+    np.testing.assert_allclose(derivative, finite, rtol=2e-5)
+
+
+def test_jvp_vjp_and_mass_gradient_of_coupled_response():
+    base = plasma(density=0.4 * N_REF)
+    wave = jnp.broadcast_to(jnp.array([0.0, 1e-5, 0.0]), (base.domain.cells, 3))
+
+    def signal(theta):
+        eta, mass_ratio = theta
+        model = DarkField(omega=OMEGA * mass_ratio, eta=eta, initial_E=wave)
+        out = DarkSimulation(base, model).run(8, store_particles=False)
+        return jnp.mean(out.ordinary.E[-1, :, 1]) / 1e-5
+
+    point = jnp.array([0.1, 1.1])
+    direction = jnp.array([0.3, -0.2])
+    _, tangent = jax.jvp(signal, (point,), (direction,))
+    _, pullback = jax.vjp(signal, point)
+    adjoint = jnp.dot(pullback(jnp.array(1.0))[0], direction)
+    finite = (signal(point + 1e-4 * direction) - signal(point - 1e-4 * direction)) / 2e-4
+    np.testing.assert_allclose(tangent, adjoint, rtol=1e-11, atol=1e-12)
+    np.testing.assert_allclose(tangent, finite, rtol=2e-5, atol=1e-9)
+
+
+@pytest.mark.parametrize("stop", [5.0, 5.4])  # exact and partial checkpoint segments
+def test_reduced_recurrences_have_same_discrete_gradient(stop):
+    baseline = build_objective(8, 16, 2.0, stop, "scan", 16)[1](0.9)
+    methods = ["remat", "segmented"]
+    try:
+        import solvax  # noqa: F401
+    except ImportError:
+        pass
+    else:
+        methods.append("solvax")
+    for method in methods:
+        candidate = build_objective(8, 16, 2.0, stop, method, 16)[1](0.9)
+        np.testing.assert_allclose(candidate[0], baseline[0], rtol=1e-12)
+        np.testing.assert_allclose(candidate[1], baseline[1], rtol=1e-10)
+
+
+def test_mixed_kinetic_reference_root_and_zero_coupling_limit():
+    k_bar = 2 * np.pi / (0.05 * 64)
+    sigma_bar = 0.5 / k_bar
+    mixed, residual = mixed_root(k_bar, sigma_bar, 0.3, 1.0)
+    plain, plain_residual = mixed_root(k_bar, sigma_bar, 0.0, 1.0)
+    np.testing.assert_allclose([mixed.real, mixed.imag], [1.4369479716, -0.1418558526], rtol=1e-8)
+    np.testing.assert_allclose(plain, landau_root(0.5), rtol=1e-8)
+    assert residual < 1e-10 and plain_residual < 1e-10

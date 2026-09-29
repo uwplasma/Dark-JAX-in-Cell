@@ -15,4 +15,9 @@ jobs:
       - run: python -m flake8 darkjaxincell tests examples docs/scripts
       - run: python -m pytest -q
       - run: python examples/dark_photon.py --quick
+      - run: python examples/dark_drive.py
+      - run: python examples/dark_plasma.py
+      - run: python examples/dark_kinetic.py
+      - run: python examples/dark_null.py
+      - run: python examples/optimize_dark_photon.py --quick
       - run: python -m sphinx -b html -W docs docs/_build/html

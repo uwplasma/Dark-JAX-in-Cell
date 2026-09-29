@@ -47,6 +47,8 @@ $$
 
 The tracked dark source work approximates $-\eta\int dt\,dx\,\mathbf J\cdot\mathbf E_D$ with fields centred on each source kick. A prescribed drive instead accumulates external particle work from the Boris mean velocity. It has no simulated dark energy reservoir and cannot demonstrate dark depletion. The continuum dark flux is $\epsilon_0c^2\mathbf E_D\times\mathbf B_D+\epsilon_0\Omega_D^2\phi_D\mathbf A_D$; outgoing flux is not yet a supported diagnostic.
 
+For the homogeneous prescribed drive $E_D=D_0\cos\Omega t$ and an initially quiet cold plasma, the ordinary field obeys $\ddot E+\omega_p^2E=-\eta\omega_p^2D_0\cos\Omega t$. Its resonant limit is $E=-\eta\omega_pD_0t\sin(\omega_pt)/2$. The [drive example](../examples/dark_drive.py) evaluates the continuous, stable sinc form near resonance and checks the accumulated external-work balance. This is the same effective ordinary forcing; its linear-in-time amplitude is not exponential growth.
+
 ## Independent cold check
 
 For a homogeneous cold plasma, fixed reference frequency $\omega_0$, $p=\omega_p^2/\omega_0^2$, and $\Omega_D=\omega_0$, normalize time by $\omega_0^{-1}$, E by a fixed $D_0$, A by $D_0/\omega_0$, and J by $\epsilon_0\omega_0D_0$. Then $y=(E,E_D,A_D,J)$ obeys

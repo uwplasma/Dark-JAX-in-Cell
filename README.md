@@ -17,6 +17,9 @@
 - **Prescribed drive:** a traceable homogeneous sinusoid with accumulated external work. This mode has no simulated dark reservoir.
 - **Differentiable controls:** coupling, mass frequency, initial arrays, particle loading, and fixed-time output remain JAX leaves.
 - **Complete restart:** the native archive carries particles, fields, potentials, background, absolute clock, and accumulated work.
+- **Known-answer optimization:** a fixed-window density calibration differentiates through particle loading and the complete PIC recurrence.
+- **Cold oblique 3V check:** all velocity and field components compared with an independent magnetized fluid matrix.
+- **One mixed kinetic mode:** a seeded, current-neutral longitudinal Maxwellian check against a Vlasov–Proca root, with its fit uncertainty recorded.
 - **Slim dependency:** imports JAX-in-Cell's loading, deposition, gathering, Boris push, ordinary field step, diagnostics, and archive machinery from its reviewed `research-release` SHA.
 
 The library currently supports **periodic explicit electromagnetic Ampere runs without filters, collisions, or particle sources**. Unsupported combinations fail at construction. Kinetic instability benchmarks, nonlinear driven-plasma reproduction, constrained profile design, and full performance comparisons remain open validation work; see [validation and limits](docs/validation.md).
@@ -54,11 +57,16 @@ print("🌘 total energy (J/m²):", output.energy()["total_with_dark"][-1])
 ```sh
 python -m pytest -q
 python examples/dark_photon.py --quick
+python examples/dark_drive.py
+python examples/dark_plasma.py
+python examples/dark_kinetic.py
+python examples/dark_null.py
+python examples/optimize_dark_photon.py --quick
 python docs/scripts/make_all.py
 python -m sphinx -b html -W docs docs/_build/html
 ```
 
-`--quick` is a smoke run. `make_all.py` runs the **full** cold preset and writes its figure, data, measured numbers, and provenance together. The [validation page](docs/validation.md) separates measured checks from pending research claims.
+Quick presets are smoke runs. `make_all.py` runs the **full** cold, prescribed-drive, oblique 3V, mixed-kinetic, homogeneous-null and density-calibration presets and writes their figures, data, measured numbers, and provenance together. The [validation page](docs/validation.md) separates measured checks from pending research claims.
 
 ## Credit and license
 
