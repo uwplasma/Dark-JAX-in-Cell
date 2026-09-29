@@ -6,25 +6,33 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "396fc5367deb737cef01d1200e1589dad791864d-dirty",
+ "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
  "example": "dark_movie_phase_space",
  "settings": {
   "preset": "illustration",
-  "cells": 64,
-  "particles": 4096,
-  "steps": 768,
-  "store_every": 24,
+  "cells": 128,
+  "particles": 32768,
+  "particle_check_count": 8192,
+  "steps": 1536,
+  "store_every": 32,
   "eta": 0.3,
   "omega_rad_s": 1151203038.72,
   "thermal_m_s": 77946039.08,
   "seed_displacement_over_1_k": 0.06,
+  "cells_per_Debye_length": 6.128258770283411,
+  "stored_samples_per_plasma_period": 16.362461737446836,
+  "particles_plotted_per_panel": 3641,
   "matched_loading": "same species x, v, weights and ordinary initial field"
  },
  "results": {
-  "frames": 32,
-  "webp_bytes": 539978,
-  "closed_energy_relative_drift": 1.6243089171696923e-05,
-  "parent_energy_relative_drift": 1.0072970192176456e-05,
-  "max_dark_gauss_V_m2": 3.6798155633732677e-09
+  "frames": 48,
+  "webp_bytes": 1867488,
+  "mode_rms_relative_particle_change": {
+   "parent": 0.024944427707863526,
+   "mixed": 0.023240871409763858
+  },
+  "closed_energy_relative_drift": -3.5568330680746385e-07,
+  "parent_energy_relative_drift": -1.5091916441001274e-06,
+  "max_dark_gauss_V_m2": 9.909854270517826e-09
  }
 }

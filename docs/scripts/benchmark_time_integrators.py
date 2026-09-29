@@ -135,21 +135,20 @@ def main():
                               ("DOP853", 0.2))]
     with midnight():
         fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
-        for run, color in zip(runs, ("#bd93f9", "#ff79c6", "#50fae4", "#8be9fd", "#ffb86c")):
+        for run, color in zip(runs, ("#6A3D9A", "#B03568", "#0072B2", "#009E73", "#D55E00")):
             label = f"{run['method']}, ΔtΩ={run['h_omega']}"
-            axes[0].plot(run["time"], run["energy_change"], label=label, color=color)
-        axes[0].set(xlabel=r"$\Omega_D t$", ylabel="relative Proca energy change",
-                    title="Vacuum energy; longitudinal + transverse")
-        axes[0].legend(facecolor="#232334", edgecolor="#8f899e", fontsize=7)
-        axes[1].scatter([run["seconds"] for run in runs],
-                        [run["final_relative_state_error"] for run in runs],
-                        c=("#bd93f9", "#ff79c6", "#50fae4", "#8be9fd", "#ffb86c"))
-        for run in runs:
-            axes[1].annotate(f"{run['method']} {run['h_omega']}",
-                             (run["seconds"], run["final_relative_state_error"]),
-                             xytext=(4, 3), textcoords="offset points", fontsize=7)
+            drift = np.maximum.accumulate(np.abs(run["energy_change"]))
+            axes[0].semilogy(run["time"], np.maximum(drift, 1e-15), label=label, color=color)
+        axes[0].set(xlabel=r"$\Omega_D t$", ylabel=r"largest $|\Delta U/U_0|$ so far",
+                    ylim=(1e-15, 1e-1), title="Vacuum Proca energy")
+        axes[0].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=7, loc="center right")
+        for run, color in zip(runs, ("#6A3D9A", "#B03568", "#0072B2", "#009E73", "#D55E00")):
+            axes[1].scatter(run["seconds"], run["final_relative_state_error"], color=color,
+                            label=f"{run['method']}, ΔtΩ={run['h_omega']}")
         axes[1].set(xlabel="wall time including setup (s)", ylabel="final state error vs exp(tL)",
+                    xlim=(0, max(run["seconds"] for run in runs) * 1.1),
                     yscale="log", title="Phase and amplitude accuracy")
+        axes[1].legend(loc="center", facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=7)
         for ax in axes:
             ax.grid(alpha=0.25)
         settings = {"preset": "quick" if args.quick else "full", "cells": cells,

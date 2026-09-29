@@ -420,8 +420,8 @@ def main():
                     title="Outgoing photons, with held-out points")
         axes[0].grid(alpha=0.4)
         axes[1].grid(alpha=0.4)
-        axes[0].legend(facecolor="#232334", edgecolor="#8f899e", fontsize=8)
-        axes[1].legend(facecolor="#232334", edgecolor="#8f899e", fontsize=8)
+        axes[0].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
+        axes[1].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
         settings = {"preset": "full" if args.full else "quick", "cells": cells, "steps": steps,
                     "particles_per_basis_per_species": 128, "length_over_c_omega0": 80,
                     "detector_over_c_omega0": float(domain.grid[detector] / ell),

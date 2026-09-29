@@ -62,7 +62,7 @@ def main():
         axes[1].set(xlabel=r"$\omega_0 t$", ylabel=r"dark mean $E_D/D_0$")
         for ax in axes:
             ax.grid(alpha=0.4)
-            ax.legend(facecolor="#232334", edgecolor="#8f899e", fontsize=7, ncol=2)
+            ax.legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=7, ncol=2)
         settings = {"preset": "full" if args.full else "quick", "cells": cells,
                     "particles": particles, "steps": steps, "omega0_rad_s": omega0,
                     "density_ratio": p, "eta": eta, "B_T": magnetic.tolist()}

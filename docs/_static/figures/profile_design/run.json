@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+ "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
  "example": "dark_profile",
  "settings": {
   "preset": "full",
@@ -93,7 +93,7 @@
    "objective": 0.002091275418002552,
    "calls": 8,
    "success": true,
-   "elapsed_s": 7.330672833020799,
+   "elapsed_s": 10.116862916969694,
    "trace": [
     0.002063896047823509,
     0.002065987682763575,
@@ -120,7 +120,7 @@
     "objective": 0.002091275418002552,
     "calls": 8,
     "success": true,
-    "elapsed_s": 7.330672833020799,
+    "elapsed_s": 10.116862916969694,
     "trace": [
      0.002063896047823509,
      0.002065987682763575,
@@ -146,7 +146,7 @@
     "objective": 0.002091275418002551,
     "calls": 8,
     "success": true,
-    "elapsed_s": 6.718633666983806,
+    "elapsed_s": 10.662818958982825,
     "trace": [
      0.0020633380043438075,
      0.0020661105822419325,
@@ -172,7 +172,7 @@
     "objective": 0.002091275418002552,
     "calls": 8,
     "success": true,
-    "elapsed_s": 7.257744207978249,
+    "elapsed_s": 12.337443333002739,
     "trace": [
      0.002042118495228351,
      0.002046188041253871,
@@ -512,6 +512,6 @@
   "column_ratio": 1.0,
   "profile_gradient_ad": 3.045243230201888e-05,
   "profile_gradient_fd": 3.0452418931783617e-05,
-  "gradient_compile_s": 3.0549976660404354
+  "gradient_compile_s": 3.188540707982611
  }
 }

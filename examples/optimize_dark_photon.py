@@ -171,12 +171,12 @@ def main():
                         marker="x", s=65, label="gradient starts")
         axes[0].set(xlabel=r"$p=n/n_{\rm ref}$", ylabel="coherent transfer objective",
                     title="The density that wakes the ghost")
-        axes[0].legend(facecolor="#232334", edgecolor="#8f899e", fontsize=8)
+        axes[0].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
         axes[1].loglog(h, np.abs(finite - ad_gradient), "o-", label="PIC FD − AD")
         axes[1].axhline(abs(ad_gradient - cold_gradient), ls="--", label="PIC AD − cold Fréchet")
         axes[1].set(xlabel="finite-difference step in p", ylabel="absolute gradient error",
                     title="Gradient under the moonlight")
-        axes[1].legend(facecolor="#232334", edgecolor="#8f899e", fontsize=8)
+        axes[1].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
         for ax in axes:
             ax.grid(alpha=0.4)
         settings = {"preset": "quick" if quick else "full", "window": [start, stop],

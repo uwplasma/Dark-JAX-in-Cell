@@ -155,7 +155,7 @@ def main():
         ax.set(xlabel=r"$\omega_p t$", ylabel=ylabel,
                title=f"{args.mode}: a current-neutral haunting")
         ax.grid(alpha=0.4)
-        ax.legend(facecolor="#232334", edgecolor="#8f899e", fontsize=8)
+        ax.legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
         settings = {"preset": "full" if args.full else "quick", "mode": args.mode,
                     "cases_cells_particles_steps": cases, "eta": 0.3, "mu_over_wp": 0.7,
                     "linear_window_wp_t": window, "background": "uniform fixed neutralizer"}

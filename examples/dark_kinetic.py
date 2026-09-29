@@ -108,7 +108,7 @@ def main():
         ax.set(xlabel=r"$\omega_p t$", ylabel=r"$|E_{x,k}|$ (V/m)",
                title="Matched loading: ordinary and mixed Landau modes")
         ax.grid(alpha=0.4)
-        ax.legend(facecolor="#232334", edgecolor="#8f899e")
+        ax.legend(facecolor="#FFFFFF", edgecolor="#6B7280")
         settings = {"preset": "full" if args.full else "quick", "cells": cells,
                     "particles": particles, "steps": steps, "length_m": length,
                     "omega_p_rad_s": wp, "eta": eta, "mu_over_wp": 1.0,

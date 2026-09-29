@@ -126,24 +126,24 @@ def main():
     with midnight():
         fig, axes = plt.subplots(2, 3, figsize=(12, 7), layout="constrained")
         t = runs[0]["t"]
-        axes[0, 0].semilogy(t, runs[0]["parent_mode"], color="#50fae4", label="parent")
-        axes[0, 0].semilogy(t, runs[0]["mixed_mode"], color="#bd93f9", label="dark")
+        axes[0, 0].semilogy(t, runs[0]["parent_mode"], color="#0072B2", label="parent")
+        axes[0, 0].semilogy(t, runs[0]["mixed_mode"], color="#6A3D9A", label="dark")
         if args.full or args.extended:
             window = (t >= 10) & (t <= 20)
-            for rate, mode, color in ((parent_reference, "parent_mode", "#50fae4"),
-                                      (reference, "mixed_mode", "#bd93f9")):
+            for rate, mode, color in ((parent_reference, "parent_mode", "#0072B2"),
+                                      (reference, "mixed_mode", "#6A3D9A")):
                 curve = runs[0][mode][np.flatnonzero(window)[0]] * np.exp(rate * (t - t[window][0]))
                 axes[0, 0].semilogy(t[window], curve[window], "--", color=color)
         axes[0, 0].set(xlabel=r"$\omega_p t$", ylabel=r"$|E_{x,k_1}|$ (V/m)",
                        title="Linear growth and saturation")
-        axes[0, 0].legend(facecolor="#232334", edgecolor="#8f899e")
-        for key, color, label in (("kinetic", "#ffb86c", "particles"),
-                                  ("ordinary_field", "#50fae4", "ordinary field"),
-                                  ("dark_field", "#bd93f9", "dark field")):
+        axes[0, 0].legend(facecolor="#FFFFFF", edgecolor="#6B7280")
+        for key, color, label in (("kinetic", "#D55E00", "particles"),
+                                  ("ordinary_field", "#0072B2", "ordinary field"),
+                                  ("dark_field", "#6A3D9A", "dark field")):
             axes[0, 1].plot(t, runs[0][key] / runs[0]["mixed_total"][0], color=color, label=label)
         axes[0, 1].set(xlabel=r"$\omega_p t$", ylabel="energy / initial closed total",
                        yscale="log", ylim=(1e-5, 2), title="Where the energy goes")
-        axes[0, 1].legend(facecolor="#232334", edgecolor="#8f899e", fontsize=8)
+        axes[0, 1].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
         shown = (0, 1, 4) if args.full else range(len(runs))
         for i in shown:
             run = runs[i]
@@ -151,21 +151,21 @@ def main():
                      f"Δtωp={run['settings']['dt_omega_p']}")
             axes[0, 2].plot(run["t"], run["mixed_total"] / run["mixed_total"][0] - 1, label=label)
         axes[0, 2].plot(t, runs[0]["parent_total"] / runs[0]["parent_total"][0] - 1,
-                        "--", color="#50fae4", label="parent, base")
+                        "--", color="#0072B2", label="parent, base")
         axes[0, 2].set(xlabel=r"$\omega_p t$", ylabel="relative total-energy change",
                        title="Closed energy; time and grid checks")
-        axes[0, 2].legend(facecolor="#232334", edgecolor="#8f899e", fontsize=7)
-        for ax, prefix, title, color in ((axes[1, 0], "parent", "Parent at final time", "#50fae4"),
-                                         (axes[1, 1], "mixed", "Dark at final time", "#bd93f9")):
+        axes[0, 2].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=7)
+        for ax, prefix, title, color in ((axes[1, 0], "parent", "Parent at final time", "#0072B2"),
+                                         (axes[1, 1], "mixed", "Dark at final time", "#6A3D9A")):
             ax.scatter(runs[0][f"{prefix}_x"][::5], runs[0][f"{prefix}_v"][::5] / c,
                        s=0.3, color=color, alpha=0.6, rasterized=True)
             ax.set(xlim=(-0.5, 0.5), ylim=(-1, 1), xlabel="$x/L$", ylabel="$v_x/c$", title=title)
         grid = np.arange(cases[0][0]) / cases[0][0] - 0.5
-        axes[1, 2].plot(grid, runs[0]["parent_E"], color="#50fae4", label="parent $E_x$")
-        axes[1, 2].plot(grid, runs[0]["mixed_E"], color="#bd93f9", label="dark $E_x$")
-        axes[1, 2].plot(grid, runs[0]["dark_E"], color="#ffb86c", label="$E_{D,x}$")
+        axes[1, 2].plot(grid, runs[0]["parent_E"], color="#0072B2", label="parent $E_x$")
+        axes[1, 2].plot(grid, runs[0]["mixed_E"], color="#6A3D9A", label="dark $E_x$")
+        axes[1, 2].plot(grid, runs[0]["dark_E"], color="#D55E00", label="$E_{D,x}$")
         axes[1, 2].set(xlabel="$x/L$", ylabel="V/m", title="Final longitudinal fields")
-        axes[1, 2].legend(facecolor="#232334", edgecolor="#8f899e", fontsize=8)
+        axes[1, 2].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
         for ax in axes.flat:
             ax.grid(alpha=0.25)
         settings = {"preset": "extended" if args.extended else "full" if args.full else "quick",

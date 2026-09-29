@@ -6,28 +6,31 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "396fc5367deb737cef01d1200e1589dad791864d-dirty",
+ "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
  "example": "dark_movie_slab_packet",
  "settings": {
   "preset": "illustration",
-  "cells": 128,
-  "particles_per_basis_per_species": 32,
-  "steps": 240,
-  "store_every": 8,
+  "cells": 512,
+  "particles_per_basis_per_species": 256,
+  "steps": 960,
+  "store_every": 12,
   "eta": 0.05,
   "mu_over_omega0": 0.6,
+  "cells_across_slab": 25.6,
+  "cells_per_carrier_wavelength": 50.265482457436676,
+  "stored_samples_per_carrier_period": 8.377580409572783,
   "theta_from": "docs/_static/figures/profile_design/run.json",
   "theta": [
    0.3095725080101341,
    -0.6,
    -0.6
   ],
-  "incident_dark_energy_J_m2": 2.0000000000000005e-05
+  "incident_dark_energy_J_m2": 2e-05
  },
  "results": {
-  "frames": 30,
-  "webp_bytes": 208996,
-  "closed_energy_relative_drift": -7.759077280011795e-06,
-  "max_dark_gauss_V_m2": 1.9810536674644275e-12
+  "frames": 80,
+  "webp_bytes": 967938,
+  "closed_energy_relative_drift": 1.2477660307208538e-06,
+  "max_dark_gauss_V_m2": 8.729440781340969e-13
  }
 }

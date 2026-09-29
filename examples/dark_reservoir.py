@@ -179,7 +179,7 @@ def paper_geometry_pilot(folder):
         fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout="constrained")
         for records, config in runs:
             count = config["particles_per_species"]
-            for name, color in (("zero", "#8f899e"), ("external", "#bd93f9")):
+            for name, color in (("zero", "#6B7280"), ("external", "#6A3D9A")):
                 case = records[name]
                 label = f"{name}, {count // 1000}k/species"
                 linestyle = "-" if count == 40000 else "--"
@@ -187,12 +187,12 @@ def paper_geometry_pilot(folder):
                                     color=color, ls=linestyle, label=label)
                 axes[1, 0].semilogy(t, case["mode"] / case["mode"][0],
                                     color=color, ls=linestyle)
-        axes[0, 0].plot(t, histories["external"]["mean_E"], color="#50fae4", label="PIC")
-        axes[0, 0].plot(t, histories["external"]["cold_mean"], "--", color="#ffb86c",
+        axes[0, 0].plot(t, histories["external"]["mean_E"], color="#0072B2", label="PIC")
+        axes[0, 0].plot(t, histories["external"]["cold_mean"], "--", color="#D55E00",
                         label="independent cold two-fluid")
         bars = [results[str(count)][name]["local_random_final_over_initial"]
                 for count in (20000, 40000) for name in ("zero", "external")]
-        axes[1, 1].bar(range(4), bars, color=["#8f899e", "#bd93f9"] * 2)
+        axes[1, 1].bar(range(4), bars, color=["#6B7280", "#6A3D9A"] * 2)
         axes[1, 1].set_xticks(range(4), ("20k zero", "20k drive", "40k zero", "40k drive"), rotation=15)
         axes[0, 0].set(xlabel=r"$\omega_p t$", ylabel="mean $E_x/F$", title="The early mean response")
         axes[0, 1].set(xlabel=r"$\omega_p t$", ylabel="nonzero-$k$ E energy / initial particle",
@@ -202,8 +202,8 @@ def paper_geometry_pilot(folder):
         axes[1, 1].set(ylabel="cell-local random kinetic / initial", title=r"At $\omega_p t=80$")
         for ax in axes.flat:
             ax.grid(alpha=0.25)
-        axes[0, 0].legend(facecolor="#232334", edgecolor="#8f899e")
-        axes[0, 1].legend(facecolor="#232334", edgecolor="#8f899e", fontsize=8)
+        axes[0, 0].legend(facecolor="#FFFFFF", edgecolor="#6B7280")
+        axes[0, 1].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
         curves = {f"{config['particles_per_species']}_{name}_{key}": case[key]
                   for records, config in runs for name, case in records.items()
                   for key in ("mode", "nonzero_energy", "mean_E", "cold_mean")}
@@ -250,8 +250,8 @@ def main():
         for name, record in histories.items() if name.endswith("reservoir")}
     with midnight():
         fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout="constrained")
-        colors = {"zero": "#8f899e", "external": "#ff79c6",
-                  "small_reservoir": "#bd93f9", "large_reservoir": "#50fae4"}
+        colors = {"zero": "#6B7280", "external": "#B03568",
+                  "small_reservoir": "#6A3D9A", "large_reservoir": "#0072B2"}
         for name, record in histories.items():
             color = colors[name]
             if name != "zero":
@@ -261,7 +261,7 @@ def main():
         axes[1, 1].bar(range(len(histories)),
                        [record["local_random_final"] / record["local_random_initial"]
                         for record in histories.values()], color=list(colors.values()))
-        axes[0, 1].plot(t, histories["small_reservoir"]["cold_mean"], "--", color="#f8f8f2",
+        axes[0, 1].plot(t, histories["small_reservoir"]["cold_mean"], "--", color="#202124",
                         lw=1, label="small reservoir cold oracle")
         axes[0, 0].set(xlabel=r"$\omega_p t$", ylabel="effective pump / F",
                        title="An imposed haunting versus finite reservoirs")
@@ -276,8 +276,8 @@ def main():
         axes[1, 1].set_ylim(0.98, 1.01)
         for ax in axes.flat:
             ax.grid(alpha=0.35)
-        axes[0, 0].legend(facecolor="#232334", edgecolor="#8f899e", fontsize="small")
-        axes[0, 1].legend(facecolor="#232334", edgecolor="#8f899e", fontsize="small")
+        axes[0, 0].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize="small")
+        axes[0, 1].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize="small")
         settings = {**settings, "preset": "full" if args.full else "quick",
                     "refinements": [setting.copy() for _, setting in runs]}
         save_run(args.output, "dark_reservoir", settings, results, fig, t=t,

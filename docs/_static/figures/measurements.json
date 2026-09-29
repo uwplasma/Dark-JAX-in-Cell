@@ -12,7 +12,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
       "run": "cold_exchange/run.json"
     },
     "prescribed_drive": {
@@ -23,7 +23,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
       "run": "prescribed_drive/run.json"
     },
     "density_calibration": {
@@ -34,7 +34,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
       "run": "density_calibration/run.json"
     },
     "oblique_3v": {
@@ -45,7 +45,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
       "run": "oblique_3v/run.json"
     },
     "mixed_kinetic": {
@@ -56,7 +56,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
       "run": "mixed_kinetic/run.json"
     },
     "mixed_two_stream": {
@@ -67,8 +67,30 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
       "run": "mixed_two_stream/run.json"
+    },
+    "two_stream_saturation": {
+      "jaxincell": "0.1.2.dev211+g83d327118",
+      "jax": "0.10.2",
+      "numpy": "2.2.2",
+      "python": "3.11.14",
+      "platform": "Darwin arm64",
+      "jax_enable_x64": true,
+      "backend": "cpu",
+      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+      "run": "two_stream_saturation/run.json"
+    },
+    "two_stream_extended": {
+      "jaxincell": "0.1.2.dev211+g83d327118",
+      "jax": "0.10.2",
+      "numpy": "2.2.2",
+      "python": "3.11.14",
+      "platform": "Darwin arm64",
+      "jax_enable_x64": true,
+      "backend": "cpu",
+      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+      "run": "two_stream_extended/run.json"
     },
     "mixed_weibel": {
       "jaxincell": "0.1.2.dev211+g83d327118",
@@ -78,7 +100,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
       "run": "mixed_weibel/run.json"
     },
     "homogeneous_null": {
@@ -89,7 +111,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
       "run": "homogeneous_null/run.json"
     },
     "mobile_ions": {
@@ -100,7 +122,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
       "run": "mobile_ions/run.json"
     },
     "profile_design": {
@@ -111,7 +133,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
       "run": "profile_design/run.json"
     },
     "recurrence_benchmark": {
@@ -135,28 +157,6 @@
       "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f",
       "samples_per_case": 5,
       "note": "fresh process per case; first call includes compile"
-    },
-    "two_stream_saturation": {
-      "jaxincell": "0.1.2.dev211+g83d327118",
-      "jax": "0.10.2",
-      "numpy": "2.2.2",
-      "python": "3.11.14",
-      "platform": "Darwin arm64",
-      "jax_enable_x64": true,
-      "backend": "cpu",
-      "git": "15f82beaaab478d26a5958d778b29969c9f366e1-dirty",
-      "run": "two_stream_saturation/run.json"
-    },
-    "two_stream_extended": {
-      "jaxincell": "0.1.2.dev211+g83d327118",
-      "jax": "0.10.2",
-      "numpy": "2.2.2",
-      "python": "3.11.14",
-      "platform": "Darwin arm64",
-      "jax_enable_x64": true,
-      "backend": "cpu",
-      "git": "0f7bb96bbde37d7fa35e7c649b27449cfc3c5994-dirty",
-      "run": "two_stream_extended/run.json"
     }
   },
   "drive_wave_error": "7.488e-05",
@@ -186,6 +186,19 @@
   "weibel_pic": "0.05123",
   "weibel_refined": "0.05117",
   "weibel_zero_pic": "0.04993",
+  "saturation_short_coarse_drift_percent": "0.680",
+  "saturation_short_refined_drift_percent": "0.190",
+  "saturation_long_coarse_drift_percent": "0.677",
+  "saturation_long_refined_drift_percent": "0.190",
+  "saturation_long_coarse_mode_drop_percent": "27.3",
+  "saturation_long_coarse_field_drop_percent": "48.5",
+  "saturation_long_refined_mode_drop_percent": "9.8",
+  "saturation_long_refined_field_drop_percent": "21.2",
+  "saturation_long_halfstep_mode_change_percent": "-5.2",
+  "saturation_long_halfstep_field_change_percent": "-11.8",
+  "saturation_long_fine_mode_change_percent": "+14.9",
+  "saturation_long_fine_field_change_percent": "+36.6",
+  "saturation_long_fine_drift_percent": "0.059",
   "null_coarse_error": "2.784e-04",
   "null_fine_error": "3.938e-05",
   "mobile_external_oracle_error": "6.466e-03",
@@ -256,18 +269,5 @@
   "field_eta_zero_rss_mib": "479.1",
   "field_active_warm_ms": "218.9",
   "field_active_first_s": "2.52",
-  "field_active_rss_mib": "477.2",
-  "saturation_short_coarse_drift_percent": "0.680",
-  "saturation_short_refined_drift_percent": "0.190",
-  "saturation_long_coarse_drift_percent": "0.677",
-  "saturation_long_refined_drift_percent": "0.190",
-  "saturation_long_coarse_mode_drop_percent": "27.3",
-  "saturation_long_coarse_field_drop_percent": "48.5",
-  "saturation_long_refined_mode_drop_percent": "9.8",
-  "saturation_long_refined_field_drop_percent": "21.2",
-  "saturation_long_halfstep_mode_change_percent": "-5.2",
-  "saturation_long_halfstep_field_change_percent": "-11.8",
-  "saturation_long_fine_mode_change_percent": "+14.9",
-  "saturation_long_fine_field_change_percent": "+36.6",
-  "saturation_long_fine_drift_percent": "0.059"
+  "field_active_rss_mib": "477.2"
 }

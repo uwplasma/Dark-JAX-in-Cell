@@ -67,7 +67,7 @@ def main():
             ax.set(xlabel=r"$\omega_p t$", ylabel=r"$|E_{x,k}|/|E_{x,k}(0)|$",
                    title=f"{cells} cells, {particles} particles: Δ={error:.2e}")
             ax.grid(alpha=0.4)
-            ax.legend(facecolor="#232334", edgecolor="#8f899e")
+            ax.legend(facecolor="#FFFFFF", edgecolor="#6B7280")
         settings = {"preset": "full" if args.full else "quick", "refinements": pairs,
                     "omega_p_rad_s": 0.05 * c * 64, "k_lambda_D": 0.5,
                     "seed_displacement_over_1_k": 0.01,

@@ -253,10 +253,11 @@ def test_incomplete_dark_archive_is_rejected(tmp_path, missing, message):
 def test_midnight_style_restores_matplotlib_settings():
     import matplotlib as mpl
 
-    old = mpl.rcParams["figure.facecolor"]
+    old = (mpl.rcParams["figure.facecolor"], mpl.rcParams["axes.facecolor"])
     with midnight():
-        assert mpl.rcParams["figure.facecolor"] == "#101018"
-    assert mpl.rcParams["figure.facecolor"] == old
+        assert mpl.rcParams["figure.facecolor"] == "white"
+        assert mpl.rcParams["axes.facecolor"] == "white"
+    assert (mpl.rcParams["figure.facecolor"], mpl.rcParams["axes.facecolor"]) == old
 
 
 @pytest.mark.parametrize("density_ratio", [0.8, 1.0])

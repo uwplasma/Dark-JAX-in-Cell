@@ -62,7 +62,7 @@ def main():
         ax.set(xlabel=r"$\omega_0 t$", ylabel=r"mean $E_y/D_0$",
                title="The ghost shares its energy: homogeneous cold plasma")
         ax.grid(alpha=0.4)
-        ax.legend(facecolor="#232334", edgecolor="#8f899e")
+        ax.legend(facecolor="#FFFFFF", edgecolor="#6B7280")
         settings = {"preset": "quick" if quick else "full", "cells": cells,
                     "particles": particles, "steps": steps, "omega0_rad_s": omega0,
                     "density_ratio": p, "eta": eta, "dark_E0_V_m": amplitude}
