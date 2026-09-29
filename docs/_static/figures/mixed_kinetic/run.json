@@ -1,0 +1,42 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "08511a775ae70c4dbf4cddc91746c3357df55b98-dirty",
+ "example": "dark_kinetic",
+ "settings": {
+  "preset": "full",
+  "cells": 64,
+  "particles": 150000,
+  "steps": 1200,
+  "length_m": 1.0,
+  "omega_p_rad_s": 959335865.6,
+  "eta": 0.3,
+  "mu_over_wp": 1.0,
+  "k_lambda_D": 0.5,
+  "seed_displacement_over_1_k": 0.01,
+  "background": "uniform fixed neutralizer"
+ },
+ "results": {
+  "root_real_over_wp": 1.436947971622669,
+  "root_imag_over_wp": -0.14185585257930974,
+  "root_residual": 2.5299344200252475e-14,
+  "fit_status": "resolved",
+  "measured_real_over_wp": 1.4320650272773918,
+  "measured_imag_over_wp": -0.14575935772864987,
+  "frequency_relative_error": 0.0033981358001174966,
+  "damping_relative_error": 0.027517406426060154,
+  "damping_slope_stderr": 0.004267507794027535,
+  "frequency_estimated_stderr": 0.010267667480043409,
+  "linear_window_wp_t": [
+   2.4500000000000006,
+   11.22500000000004
+  ],
+  "maxima_used": 5,
+  "late_mode_floor_V_m": 93.41315363524329
+ }
+}

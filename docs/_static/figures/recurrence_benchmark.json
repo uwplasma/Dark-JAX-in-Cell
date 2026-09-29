@@ -1,0 +1,211 @@
+{
+  "git": "08511a775ae70c4dbf4cddc91746c3357df55b98",
+  "jax": "0.10.2",
+  "solvax": "0.27.0",
+  "equinox": "0.13.8",
+  "platform": "macOS-15.1.1-arm64-arm-64bit",
+  "backend": "cpu",
+  "precision_x64": true,
+  "rows": [
+    {
+      "case": "exact",
+      "method": "scan",
+      "steps": 256,
+      "checkpoint_size": 32,
+      "objective": 0.15037413618871215,
+      "gradient": 0.2428305545593894,
+      "precision_x64": true,
+      "backend": "cpu",
+      "first_primal_s": 0.548706499976106,
+      "first_gradient_s": 1.1661782080191188,
+      "warm_primal_median_s": 0.0032774999854154885,
+      "warm_primal_range_s": [
+        0.003254875016864389,
+        0.003340583003591746
+      ],
+      "warm_gradient_median_s": 0.009840457991231233,
+      "warm_gradient_range_s": [
+        0.009371958032716066,
+        0.01116716698743403
+      ],
+      "compiled_temp_bytes": 13566952,
+      "process_peak_bytes": 438976512,
+      "host_load_1m": 2.75537109375
+    },
+    {
+      "case": "exact",
+      "method": "remat",
+      "steps": 256,
+      "checkpoint_size": 32,
+      "objective": 0.15037413618871215,
+      "gradient": 0.2428305545593894,
+      "precision_x64": true,
+      "backend": "cpu",
+      "first_primal_s": 0.48281554196728393,
+      "first_gradient_s": 1.19048929202836,
+      "warm_primal_median_s": 0.0032903339597396553,
+      "warm_primal_range_s": [
+        0.003121167013887316,
+        0.003375750035047531
+      ],
+      "warm_gradient_median_s": 0.013474583975039423,
+      "warm_gradient_range_s": [
+        0.013382791017647833,
+        0.013540666026528925
+      ],
+      "compiled_temp_bytes": 1641928,
+      "process_peak_bytes": 410976256,
+      "host_load_1m": 2.69482421875
+    },
+    {
+      "case": "exact",
+      "method": "segmented",
+      "steps": 256,
+      "checkpoint_size": 32,
+      "objective": 0.15037413618871215,
+      "gradient": 0.2428305545593894,
+      "precision_x64": true,
+      "backend": "cpu",
+      "first_primal_s": 0.49074066698085517,
+      "first_gradient_s": 1.7862895419821143,
+      "warm_primal_median_s": 0.0032607080065645278,
+      "warm_primal_range_s": [
+        0.0031817080453038216,
+        0.0033445829758420587
+      ],
+      "warm_gradient_median_s": 0.01034845900721848,
+      "warm_gradient_range_s": [
+        0.009960333001799881,
+        0.010828041995409876
+      ],
+      "compiled_temp_bytes": 1796648,
+      "process_peak_bytes": 464928768,
+      "host_load_1m": 2.69482421875
+    },
+    {
+      "case": "exact",
+      "method": "solvax",
+      "steps": 256,
+      "checkpoint_size": 32,
+      "objective": 0.15037413618871215,
+      "gradient": 0.2428305545593894,
+      "precision_x64": true,
+      "backend": "cpu",
+      "first_primal_s": 0.5726114999852143,
+      "first_gradient_s": 1.5914468750124797,
+      "warm_primal_median_s": 0.003337291011121124,
+      "warm_primal_range_s": [
+        0.0032385840313509107,
+        0.003471291041933
+      ],
+      "warm_gradient_median_s": 0.010260374983772635,
+      "warm_gradient_range_s": [
+        0.010084000008646399,
+        0.010592499980702996
+      ],
+      "compiled_temp_bytes": 1796648,
+      "process_peak_bytes": 461750272,
+      "host_load_1m": 2.87939453125
+    },
+    {
+      "case": "tail",
+      "method": "scan",
+      "steps": 955,
+      "checkpoint_size": 32,
+      "objective": 0.8628220915612367,
+      "gradient": 5.352829288672339,
+      "precision_x64": true,
+      "backend": "cpu",
+      "first_primal_s": 0.4831059999996796,
+      "first_gradient_s": 2.6366195409791544,
+      "warm_primal_median_s": 0.025538541958667338,
+      "warm_primal_range_s": [
+        0.020233207964338362,
+        0.02703875000588596
+      ],
+      "warm_gradient_median_s": 0.0868837499874644,
+      "warm_gradient_range_s": [
+        0.05771012499462813,
+        0.11997512500965968
+      ],
+      "compiled_temp_bytes": 50463208,
+      "process_peak_bytes": 409812992,
+      "host_load_1m": 3.9296875
+    },
+    {
+      "case": "tail",
+      "method": "remat",
+      "steps": 955,
+      "checkpoint_size": 32,
+      "objective": 0.8628220915612367,
+      "gradient": 5.352829288672339,
+      "precision_x64": true,
+      "backend": "cpu",
+      "first_primal_s": 0.805758791975677,
+      "first_gradient_s": 1.4810379999689758,
+      "warm_primal_median_s": 0.009850625006947666,
+      "warm_primal_range_s": [
+        0.009796208003535867,
+        0.009899624972604215
+      ],
+      "warm_gradient_median_s": 0.0502181249903515,
+      "warm_gradient_range_s": [
+        0.041172833007294685,
+        0.0535386250121519
+      ],
+      "compiled_temp_bytes": 5942216,
+      "process_peak_bytes": 413106176,
+      "host_load_1m": 4.41552734375
+    },
+    {
+      "case": "tail",
+      "method": "segmented",
+      "steps": 955,
+      "checkpoint_size": 32,
+      "objective": 0.8628220915612367,
+      "gradient": 5.352829288672345,
+      "precision_x64": true,
+      "backend": "cpu",
+      "first_primal_s": 0.6370801249868236,
+      "first_gradient_s": 2.617569750000257,
+      "warm_primal_median_s": 0.011833625030703843,
+      "warm_primal_range_s": [
+        0.011794709018431604,
+        0.012090584030374885
+      ],
+      "warm_gradient_median_s": 0.03890133404638618,
+      "warm_gradient_range_s": [
+        0.038032834010664374,
+        0.04474024998489767
+      ],
+      "compiled_temp_bytes": 1927720,
+      "process_peak_bytes": 493305856,
+      "host_load_1m": 4.41552734375
+    },
+    {
+      "case": "tail",
+      "method": "solvax",
+      "steps": 955,
+      "checkpoint_size": 32,
+      "objective": 0.8628220915612367,
+      "gradient": 5.352829288672345,
+      "precision_x64": true,
+      "backend": "cpu",
+      "first_primal_s": 0.6874158749706112,
+      "first_gradient_s": 2.461579166993033,
+      "warm_primal_median_s": 0.012092666991520673,
+      "warm_primal_range_s": [
+        0.011917208030354232,
+        0.012433458003215492
+      ],
+      "warm_gradient_median_s": 0.03847754199523479,
+      "warm_gradient_range_s": [
+        0.03781125001842156,
+        0.03856516699306667
+      ],
+      "compiled_temp_bytes": 1927720,
+      "process_peak_bytes": 522256384,
+      "host_load_1m": 4.3818359375
+    }
+  ]
+}

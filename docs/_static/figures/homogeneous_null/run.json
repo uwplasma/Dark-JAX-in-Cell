@@ -1,0 +1,40 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "08511a775ae70c4dbf4cddc91746c3357df55b98-dirty",
+ "example": "dark_null",
+ "settings": {
+  "preset": "full",
+  "refinements": [
+   [
+    64,
+    4000,
+    300
+   ],
+   [
+    128,
+    16000,
+    600
+   ]
+  ],
+  "omega_p_rad_s": 959335865.6,
+  "k_lambda_D": 0.5,
+  "seed_displacement_over_1_k": 0.01,
+  "effective_drive_E_V_m": 17666.330581274724,
+  "drive_quiver_over_thermal": 0.03,
+  "background": "uniform fixed neutralizer"
+ },
+ "results": {
+  "max_mode_amplitude_difference_over_initial": [
+   0.0006393504159371865,
+   0.0005791103431093697
+  ],
+  "refinement_ratio": 1.1040217525806477,
+  "claim": "restricted accelerating-frame null, not nonlinear reproduction"
+ }
+}

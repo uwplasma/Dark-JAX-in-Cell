@@ -1,0 +1,25 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "08511a775ae70c4dbf4cddc91746c3357df55b98-dirty",
+ "example": "dark_drive",
+ "settings": {
+  "preset": "full",
+  "cells": 32,
+  "particles": 128,
+  "steps": 255,
+  "density_ratio": 1.0,
+  "omega_rad_s": 1000000000.0,
+  "eta": 0.05,
+  "drive_E0_V_m": 1e-05
+ },
+ "results": {
+  "max_waveform_error_over_D0": 7.487975289688268e-05,
+  "ordinary_energy_vs_external_work_relative_error": 0.00027718321903775334
+ }
+}

@@ -1,0 +1,28 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "08511a775ae70c4dbf4cddc91746c3357df55b98-dirty",
+ "example": "dark_plasma",
+ "settings": {
+  "preset": "full",
+  "cells": 32,
+  "particles": 128,
+  "steps": 200,
+  "omega0_rad_s": 1000000000.0,
+  "density_ratio": 0.8,
+  "eta": 0.1,
+  "B_T": [
+   0.0011371260207131445,
+   -0.0008528445155348585,
+   0.0005685630103565723
+  ]
+ },
+ "results": {
+  "max_all_six_field_error_over_D0": 0.0004915626943002085
+ }
+}
