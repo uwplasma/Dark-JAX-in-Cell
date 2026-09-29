@@ -155,7 +155,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "15f82beaaab478d26a5958d778b29969c9f366e1-dirty",
+      "git": "0f7bb96bbde37d7fa35e7c649b27449cfc3c5994-dirty",
       "run": "two_stream_extended/run.json"
     }
   },
@@ -264,5 +264,10 @@
   "saturation_long_coarse_mode_drop_percent": "27.3",
   "saturation_long_coarse_field_drop_percent": "48.5",
   "saturation_long_refined_mode_drop_percent": "9.8",
-  "saturation_long_refined_field_drop_percent": "21.2"
+  "saturation_long_refined_field_drop_percent": "21.2",
+  "saturation_long_halfstep_mode_change_percent": "-5.2",
+  "saturation_long_halfstep_field_change_percent": "-11.8",
+  "saturation_long_fine_mode_change_percent": "+14.9",
+  "saturation_long_fine_field_change_percent": "+36.6",
+  "saturation_long_fine_drift_percent": "0.059"
 }

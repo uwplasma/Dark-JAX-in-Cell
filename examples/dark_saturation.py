@@ -100,12 +100,13 @@ def main():
     parser = argparse.ArgumentParser(description="Watch two matched streams meet the dark")
     preset = parser.add_mutually_exclusive_group()
     preset.add_argument("--full", action="store_true", help="factorial check through ωp t=80")
-    preset.add_argument("--extended", action="store_true", help="matched replay through ωp t=200")
+    preset.add_argument("--extended", action="store_true", help="matched grid/time replay through ωp t=200")
     parser.add_argument("--output", type=Path, default=Path("artifacts/dark_saturation"))
     args = parser.parse_args()
     eta = 0.3
     if args.extended:
-        cases = ((64, 4000, 0.025, 200), (128, 8000, 0.0125, 200))
+        cases = ((64, 4000, 0.025, 200), (128, 8000, 0.0125, 200),
+                 (128, 8000, 0.00625, 200), (256, 16000, 0.00625, 200))
     elif args.full:
         cases = ((64, 4000, 0.025, 80), (64, 4000, 0.0125, 80),
                  (64, 8000, 0.0125, 80), (128, 4000, 0.0125, 80),

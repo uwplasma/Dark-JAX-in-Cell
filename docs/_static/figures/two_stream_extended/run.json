@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "15f82beaaab478d26a5958d778b29969c9f366e1-dirty",
+ "git": "0f7bb96bbde37d7fa35e7c649b27449cfc3c5994-dirty",
  "example": "dark_saturation",
  "settings": {
   "preset": "extended",
@@ -32,6 +32,32 @@
     "steps": 16000,
     "store_every": 40,
     "dt_omega_p": 0.0125,
+    "sample_interval_omega_p": 0.5,
+    "late_window_omega_p": [
+     120,
+     200.0
+    ],
+    "horizon_omega_p": 200.0
+   },
+   {
+    "cells": 128,
+    "particles_per_beam": 8000,
+    "steps": 32000,
+    "store_every": 80,
+    "dt_omega_p": 0.00625,
+    "sample_interval_omega_p": 0.5,
+    "late_window_omega_p": [
+     120,
+     200.0
+    ],
+    "horizon_omega_p": 200.0
+   },
+   {
+    "cells": 256,
+    "particles_per_beam": 16000,
+    "steps": 32000,
+    "store_every": 80,
+    "dt_omega_p": 0.00625,
     "sample_interval_omega_p": 0.5,
     "late_window_omega_p": [
      120,
@@ -89,6 +115,50 @@
     "mixed_max_energy_drift": 0.0018965581798358055,
     "max_dark_work_residual_over_transfer": 6.905524195073576e-06,
     "max_dark_gauss": 1.1979136615991592e-07
+   },
+   {
+    "fits": {
+     "parent": 0.334444237503821,
+     "mixed": 0.3435032408053587
+    },
+    "late_mode_rms_V_m": {
+     "parent": 49127.39506920536,
+     "mixed": 46570.75125356669
+    },
+    "late_fluctuating_energy_over_initial": {
+     "parent": 0.04321285621658749,
+     "mixed": 0.03810012532790361
+    },
+    "bounce_over_growth": {
+     "parent": 1.5392225180032952,
+     "mixed": 1.466319121269466
+    },
+    "parent_max_energy_drift": 0.00234911598282439,
+    "mixed_max_energy_drift": 0.001899458242507368,
+    "max_dark_work_residual_over_transfer": 1.724207614854193e-06,
+    "max_dark_gauss": 1.6750709619373083e-07
+   },
+   {
+    "fits": {
+     "parent": 0.33451695641382345,
+     "mixed": 0.34357173118008905
+    },
+    "late_mode_rms_V_m": {
+     "parent": 43283.40064306531,
+     "mixed": 49748.15072895252
+    },
+    "late_fluctuating_energy_over_initial": {
+     "parent": 0.03469450267508373,
+     "mixed": 0.04739413457851271
+    },
+    "bounce_over_growth": {
+     "parent": 1.539930563131244,
+     "mixed": 1.4660625198986859
+    },
+    "parent_max_energy_drift": 0.0006955039426970178,
+    "mixed_max_energy_drift": 0.0005936877921182138,
+    "max_dark_work_residual_over_transfer": 1.7272528296004164e-06,
+    "max_dark_gauss": 3.632740117609501e-07
    }
   ],
   "scope": "cold two-stream long-time numerical comparison; no new-physics claim"

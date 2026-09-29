@@ -89,14 +89,23 @@ short = saturation["two_stream_saturation"]["results"]["cases"]
 long = saturation["two_stream_extended"]["results"]["cases"]
 for label, cases in (("short", short), ("long", long)):
     coarse = cases[1] if label == "short" else cases[0]
+    refined = cases[-1] if label == "short" else cases[1]
     measured[f"saturation_{label}_coarse_drift_percent"] = f"{100 * coarse['mixed_max_energy_drift']:.3f}"
-    measured[f"saturation_{label}_refined_drift_percent"] = f"{100 * cases[-1]['mixed_max_energy_drift']:.3f}"
+    measured[f"saturation_{label}_refined_drift_percent"] = f"{100 * refined['mixed_max_energy_drift']:.3f}"
 for i, name in enumerate(("coarse", "refined")):
     case = long[i]
     rms = case["late_mode_rms_V_m"]
     fields = case["late_fluctuating_energy_over_initial"]
     measured[f"saturation_long_{name}_mode_drop_percent"] = f"{100 * (1 - rms['mixed'] / rms['parent']):.1f}"
     measured[f"saturation_long_{name}_field_drop_percent"] = f"{100 * (1 - fields['mixed'] / fields['parent']):.1f}"
+for i, name in ((2, "halfstep"), (3, "fine")):
+    case = long[i]
+    rms = case["late_mode_rms_V_m"]
+    fields = case["late_fluctuating_energy_over_initial"]
+    measured[f"saturation_long_{name}_mode_change_percent"] = f"{100 * (rms['mixed'] / rms['parent'] - 1):+.1f}"
+    measured[f"saturation_long_{name}_field_change_percent"] = (
+        f"{100 * (fields['mixed'] / fields['parent'] - 1):+.1f}")
+measured["saturation_long_fine_drift_percent"] = f"{100 * long[3]['mixed_max_energy_drift']:.3f}"
 null = EVIDENCE.parent / "homogeneous_null"
 subprocess.run([sys.executable, str(ROOT / "examples" / "dark_null.py"), "--full",
                 "--output", str(null)], cwd=ROOT, check=True)
