@@ -44,9 +44,10 @@ class DarkField:
 
 @pytree_dataclass(static=())
 class PrescribedDrive:
-    """Homogeneous external E, V/m: ``eta * amplitude * cos(omega*t+phase)``.
+    """Homogeneous external E vector, V/m: ``eta * amplitude * cos(omega*t+phase)``.
 
-    This is a prescribed force with external work, not a dark reservoir.
+    ``amplitude`` has shape ``(3,)``. This is a prescribed force with external
+    work, not a dark reservoir.
     """
 
     eta: object
@@ -136,6 +137,8 @@ class DarkSimulation:
                 if value is not None and jnp.shape(value) != shape:
                     raise ValueError(f"{name} must have shape {shape}")
             _check_phi_mean(self.dark.initial_phi)
+        elif jnp.shape(self.dark.amplitude) != (3,):
+            raise ValueError("prescribed amplitude must be a three-component E vector")
 
     def initial_state(self, key):
         """Use parent loading and freeze its initial neutralizing background."""

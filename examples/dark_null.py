@@ -34,7 +34,7 @@ def mode_history(cells, particles, steps, drive):
     plasma = Simulation(Domain(length=length, cells=cells, dt_over_dx_c=0.5), (electrons,))
     effective_amplitude = 0.03 * vth * mass_electron * wp / e
     model = PrescribedDrive(eta=0.1 if drive else 0.0,
-                            amplitude=effective_amplitude / 0.1,
+                            amplitude=jnp.array([effective_amplitude / 0.1, 0.0, 0.0]),
                             omega=wp)
     result = DarkSimulation(plasma, model).run(steps, store_every=steps // 100,
                                                store_particles=False)

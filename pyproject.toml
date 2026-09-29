@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest", "scipy", "flake8"]
+test = ["pytest", "pytest-cov", "scipy", "flake8"]
 docs = ["sphinx", "myst-parser", "scipy"]
 
 [project.urls]
@@ -28,3 +28,12 @@ packages = ["darkjaxincell"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["darkjaxincell"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_covered = true

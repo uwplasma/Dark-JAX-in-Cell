@@ -18,7 +18,7 @@ The clean parent clone passed `python -m pytest -q`: **304 passed, 3 skipped**, 
 | Mixed kinetic and unstable modes | One seeded Maxwellian Landau case, current-neutral cold two-stream, and transverse anisotropy compared with independent determinants; [fit and limits](kinetic.md). Broad parameter/ensemble convergence pending |
 | Homogeneous pump null | Matched zero-drive and prescribed-drive seeded Maxwellian runs: largest normalized mode-amplitude differences **{{ null_coarse_error }}** (64 cells, 4,000 particles) and **{{ null_fine_error }}** (128 cells, 16,000 particles). This pair has not established an asymptotic convergence rate |
 | Constrained slab conversion | Outgoing photon flux, independent cold scattering, fixed-column profile constraints, held-out and refined PIC, finite-amplitude replay in [profile design](profile.md). One slab family only |
-| Nonlinear external-drive reproduction | Not yet implemented or validated; the homogeneous null above is a restricted control |
+| Mobile-ion external and finite-reservoir control | Seeded matched loading, two fluid mean oracle, work/energy and cell-local random kinetic ledgers in [kinetic controls](kinetic.md). Bounded time; published nonlinear reproduction remains unverified |
 | Long-run AD, SOLVAX | Exact recurrence comparison and memory/timing in [performance](performance.md); broader horizon/device study pending |
 | Density calibration | Full fixed-window PIC optimum and independent cold oracle in [optimization](optimization.md) |
 
@@ -35,6 +35,8 @@ The prescribed drive is an external force: its growing resonant response is cohe
 In the restricted nonrelativistic electron-only electrostatic model with a uniform fixed neutralizer, a spatially uniform drive can be removed by an accelerating-frame transformation. The matched [null-control run](_static/figures/homogeneous_null/run.json) compares the magnitude of one seeded nonzero-$k$ electric mode. Its small but not yet clearly convergent difference rules out a large effect in this setup; it does **not** reproduce a mobile-ion nonlinear instability or establish a numerical convergence rate.
 
 The [Hook–Huang–Shalaby simulation](https://arxiv.org/html/2510.13956v1) uses mobile electrons and ions, a 40 $c/\omega_p$ box with 1,000 cells, fifth-order interpolation, and long resonant pumping. Our homogeneous null uses a fixed neutralizer and the parent's quadratic deposition; the published nonlinear heating and saturation curves have **not** been reproduced. The prescribed-drive mode is an imposed external reservoir. A self-consistent finite dark packet is studied separately in the [slab experiment](profile.md), with a different transverse propagation observable.
+
+The [mobile-ion control](kinetic.md) uses the same initial longitudinal force for a prescribed pump and two finite Proca reservoirs. Its shorter box, lower particle count and $\omega_pt\leq40$ horizon do not meet the published setup or long-run convergence gate. It measures depletion and mean response without claiming published growth or heating.
 
 ![Oblique magnetized cold 3V response](_static/figures/oblique_3v/figure.png)
 

@@ -84,6 +84,24 @@ subprocess.run([sys.executable, str(ROOT / "examples" / "dark_null.py"), "--full
 null_record = json.loads((null / "run.json").read_text())
 measured["null_coarse_error"] = f"{null_record['results']['max_mode_amplitude_difference_over_initial'][0]:.3e}"
 measured["null_fine_error"] = f"{null_record['results']['max_mode_amplitude_difference_over_initial'][1]:.3e}"
+mobile = EVIDENCE.parent / "mobile_ions"
+subprocess.run([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--full",
+                "--output", str(mobile)], cwd=ROOT, check=True)
+mobile_record = json.loads((mobile / "run.json").read_text())
+m = mobile_record["results"]
+measured.update({"mobile_external_oracle_error": f"{m['cases']['external']['mean_error']:.3e}",
+                 "mobile_large_oracle_error": f"{m['cases']['large_reservoir']['mean_error']:.3e}",
+                 "mobile_small_energy_ratio": (
+                     f"{m['finite_vs_external']['small_reservoir']['initial_dark_over_initial_particle_energy']:.3f}"),
+                 "mobile_large_energy_ratio": (
+                     f"{m['finite_vs_external']['large_reservoir']['initial_dark_over_initial_particle_energy']:.3f}"),
+                 "mobile_large_early_pump_error": (
+                     f"{m['finite_vs_external']['large_reservoir']['pump_error_early_over_initial_force']:.3e}"),
+                 "mobile_small_depletion": (
+                     f"{100 * m['finite_vs_external']['small_reservoir']['dark_depletion_fraction']:.1f}"),
+                 "mobile_large_depletion": (
+                     f"{100 * m['finite_vs_external']['large_reservoir']['dark_depletion_fraction']:.1f}"),
+                 "mobile_max_balance": f"{max(abs(v['balance_over_scale']) for v in m['cases'].values()):.3e}"})
 design = EVIDENCE.parent / "profile_design"
 subprocess.run([sys.executable, str(ROOT / "examples" / "dark_profile.py"), "--full",
                 "--output", str(design)], cwd=ROOT, check=True)
@@ -127,6 +145,7 @@ measured["_provenance"] = {"cold_exchange": provenance(record, "cold_exchange"),
                            "mixed_two_stream": provenance(two_record, "mixed_two_stream"),
                            "mixed_weibel": provenance(instability_records["mixed_weibel"], "mixed_weibel"),
                            "homogeneous_null": provenance(null_record, "homogeneous_null"),
+                           "mobile_ions": provenance(mobile_record, "mobile_ions"),
                            "profile_design": provenance(design_record, "profile_design")}
 benchmark = EVIDENCE.parent / "recurrence_benchmark.json"
 if benchmark.exists():

@@ -12,7 +12,7 @@ from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
 from jaxincell._core import curl_E
 from jaxincell.theory import landau_root
 from darkjaxincell import (DarkField, DarkSimulation, PrescribedDrive, gauss,
-                           load_state, save_state)
+                           load_state, midnight, save_state)
 from darkjaxincell._proca import divergence, drift, gradient, kick
 from examples.optimize_dark_photon import build_objective, cold_reference
 from examples.dark_kinetic import mixed_root
@@ -93,6 +93,66 @@ def test_prescribed_static_drive_equals_parent_external_field_and_work():
     np.testing.assert_allclose(out.ordinary.E, reference.E, rtol=0, atol=1e-18)
     np.testing.assert_allclose(out.ordinary.v, reference.v, rtol=1e-13, atol=1e-18)
     assert float(out.work[-1]) != 0.0
+
+
+def test_prescribed_drive_requires_vector_amplitude():
+    with pytest.raises(ValueError, match="three-component E vector"):
+        DarkSimulation(plasma(), PrescribedDrive(0.1, 1e-5, OMEGA))
+
+
+def test_output_without_particles_and_drive_has_no_dark_gauss():
+    field = DarkSimulation(plasma(N_REF * 0.1), DarkField(OMEGA, 0.1)).run(
+        1, store_particles=False)
+    drive = DarkSimulation(plasma(N_REF * 0.1), PrescribedDrive(
+        0.1, jnp.array([1e-5, 0.0, 0.0]), OMEGA)).run(1, store_particles=False)
+    assert "dark" in field.energy() and "total_with_dark" not in field.energy()
+    assert "external_work" in drive.energy() and "closed_balance" not in drive.energy()
+    with pytest.raises(ValueError, match="no dark Gauss law"):
+        drive.dark_gauss()
+
+
+@pytest.mark.parametrize("model, message", [
+    (object(), "DarkField or PrescribedDrive"),
+    (DarkField(0.0, 0.1), "rest frequency"),
+    (DarkField(100 * OMEGA, 0.1), "stability margin"),
+    (DarkField(OMEGA, 0.1, initial_E=jnp.zeros((15, 3))), "initial_E"),
+    (DarkField(OMEGA, 0.1, initial_A=jnp.zeros((15, 3))), "initial_A"),
+    (DarkField(OMEGA, 0.1, initial_phi=jnp.zeros(15)), "initial_phi"),
+])
+def test_invalid_dark_configuration_fails_early(model, message):
+    with pytest.raises((TypeError, ValueError), match=message):
+        DarkSimulation(plasma(), model)
+
+
+@pytest.mark.parametrize("steps, store_every", [(0, 1), (2, 0), (3, 2)])
+def test_invalid_run_length_fails_early(steps, store_every):
+    sim = DarkSimulation(plasma(), DarkField(OMEGA, 0.1))
+    with pytest.raises(ValueError, match="divisible"):
+        sim.run(steps, store_every=store_every)
+
+
+@pytest.mark.parametrize("missing, message", [
+    ("dark.mode", "dark mode"), ("dark.background", "missing background"),
+    ("dark.work", "missing background or work"), ("dark.E", "missing Proca"),
+    ("dark.phi", "missing Proca"),
+])
+def test_incomplete_dark_archive_is_rejected(tmp_path, missing, message):
+    sim = DarkSimulation(plasma(), DarkField(OMEGA, 0.1))
+    path = save_state(tmp_path / "incomplete", sim.run(1).state, sim)
+    with np.load(path, allow_pickle=False) as saved:
+        arrays = {name: saved[name] for name in saved.files if name != missing}
+    np.savez(path, **arrays)
+    with pytest.raises(ValueError, match=message):
+        load_state(path, sim)
+
+
+def test_midnight_style_restores_matplotlib_settings():
+    import matplotlib as mpl
+
+    old = mpl.rcParams["figure.facecolor"]
+    with midnight():
+        assert mpl.rcParams["figure.facecolor"] == "#101018"
+    assert mpl.rcParams["figure.facecolor"] == old
 
 
 @pytest.mark.parametrize("density_ratio", [0.8, 1.0])
