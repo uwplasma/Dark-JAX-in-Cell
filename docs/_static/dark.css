@@ -1,0 +1,5 @@
+body, .document, .body, .sphinxsidebar, .related { background: #101018 !important; color: #eeeaf4 !important; }
+a, a:visited { color: #bd93f9 !important; }
+code, pre, .highlight { background: #222233 !important; color: #eeeaf4 !important; }
+h1, h2, h3, h4 { color: #f6e9ff !important; }
+table, th, td { border-color: #665a78 !important; }

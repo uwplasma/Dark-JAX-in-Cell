@@ -1,0 +1,6 @@
+[flake8]
+max-line-length = 120
+max-complexity = 10
+exclude = .git,__pycache__,build,dist,docs/_build,.venv
+per-file-ignores =
+    examples/*.py: E402

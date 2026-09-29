@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dark-jax-in-cell"
+version = "0.1.0"
+description = "A differentiable Maxwell–Proca companion to JAX-in-Cell"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [{name = "UWPlasma, UW-Madison group", email = "rogerio.jorge@wisc.edu"}]
+dependencies = [
+  "jaxincell @ git+https://github.com/uwplasma/JAX-in-Cell.git@83d327118163833f93e2588edcb5029241f6ba2a",
+]
+
+[project.optional-dependencies]
+test = ["pytest", "scipy", "flake8"]
+docs = ["sphinx", "myst-parser", "scipy"]
+
+[project.urls]
+Source = "https://github.com/uwplasma/Dark-JAX-in-Cell"
+Issues = "https://github.com/uwplasma/Dark-JAX-in-Cell/issues"
+Parent = "https://github.com/uwplasma/JAX-in-Cell/pull/42"
+
+[tool.setuptools]
+packages = ["darkjaxincell"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
