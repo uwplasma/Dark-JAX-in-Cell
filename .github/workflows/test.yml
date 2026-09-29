@@ -25,3 +25,4 @@ jobs:
       - run: python examples/optimize_dark_photon.py --quick
       - run: python examples/dark_profile.py
       - run: python -m sphinx -b html -W docs docs/_build/html
+      - run: python -c "from pathlib import Path; assert not any('{{ ' in p.read_text() for p in Path('docs/_build/html').rglob('*.html'))"
