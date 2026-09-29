@@ -1,6 +1,7 @@
 # 🌑 Dark-JAX-in-Cell
 
 [![License: MIT](https://img.shields.io/github/license/uwplasma/Dark-JAX-in-Cell?color=6b46a8&labelColor=171724)](LICENSE)
+[![Midnight checks](https://github.com/uwplasma/Dark-JAX-in-Cell/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/uwplasma/Dark-JAX-in-Cell/actions/workflows/test.yml)
 [![Last commit](https://img.shields.io/github/last-commit/uwplasma/Dark-JAX-in-Cell?color=bd93f9&labelColor=171724)](https://github.com/uwplasma/Dark-JAX-in-Cell/commits/main)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-bd93f9?labelColor=171724)](pyproject.toml)
 [![Parent](https://img.shields.io/badge/JAX--in--Cell-research--release-50fae4?labelColor=171724)](https://github.com/uwplasma/JAX-in-Cell/pull/42)

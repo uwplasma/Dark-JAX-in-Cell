@@ -1,0 +1,87 @@
+{
+  "description": "Development-only isolated source faults; production source untouched",
+  "source_sha": "20b92b6a983e7f5ecca92bea204395e63ed061d1",
+  "python": "3.11.14",
+  "results": [
+    {
+      "fault": "omit_dark_force",
+      "file": "_simulation.py",
+      "original": "E + model.eta * E_D, B + model.eta * B_D",
+      "replacement": "E, B",
+      "test": "test_cold_homogeneous_exchange_against_matrix_exponential",
+      "test_failed": true,
+      "exit_code": 1,
+      "result_tail": "\ntests/test_proca.py:145: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_proca.py::test_cold_homogeneous_exchange_against_matrix_exponential\n1 failed in 3.82s"
+    },
+    {
+      "fault": "omit_dark_source",
+      "file": "_proca.py",
+      "original": "- eta * J / epsilon_0",
+      "replacement": "- 0.0 * eta * J / epsilon_0",
+      "test": "test_cold_homogeneous_exchange_against_matrix_exponential",
+      "test_failed": true,
+      "exit_code": 1,
+      "result_tail": "\ntests/test_proca.py:146: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_proca.py::test_cold_homogeneous_exchange_against_matrix_exponential\n1 failed in 3.58s"
+    },
+    {
+      "fault": "flip_mass_sign",
+      "file": "_proca.py",
+      "original": "+ omega**2 * A - eta * J",
+      "replacement": "- omega**2 * A - eta * J",
+      "test": "test_vacuum_homogeneous_mode_and_dark_energy",
+      "test_failed": true,
+      "exit_code": 1,
+      "result_tail": "\ntests/test_proca.py:58: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_proca.py::test_vacuum_homogeneous_mode_and_dark_energy - As...\n1 failed in 3.91s"
+    },
+    {
+      "fault": "drop_mean_current",
+      "file": "_proca.py",
+      "original": "- eta * J / epsilon_0",
+      "replacement": "- eta * (J - jnp.mean(J, axis=0)) / epsilon_0",
+      "test": "test_mean_current_drives_both_fields",
+      "test_failed": true,
+      "exit_code": 1,
+      "result_tail": "\ntests/test_proca.py:160: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_proca.py::test_mean_current_drives_both_fields - AssertionE...\n1 failed in 3.96s"
+    },
+    {
+      "fault": "zero_scalar_potential",
+      "file": "_proca.py",
+      "original": "phi = phi - h * c**2 * divergence(A, dx)",
+      "replacement": "phi = phi * 0",
+      "test": "test_all_three_vacuum_polarizations[0]",
+      "test_failed": true,
+      "exit_code": 1,
+      "result_tail": "\ntests/test_proca.py:195: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_proca.py::test_all_three_vacuum_polarizations[0] - Assertio...\n1 failed in 3.83s"
+    },
+    {
+      "fault": "omit_potential_energy",
+      "file": "_proca.py",
+      "original": "E**2 + c**2 * B**2 + omega**2 * A**2",
+      "replacement": "E**2 + c**2 * B**2",
+      "test": "test_vacuum_homogeneous_mode_and_dark_energy",
+      "test_failed": true,
+      "exit_code": 1,
+      "result_tail": "\ntests/test_proca.py:61: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_proca.py::test_vacuum_homogeneous_mode_and_dark_energy - As...\n1 failed in 4.22s"
+    },
+    {
+      "fault": "break_neutralizer",
+      "file": "_simulation.py",
+      "original": "background = -jnp.mean(ordinary.rho)",
+      "replacement": "background = jnp.zeros_like(jnp.mean(ordinary.rho))",
+      "test": "test_initial_potential_solves_dark_gauss_and_output_is_jittable",
+      "test_failed": true,
+      "exit_code": 1,
+      "result_tail": "\ntests/test_proca.py:231: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_proca.py::test_initial_potential_solves_dark_gauss_and_output_is_jittable\n1 failed in 3.85s"
+    },
+    {
+      "fault": "reset_drive_clock",
+      "file": "_simulation.py",
+      "original": "carry, extra = self.initial_state(random.PRNGKey(seed)) if state is None else (state, self.plasma.per_particle)",
+      "replacement": "carry, extra = self.initial_state(random.PRNGKey(seed)) if state is None else (state, self.plasma.per_particle)\n        if state is not None:\n            carry = carry.replace(ordinary=carry.ordinary.replace(time=jnp.zeros_like(carry.ordinary.time)))",
+      "test": "test_drive_phase_survives_native_restart",
+      "test_failed": true,
+      "exit_code": 1,
+      "result_tail": "\n/opt/homebrew/lib/python3.11/site-packages/numpy/_utils/__init__.py:85: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_proca.py::test_drive_phase_survives_native_restart - Assert...\n1 failed in 5.15s"
+    }
+  ]
+}

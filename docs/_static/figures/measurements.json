@@ -12,7 +12,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "08511a775ae70c4dbf4cddc91746c3357df55b98-dirty",
+      "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
       "run": "cold_exchange/run.json"
     },
     "prescribed_drive": {
@@ -23,7 +23,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "08511a775ae70c4dbf4cddc91746c3357df55b98-dirty",
+      "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
       "run": "prescribed_drive/run.json"
     },
     "density_calibration": {
@@ -34,7 +34,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "08511a775ae70c4dbf4cddc91746c3357df55b98-dirty",
+      "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
       "run": "density_calibration/run.json"
     },
     "oblique_3v": {
@@ -45,7 +45,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "08511a775ae70c4dbf4cddc91746c3357df55b98-dirty",
+      "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
       "run": "oblique_3v/run.json"
     },
     "mixed_kinetic": {
@@ -56,8 +56,30 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "08511a775ae70c4dbf4cddc91746c3357df55b98-dirty",
+      "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
       "run": "mixed_kinetic/run.json"
+    },
+    "mixed_two_stream": {
+      "jaxincell": "0.1.2.dev211+g83d327118",
+      "jax": "0.10.2",
+      "numpy": "2.2.2",
+      "python": "3.11.14",
+      "platform": "Darwin arm64",
+      "jax_enable_x64": true,
+      "backend": "cpu",
+      "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
+      "run": "mixed_two_stream/run.json"
+    },
+    "mixed_weibel": {
+      "jaxincell": "0.1.2.dev211+g83d327118",
+      "jax": "0.10.2",
+      "numpy": "2.2.2",
+      "python": "3.11.14",
+      "platform": "Darwin arm64",
+      "jax_enable_x64": true,
+      "backend": "cpu",
+      "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
+      "run": "mixed_weibel/run.json"
     },
     "homogeneous_null": {
       "jaxincell": "0.1.2.dev211+g83d327118",
@@ -67,8 +89,19 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "08511a775ae70c4dbf4cddc91746c3357df55b98-dirty",
+      "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
       "run": "homogeneous_null/run.json"
+    },
+    "profile_design": {
+      "jaxincell": "0.1.2.dev211+g83d327118",
+      "jax": "0.10.2",
+      "numpy": "2.2.2",
+      "python": "3.11.14",
+      "platform": "Darwin arm64",
+      "jax_enable_x64": true,
+      "backend": "cpu",
+      "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
+      "run": "profile_design/run.json"
     },
     "recurrence_benchmark": {
       "git": "08511a775ae70c4dbf4cddc91746c3357df55b98",
@@ -99,8 +132,36 @@
   "kinetic_frequency_error": "0.34",
   "kinetic_damping_error": "2.75",
   "kinetic_damping_stderr": "0.0043",
+  "two_stream_root": "0.34670",
+  "two_stream_pic": "0.34155",
+  "two_stream_refined": "0.34234",
+  "two_stream_zero_pic": "0.33287",
+  "weibel_root": "0.05113",
+  "weibel_pic": "0.05123",
+  "weibel_refined": "0.05117",
+  "weibel_zero_pic": "0.04993",
   "null_coarse_error": "6.394e-04",
   "null_fine_error": "5.791e-04",
+  "profile_no_wave_E": "4.331e-10",
+  "profile_window_tail_percent": "0.71",
+  "profile_window_gain_80_percent": "1.70",
+  "profile_reference_flux_error": "2.789e-07",
+  "profile_uniform_objective": "0.0020639",
+  "profile_ramp_objective": "0.0020148",
+  "profile_two_ramp_objective": "0.0020574",
+  "profile_random_objective": "0.0020877",
+  "profile_best_objective": "0.0020913",
+  "profile_held_uniform": "0.0020826",
+  "profile_held_optimized": "0.0021179",
+  "profile_refined_gain_min": "1.81",
+  "profile_refined_gain_max": "1.82",
+  "profile_gradient_error": "1.337e-11",
+  "profile_high_max_speed": "0.197",
+  "profile_high_cold_yield": "0.0019144",
+  "profile_high_uniform_yield": "0.0018846",
+  "profile_high_design_yield": "0.0019155",
+  "profile_high_energy_drift": "9.415e-06",
+  "profile_high_random_energy": "1.811e-06",
   "exact_scan_grad_s": "0.0098",
   "exact_scan_temp_mib": "12.94",
   "exact_scan_rss_mib": "418.6",

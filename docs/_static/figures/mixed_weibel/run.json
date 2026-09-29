@@ -1,0 +1,62 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
+ "example": "dark_weibel",
+ "settings": {
+  "preset": "full",
+  "mode": "weibel",
+  "cases_cells_particles_steps": [
+   [
+    64,
+    30000,
+    2400
+   ],
+   [
+    128,
+    60000,
+    4800
+   ]
+  ],
+  "eta": 0.3,
+  "mu_over_wp": 0.7,
+  "linear_window_wp_t": [
+   20,
+   70
+  ],
+  "background": "uniform fixed neutralizer"
+ },
+ "results": {
+  "reference_growth_over_wp": 0.05113419406366491,
+  "reference_residual": 2.4608093340816595e-13,
+  "uncoupled_reference_growth_over_wp": 0.04886686294497293,
+  "pic_fits": [
+   {
+    "growth_over_wp": 0.05122843720357748,
+    "stderr_over_wp": 0.0008320862195183164,
+    "r_squared": 0.9785718221136259,
+    "relative_error": 0.0018430551539589946
+   },
+   {
+    "growth_over_wp": 0.051167831077010784,
+    "stderr_over_wp": 0.0008802078264324668,
+    "r_squared": 0.9760273246701369,
+    "relative_error": 0.0006578183926004844
+   }
+  ],
+  "zero_coupling_pic_growth_over_wp": 0.049925892379335646,
+  "initial_net_current_A_m2": [
+   -1.1368683772161603e-13,
+   -1.7053025658242404e-13
+  ],
+  "max_dark_gauss_V_m2": [
+   3.5797711461782455e-09,
+   5.180481821298599e-09
+  ]
+ }
+}

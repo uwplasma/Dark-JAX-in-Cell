@@ -1,0 +1,62 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "20b92b6a983e7f5ecca92bea204395e63ed061d1-dirty",
+ "example": "dark_two_stream",
+ "settings": {
+  "preset": "full",
+  "mode": "two-stream",
+  "cases_cells_particles_steps": [
+   [
+    64,
+    4000,
+    1000
+   ],
+   [
+    128,
+    8000,
+    2000
+   ]
+  ],
+  "eta": 0.3,
+  "mu_over_wp": 0.7,
+  "linear_window_wp_t": [
+   10,
+   20
+  ],
+  "background": "uniform fixed neutralizer"
+ },
+ "results": {
+  "reference_growth_over_wp": 0.3466973106006945,
+  "reference_residual": 5.551115123125783e-16,
+  "uncoupled_reference_growth_over_wp": 0.33847119301772016,
+  "pic_fits": [
+   {
+    "growth_over_wp": 0.34154604734946287,
+    "stderr_over_wp": 0.0009699891573424194,
+    "r_squared": 0.9993632254647423,
+    "relative_error": 0.014858099828655824
+   },
+   {
+    "growth_over_wp": 0.3423433161264501,
+    "stderr_over_wp": 0.0009406144327799139,
+    "r_squared": 0.999411510768841,
+    "relative_error": 0.01255848932517123
+   }
+  ],
+  "zero_coupling_pic_growth_over_wp": 0.3328676561962334,
+  "initial_net_current_A_m2": [
+   0.0,
+   0.0
+  ],
+  "max_dark_gauss_V_m2": [
+   1.2689270079135895e-08,
+   3.329478204250336e-08
+  ]
+ }
+}
