@@ -158,4 +158,13 @@ if benchmark.exists():
         measured[f"{key}_first_grad_s"] = f"{row['first_gradient_s']:.3f}"
     measured["_provenance"]["recurrence_benchmark"] = {
         key: data[key] for key in ("git", "jax", "solvax", "equinox", "platform", "backend", "precision_x64")}
+field_cost = EVIDENCE.parent / "field_cost.json"
+if field_cost.exists():
+    data = json.loads(field_cost.read_text())
+    for row in data["rows"]:
+        name = row["case"]
+        measured[f"field_{name}_warm_ms"] = f"{1000 * row['warm_median_s']:.1f}"
+        measured[f"field_{name}_first_s"] = f"{row['first_call_s']:.2f}"
+        measured[f"field_{name}_rss_mib"] = f"{row['peak_rss_bytes'] / 2**20:.1f}"
+    measured["_provenance"]["field_cost"] = data["settings"]
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")

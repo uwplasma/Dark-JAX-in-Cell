@@ -19,4 +19,16 @@ python docs/scripts/benchmark_recurrence.py --all
 python docs/scripts/make_all.py
 ```
 
-The calibration example's own [run record](_static/figures/density_calibration/run.json) includes total scan time and compiler-first-call measurements. No disabled-feature overhead claim or GPU memory claim is made here: a separate JAX-in-Cell versus Dark-JAX-in-Cell matched benchmark is still required.
+The calibration example's own [run record](_static/figures/density_calibration/run.json) includes total scan time and compiler-first-call measurements.
+
+## Cost of the actual field step
+
+With 128 cells, 8,192 electrons, 256 steps, float64 CPU, one final diagnostic and identical loading, we measured the parent `Simulation` against a configured zero-coupling Proca field and an active field. Each case ran in a fresh process; the [record](_static/figures/field_cost.json) contains five synchronized warm samples, first-call time including compile, process peak memory and host load.
+
+| Case | Warm run median (ms) | First call incl. compile (s) | Process peak (MiB) |
+|---|---:|---:|---:|
+| JAX-in-Cell, no dark model | {{ field_parent_warm_ms }} | {{ field_parent_first_s }} | {{ field_parent_rss_mib }} |
+| Proca configured, $\eta=0$ | {{ field_eta_zero_warm_ms }} | {{ field_eta_zero_first_s }} | {{ field_eta_zero_rss_mib }} |
+| Proca active, $\eta=0.05$ | {{ field_active_warm_ms }} | {{ field_active_first_s }} | {{ field_active_rss_mib }} |
+
+The **dark-disabled route is the parent `Simulation` itself**, so its source and execution path are unchanged. A configured $\eta=0$ model still evolves a free massive field, costs time and memory, and must not be called disabled. Its ordinary-field checksum agrees with the parent; the active case differs physically. Process peaks include imports and compilation. These are one-device measurements, not a portable overhead factor or a GPU claim. Reproduce them on an otherwise quiet host with `python docs/scripts/benchmark_field_cost.py --all`, then `python docs/scripts/make_all.py` to refresh the MyST numbers.
