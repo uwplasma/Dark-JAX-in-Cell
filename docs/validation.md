@@ -10,7 +10,8 @@ The pinned parent is JAX-in-Cell `research-release` at `83d327118163833f93e2588e
 | Prescribed drive | Constant-waveform limit equals parent's ordinary external E; phase survives restart |
 | Cold coupled response | Full example max normalized mean-field error **{{ cold_mean_error }}** through $\omega_0t=20$ |
 | Dark Gauss | Full example max residual **{{ cold_gauss_error }}** over fixed $e n_{\rm ref}/\epsilon_0$ |
-| Closed energy | Temporal refinement in the tests; physical energy converges rather than staying exact at finite step |
+| Closed energy | Full example relative drift **{{ cold_energy_error }}**; temporal refinement in tests |
+| Work exchange | Full example ordinary-energy gain versus accumulated dark source work error **{{ cold_work_error }}**, relative to transferred energy |
 | Kinetic roots, magnetized 3V | Not yet validated |
 | Nonlinear comparison, profile optimization | Not yet implemented or validated |
 | Long-run AD, SOLVAX, performance | Not yet benchmarked |

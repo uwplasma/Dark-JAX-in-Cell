@@ -14,5 +14,7 @@ record = json.loads((EVIDENCE / "run.json").read_text())
 results = record["results"]
 measured = {"cold_mean_error": f"{results['max_mean_field_error_over_D0']:.3e}",
             "cold_gauss_error": f"{results['max_dark_gauss_over_enref_eps0']:.3e}",
+            "cold_energy_error": f"{results['closed_energy_relative_drift']:.3e}",
+            "cold_work_error": f"{results['ordinary_energy_vs_dark_work_relative_error']:.3e}",
             "_provenance": record}
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")

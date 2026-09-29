@@ -36,7 +36,7 @@ def main():
     initial = jnp.broadcast_to(jnp.array([0.0, amplitude, 0.0]), (cells, 3))
     simulation = DarkSimulation(plasma, DarkField(omega0, eta, initial_E=initial))
     steps = round(20 / (omega0 * domain.dt))
-    output = simulation.run(steps, store_particles=False)
+    output = simulation.run(steps)
     t = np.asarray(output.ordinary.t) * omega0
     generator = np.array([[0, 0, 0, -1], [0, 0, 1, -eta],
                           [0, -1, 0, 0], [p, eta * p, 0, 0]])
@@ -46,6 +46,12 @@ def main():
     error = float(np.max(np.abs(np.stack([ordinary, dark], axis=1) - reference[:, :2])))
     gauss_scale = elementary_charge * n_ref / epsilon_0
     gauss_error = float(np.max(np.abs(np.asarray(output.dark_gauss()))) / gauss_scale)
+    ledger = output.energy()
+    closed = np.asarray(ledger["total_with_dark"])
+    ordinary_energy = np.asarray(ledger["total"])
+    transfer = -float(output.work[-1] - output.work[0])
+    closed_error = float(abs(closed[-1] / closed[0] - 1))
+    work_error = float(abs(ordinary_energy[-1] - ordinary_energy[0] - transfer) / abs(transfer))
 
     with midnight():
         fig, ax = plt.subplots(figsize=(8, 4.5), layout="constrained")
@@ -61,13 +67,16 @@ def main():
                     "particles": particles, "steps": steps, "omega0_rad_s": omega0,
                     "density_ratio": p, "eta": eta, "dark_E0_V_m": amplitude}
         results = {"max_mean_field_error_over_D0": error,
-                   "max_dark_gauss_over_enref_eps0": gauss_error}
+                   "max_dark_gauss_over_enref_eps0": gauss_error,
+                   "closed_energy_relative_drift": closed_error,
+                   "ordinary_energy_vs_dark_work_relative_error": work_error}
         save_run(args.output, "dark_photon", settings, results, fig, t=t,
                  ordinary_pic=ordinary, dark_pic=dark,
                  ordinary_oracle=reference[:, 0], dark_oracle=reference[:, 1])
         plt.close(fig)
-    print(f"🦇 {'SMOKE' if quick else 'COLD CHECK'}: mean-field error {error:.3e}; "
-          f"dark Gauss {gauss_error:.3e} (fixed charge scale)")
+    print(f"🦇 {'SMOKE' if quick else 'COLD CHECK'}: mean-field {error:.3e}; "
+          f"dark Gauss {gauss_error:.3e}; closed energy {closed_error:.3e}; "
+          f"work balance {work_error:.3e}")
 
 
 if __name__ == "__main__":
