@@ -57,16 +57,22 @@ def main():
     x = x.at[:, 0].add(0.01 / k * jnp.sin(k * x[:, 0]))
     electrons = Species.electrons(particles, density=density, vth=(vth, 0.0, 0.0)).replace(x=x, v=v)
     plasma = Simulation(Domain(length=length, cells=cells, dt_over_dx_c=0.5), (electrons,))
+    parent = plasma.run(steps, store_particles=False)
     output = DarkSimulation(plasma, DarkField(wp, eta)).run(steps, store_particles=False)
     time = np.asarray(output.ordinary.t) * wp
+    parent_amplitude = np.abs(np.fft.rfft(np.asarray(parent.E[:, :, 0]), axis=1)[:, 1]) / cells
     amplitude = np.abs(np.fft.rfft(np.asarray(output.ordinary.E[:, :, 0]), axis=1)[:, 1]) / cells
     dark_amplitude = np.abs(np.fft.rfft(np.asarray(output.E[:, :, 0]), axis=1)[:, 1]) / cells
     analytic, residual = mixed_root(k * c / wp, vth / (np.sqrt(2) * c), eta, 1.0)
+    ordinary_root, ordinary_residual = mixed_root(k * c / wp, vth / (np.sqrt(2) * c), 0.0, 1.0)
     results = {"root_real_over_wp": analytic.real, "root_imag_over_wp": analytic.imag,
-               "root_residual": residual, "fit_status": "smoke only"}
+               "root_residual": residual, "parent_root_real_over_wp": ordinary_root.real,
+               "parent_root_imag_over_wp": ordinary_root.imag,
+               "parent_root_residual": ordinary_residual, "fit_status": "smoke only"}
     peaks = np.array([], dtype=int)
     if args.full:
         gamma, frequency, peaks, floor = damped_mode(time, amplitude)
+        parent_gamma, parent_frequency, parent_peaks, parent_floor = damped_mode(time, parent_amplitude)
         regression = linregress(time[peaks], np.log(amplitude[peaks]))
         intervals = np.diff(time[peaks])
         frequency_se = (frequency * np.std(intervals, ddof=1)
@@ -79,27 +85,39 @@ def main():
                         "frequency_estimated_stderr": frequency_se,
                         "linear_window_wp_t": [time[peaks[0]], time[peaks[-1]]],
                         "maxima_used": int(peaks.size), "late_mode_floor_V_m": floor})
+        results.update({"parent_measured_real_over_wp": parent_frequency,
+                        "parent_measured_imag_over_wp": parent_gamma,
+                        "parent_maxima_used": int(parent_peaks.size),
+                        "parent_late_mode_floor_V_m": parent_floor,
+                        "parent_frequency_relative_error": abs(parent_frequency / ordinary_root.real - 1),
+                        "parent_damping_relative_error": abs(parent_gamma / ordinary_root.imag - 1)})
 
     with midnight():
         fig, ax = plt.subplots(figsize=(8, 4.5), layout="constrained")
-        ax.semilogy(time, amplitude, label="ordinary PIC mode")
-        ax.semilogy(time, dark_amplitude, label="dark PIC mode")
+        ax.semilogy(time, parent_amplitude, label="JAX-in-Cell ordinary mode")
+        ax.semilogy(time, amplitude, label="Dark-JAX-in-Cell ordinary mode")
+        ax.semilogy(time, dark_amplitude, label="dark field mode")
         if peaks.size:
             ax.semilogy(time[peaks], amplitude[peaks], "o", label="fitted maxima")
             envelope = amplitude[peaks[0]] * np.exp(analytic.imag * (time - time[peaks[0]]))
             ax.semilogy(time, envelope, "--", label="independent mixed kinetic root")
+            parent_envelope = parent_amplitude[parent_peaks[0]] * np.exp(
+                ordinary_root.imag * (time - time[parent_peaks[0]]))
+            ax.semilogy(time, parent_envelope, "--", label="ordinary Landau root")
             ax.axhline(results["late_mode_floor_V_m"], ls=":", label="late mode floor")
         ax.set(xlabel=r"$\omega_p t$", ylabel=r"$|E_{x,k}|$ (V/m)",
-               title="A mixed Landau whisper: seeded current-neutral plasma")
+               title="Matched loading: ordinary and mixed Landau modes")
         ax.grid(alpha=0.4)
         ax.legend(facecolor="#232334", edgecolor="#8f899e")
         settings = {"preset": "full" if args.full else "quick", "cells": cells,
                     "particles": particles, "steps": steps, "length_m": length,
                     "omega_p_rad_s": wp, "eta": eta, "mu_over_wp": 1.0,
                     "k_lambda_D": 0.5, "seed_displacement_over_1_k": 0.01,
-                    "background": "uniform fixed neutralizer"}
+                    "background": "uniform fixed neutralizer",
+                    "comparison": "same species arrays, grid, timestep, seed and ordinary initial field"}
         save_run(args.output, "dark_kinetic", settings, results, fig,
-                 t=time, ordinary_amplitude=amplitude, dark_amplitude=dark_amplitude,
+                 t=time, parent_amplitude=parent_amplitude,
+                 ordinary_amplitude=amplitude, dark_amplitude=dark_amplitude,
                  fitted_maxima=peaks)
         plt.close(fig)
     label = "MIXED KINETIC CHECK" if args.full else "SMOKE"

@@ -1,0 +1,73 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "396fc5367deb737cef01d1200e1589dad791864d-dirty",
+ "example": "time_integrators",
+ "settings": {
+  "preset": "full",
+  "cells": 16,
+  "horizon_omega_D": 200,
+  "normalized_units": "c=Omega_D=epsilon_0=1",
+  "scope": "source-free staggered Proca field only; no PIC particles"
+ },
+ "results": {
+  "methods": [
+   {
+    "method": "split",
+    "h_omega": 0.2,
+    "steps": 1000,
+    "seconds": 0.05384287500055507,
+    "rhs_evaluations": 0,
+    "max_relative_energy_change": 0.023741623726703853,
+    "max_gauss": 3.3306690738754696e-15,
+    "final_relative_state_error": 1.0270214914454987
+   },
+   {
+    "method": "split",
+    "h_omega": 0.1,
+    "steps": 2000,
+    "seconds": 0.10751324996817857,
+    "rhs_evaluations": 0,
+    "max_relative_energy_change": 0.005772706943464101,
+    "max_gauss": 5.370703881624195e-15,
+    "final_relative_state_error": 0.3560043979445714
+   },
+   {
+    "method": "midpoint",
+    "h_omega": 0.2,
+    "steps": 1000,
+    "seconds": 0.006941833009477705,
+    "rhs_evaluations": 0,
+    "max_relative_energy_change": 5.384581669432009e-14,
+    "max_gauss": 2.491062911502695e-15,
+    "final_relative_state_error": 1.5337659045496892
+   },
+   {
+    "method": "midpoint",
+    "h_omega": 0.1,
+    "steps": 2000,
+    "seconds": 0.01354120799805969,
+    "rhs_evaluations": 0,
+    "max_relative_energy_change": 6.550315845288424e-14,
+    "max_gauss": 3.920475055707584e-15,
+    "final_relative_state_error": 0.6328277993078262
+   },
+   {
+    "method": "DOP853",
+    "h_omega": 0.2,
+    "steps": 1000,
+    "seconds": 0.1530737499706447,
+    "rhs_evaluations": 20129,
+    "max_relative_energy_change": 1.293404938706999e-09,
+    "max_gauss": 2.733924198139448e-15,
+    "final_relative_state_error": 2.979437353471257e-08
+   }
+  ],
+  "oracle": "scipy.sparse.linalg.expm_multiply"
+ }
+}

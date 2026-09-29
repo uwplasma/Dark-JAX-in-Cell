@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "716620fd3c9f44ccd589fe0ce5f513bbebdbd503-dirty",
+ "git": "396fc5367deb737cef01d1200e1589dad791864d-dirty",
  "example": "dark_movie_phase_space",
  "settings": {
   "preset": "illustration",
@@ -17,12 +17,14 @@
   "eta": 0.3,
   "omega_rad_s": 1151203038.72,
   "thermal_m_s": 77946039.08,
-  "seed_displacement_over_1_k": 0.06
+  "seed_displacement_over_1_k": 0.06,
+  "matched_loading": "same species x, v, weights and ordinary initial field"
  },
  "results": {
   "frames": 32,
-  "webp_bytes": 386454,
+  "webp_bytes": 539978,
   "closed_energy_relative_drift": 1.6243089171696923e-05,
+  "parent_energy_relative_drift": 1.0072970192176456e-05,
   "max_dark_gauss_V_m2": 3.6798155633732677e-09
  }
 }

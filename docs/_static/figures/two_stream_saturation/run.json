@@ -1,0 +1,104 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "396fc5367deb737cef01d1200e1589dad791864d-dirty",
+ "example": "dark_saturation",
+ "settings": {
+  "preset": "full",
+  "eta": 0.3,
+  "mu_over_wp": 0.7,
+  "cases": [
+   {
+    "cells": 64,
+    "particles_per_beam": 4000,
+    "steps": 3200,
+    "store_every": 20,
+    "dt_omega_p": 0.025,
+    "horizon_omega_p": 80.0
+   },
+   {
+    "cells": 64,
+    "particles_per_beam": 4000,
+    "steps": 6400,
+    "store_every": 40,
+    "dt_omega_p": 0.0125,
+    "horizon_omega_p": 80.0
+   },
+   {
+    "cells": 128,
+    "particles_per_beam": 8000,
+    "steps": 6400,
+    "store_every": 40,
+    "dt_omega_p": 0.0125,
+    "horizon_omega_p": 80.0
+   }
+  ],
+  "matched_loading": "same species x, v, weights and ordinary initial field"
+ },
+ "results": {
+  "ordinary_cold_growth_over_wp": 0.33847119301772016,
+  "mixed_cold_growth_over_wp": 0.3466973106006945,
+  "cases": [
+   {
+    "fits": {
+     "parent": 0.3322838970369684,
+     "mixed": 0.34069381642582297
+    },
+    "late_mode_rms_V_m": {
+     "parent": 69839.95876539919,
+     "mixed": 67599.11642096653
+    },
+    "bounce_over_growth": {
+     "parent": 1.5441408803824048,
+     "mixed": 1.4705101133085927
+    },
+    "parent_max_energy_drift": 0.006995738263068096,
+    "mixed_max_energy_drift": 0.006771281662053319,
+    "max_dark_work_residual_over_transfer": 1.9092349200638694e-05,
+    "max_dark_gauss": 4.528556019067764e-08
+   },
+   {
+    "fits": {
+     "parent": 0.33406673030496187,
+     "mixed": 0.3427586469026219
+    },
+    "late_mode_rms_V_m": {
+     "parent": 70948.5961580289,
+     "mixed": 67974.10946651589
+    },
+    "bounce_over_growth": {
+     "parent": 1.5442284902248513,
+     "mixed": 1.4705589139840036
+    },
+    "parent_max_energy_drift": 0.007009473777874975,
+    "mixed_max_energy_drift": 0.0067966493725286625,
+    "max_dark_work_residual_over_transfer": 4.652952545419578e-06,
+    "max_dark_gauss": 4.831235855817795e-08
+   },
+   {
+    "fits": {
+     "parent": 0.3343469445713588,
+     "mixed": 0.34301742514915123
+    },
+    "late_mode_rms_V_m": {
+     "parent": 68615.41911030709,
+     "mixed": 64556.68334025353
+    },
+    "bounce_over_growth": {
+     "parent": 1.5392261709799206,
+     "mixed": 1.4663048813621424
+    },
+    "parent_max_energy_drift": 0.0023438461900617824,
+    "mixed_max_energy_drift": 0.0018965581798358055,
+    "max_dark_work_residual_over_transfer": 6.905524195073576e-06,
+    "max_dark_gauss": 1.1338852345943451e-07
+   }
+  ],
+  "scope": "cold two-stream long-time numerical comparison; no new-physics claim"
+ }
+}

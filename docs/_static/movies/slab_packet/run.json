@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "716620fd3c9f44ccd589fe0ce5f513bbebdbd503-dirty",
+ "git": "396fc5367deb737cef01d1200e1589dad791864d-dirty",
  "example": "dark_movie_slab_packet",
  "settings": {
   "preset": "illustration",
@@ -26,7 +26,7 @@
  },
  "results": {
   "frames": 30,
-  "webp_bytes": 210772,
+  "webp_bytes": 208996,
   "closed_energy_relative_drift": -7.759077280011795e-06,
   "max_dark_gauss_V_m2": 1.9810536674644275e-12
  }

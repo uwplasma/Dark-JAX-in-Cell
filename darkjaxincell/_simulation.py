@@ -83,13 +83,16 @@ class DarkOutput:
     model: object
 
     def energy(self):
-        """Ordinary, dark and total energy histories in J/m²."""
+        """Energy and source-work ledgers in J/m²; differences start at the first sample."""
         ordinary = energies(self.ordinary)
         if isinstance(self.model, DarkField):
             dark = energy(self.E, self.B, self.A, self.phi, self.ordinary.dx, self.model.omega)
-            result = {**ordinary, "dark": dark}
+            transfer = self.work - self.work[0]
+            result = {**ordinary, "dark": dark, "dark_source_work": self.work,
+                      "dark_work_residual": dark - dark[0] - transfer}
             if "total" in ordinary:
                 result["total_with_dark"] = ordinary["total"] + dark
+                result["ordinary_work_residual"] = ordinary["total"] - ordinary["total"][0] + transfer
             return result
         result = {**ordinary, "external_work": self.work}
         if "total" in ordinary:

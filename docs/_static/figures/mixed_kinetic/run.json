@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f-dirty",
+ "git": "396fc5367deb737cef01d1200e1589dad791864d-dirty",
  "example": "dark_kinetic",
  "settings": {
   "preset": "full",
@@ -19,12 +19,16 @@
   "mu_over_wp": 1.0,
   "k_lambda_D": 0.5,
   "seed_displacement_over_1_k": 0.01,
-  "background": "uniform fixed neutralizer"
+  "background": "uniform fixed neutralizer",
+  "comparison": "same species arrays, grid, timestep, seed and ordinary initial field"
  },
  "results": {
   "root_real_over_wp": 1.436947971622669,
   "root_imag_over_wp": -0.14185585257930974,
   "root_residual": 2.5299344200252475e-14,
+  "parent_root_real_over_wp": 1.4156618886045311,
+  "parent_root_imag_over_wp": -0.15335946690960556,
+  "parent_root_residual": 5.0142027785651374e-14,
   "fit_status": "resolved",
   "measured_real_over_wp": 1.4320650272773918,
   "measured_imag_over_wp": -0.14575935772864987,
@@ -37,6 +41,12 @@
    11.22500000000004
   ],
   "maxima_used": 5,
-  "late_mode_floor_V_m": 93.41315363524329
+  "late_mode_floor_V_m": 93.41315363524329,
+  "parent_measured_real_over_wp": 1.4119517544223832,
+  "parent_measured_imag_over_wp": -0.1533842902627715,
+  "parent_maxima_used": 7,
+  "parent_late_mode_floor_V_m": 45.412966477601984,
+  "parent_frequency_relative_error": 0.0026207770457147284,
+  "parent_damping_relative_error": 0.0001618638462050903
  }
 }

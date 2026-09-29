@@ -20,6 +20,7 @@ from examples.dark_kinetic import mixed_root
 from examples.dark_instabilities import two_stream_growth, weibel_growth
 from examples.dark_profile import (build_design, cold_scattering, packet, profile,
                                    slab_basis, transmitted_fraction, make_simulation)
+from docs.scripts.benchmark_time_integrators import system as vacuum_system
 
 
 OMEGA = 1e9
@@ -130,6 +131,24 @@ def test_compatible_kick_drift_and_continuity():
     B1, A1 = drift(E1, B, A, phi1, h, dx)
     np.testing.assert_allclose(B1, curl_E(A1, B1, dx, (0, 0)), atol=2e-14)
     np.testing.assert_allclose(curl_E(gradient(phi, dx), B, dx, (0, 0)), 0, atol=2e-13)
+
+
+def test_independent_vacuum_clock_matches_production_split():
+    y0, _, split, unpack, _ = vacuum_system(16)
+    electric, magnetic, potential, scalar = unpack(y0)
+    dx, h = 2 * np.pi * c / (16 * OMEGA), 0.2 / OMEGA
+    electric = jnp.asarray(electric)
+    magnetic = jnp.asarray(magnetic / c)
+    potential = jnp.asarray(potential / OMEGA)
+    scalar = jnp.asarray(scalar * c / OMEGA)
+    electric, scalar = kick(electric, magnetic, potential, scalar, jnp.zeros_like(electric),
+                            h / 2, dx, OMEGA, 0.0)
+    magnetic, potential = drift(electric, magnetic, potential, scalar, h, dx)
+    electric, scalar = kick(electric, magnetic, potential, scalar, jnp.zeros_like(electric),
+                            h / 2, dx, OMEGA, 0.0)
+    measured = np.concatenate((np.asarray(electric).ravel(), np.asarray(magnetic * c).ravel(),
+                               np.asarray(potential * OMEGA).ravel(), np.asarray(scalar * OMEGA / c)))
+    np.testing.assert_allclose(measured, split(y0, 0.2), rtol=2e-14, atol=2e-14)
 
 
 def test_vacuum_homogeneous_mode_and_dark_energy():
@@ -346,15 +365,21 @@ def test_all_three_vacuum_polarizations(axis):
 
 
 def test_closed_energy_error_refines():
-    errors = []
+    errors, dark_work_errors = [], []
     for courant in (0.2, 0.1, 0.05):
         d = Domain(length=2 * np.pi * c / OMEGA, cells=16, dt_over_dx_c=courant)
         base = Simulation(d, (Species.electrons(64, density=0.8 * N_REF),))
         wave = jnp.broadcast_to(jnp.array([0.0, 1e-5, 0.0]), (16, 3))
         out = DarkSimulation(base, DarkField(OMEGA, 0.05, initial_E=wave)).run(round(10 / (OMEGA * d.dt)))
-        total = np.asarray(out.energy()["total_with_dark"])
+        ledger = out.energy()
+        total = np.asarray(ledger["total_with_dark"])
         errors.append(abs(total[-1] / total[0] - 1))
+        dark_work_errors.append(np.max(np.abs(np.asarray(ledger["dark_work_residual"]))) / total[0])
+        np.testing.assert_allclose(
+            ledger["dark_work_residual"] + ledger["ordinary_work_residual"],
+            total - total[0], rtol=1e-9, atol=1e-30)
     assert errors[0] > 2.5 * errors[1] > 6 * errors[2]
+    assert dark_work_errors[0] > 2.5 * dark_work_errors[1] > 2.5 * dark_work_errors[2]
 
 
 def test_unsupported_model_fails():

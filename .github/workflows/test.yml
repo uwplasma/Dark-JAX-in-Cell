@@ -19,6 +19,8 @@ jobs:
       - run: python examples/dark_plasma.py
       - run: python examples/dark_kinetic.py
       - run: python examples/dark_instabilities.py two-stream
+      - run: python examples/dark_saturation.py
+      - run: python docs/scripts/benchmark_time_integrators.py --quick
       - run: python examples/dark_instabilities.py weibel
       - run: python examples/dark_null.py
       - run: python examples/dark_reservoir.py

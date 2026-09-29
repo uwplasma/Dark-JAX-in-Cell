@@ -47,6 +47,18 @@ $$
 
 The tracked dark source work approximates $-\eta\int dt\,dx\,\mathbf J\cdot\mathbf E_D$ with fields centred on each source kick. A prescribed drive takes an explicit three-component electric-amplitude vector and accumulates external particle work from the Boris mean velocity. It has no simulated dark energy reservoir and cannot demonstrate dark depletion. The continuum dark flux is $\epsilon_0c^2\mathbf E_D\times\mathbf B_D+\epsilon_0\Omega_D^2\phi_D\mathbf A_D$. The slab example separately computes ordinary outgoing Poynting flux at a detector plane; there is no general dark-flux output API yet.
 
+In a periodic closed run, the useful ledgers are more specific than a single total:
+
+$$
+\begin{aligned}
+\dot U_D&=-\eta\int dx\,\mathbf J\cdot\mathbf E_D,\\
+\frac{d}{dt}(U_{\rm particles}+U_{\rm EM})&=+\eta\int dx\,\mathbf J\cdot\mathbf E_D,\\
+\dot U&=0.
+\end{aligned}
+$$
+
+`DarkOutput.energy()` reports `dark_source_work`, `dark_work_residual` $=U_D(t)-U_D(t_0)-[W_D(t)-W_D(t_0)]$, and `ordinary_work_residual` $=U_{\rm particles+EM}(t)-U_{\rm particles+EM}(t_0)+[W_D(t)-W_D(t_0)]$. The two residuals add to the closed total-energy change. Monitor both Gauss laws, $\mathbf B_D-\nabla\times\mathbf A_D$, and this work ledger: small total drift alone can hide cancellation between the sectors. The finite-step residuals need not vanish exactly for the explicit particle scheme.
+
 For the homogeneous prescribed drive $E_D=D_0\cos\Omega t$ and an initially quiet cold plasma, the ordinary field obeys $\ddot E+\omega_p^2E=-\eta\omega_p^2D_0\cos\Omega t$. Its resonant limit is $E=-\eta\omega_pD_0t\sin(\omega_pt)/2$. The [drive example](../examples/dark_drive.py) evaluates the continuous, stable sinc form near resonance and checks the accumulated external-work balance. This is the same effective ordinary forcing; its linear-in-time amplitude is not exponential growth.
 
 ## Independent cold check
