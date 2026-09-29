@@ -224,6 +224,16 @@ def replay_ledger(sim, steps, incident_energy):
             "coarse_graining_dx_m": sim.plasma.domain.dx}
 
 
+def plot_reference(ax, reference, spectrum, order):
+    """Overlay only available full-preset cold scattering curves."""
+    if not reference:
+        return
+    for name, label in (("uniform", "uniform cold oracle"),
+                        ("optimized", "optimized cold oracle")):
+        cold = np.array([item[0] for item in reference[name]]).reshape(4, 2).mean(axis=1)
+        ax.plot(spectrum[order], cold[order], "--", label=label)
+
+
 def main():
     parser = argparse.ArgumentParser(description="A ghost packet visits a constrained slab")
     parser.add_argument("--full", action="store_true", help="resolved periodic no-wrap design")
@@ -340,6 +350,19 @@ def main():
         _, _, shorter = build_design(cells, positions, eta, mu, column,
                                      held, held_shifts, 400, detector)
         early_yields = np.asarray(shorter(theta))
+        window_replay = {"50": {"uniform": np.asarray(shorter(uniform)).tolist(),
+                                "optimized": early_yields.tolist()},
+                         "60": {"uniform": held_uniform.tolist(),
+                                "optimized": held_optimized.tolist()}}
+
+        def later_window(count):
+            _, _, longer = build_design(cells, positions, eta, mu, column,
+                                        held, held_shifts, count, detector)
+            return {"uniform": np.asarray(longer(uniform)).tolist(),
+                    "optimized": np.asarray(longer(theta)).tolist()}
+
+        window_replay["70"] = later_window(560)
+        window_replay["80"] = later_window(640)
         high_refined_packets = make_packets(held_carriers, energy=high_energy,
                                             grid_domain=refined_domain)
         high_refined_held = [high_refined_packets[j] for j in (0, 0, 1, 1)]
@@ -365,7 +388,7 @@ def main():
                             "uniform_held_yields": high_uniform.tolist(),
                             "cold_design_held_yields": high_cold.tolist(),
                             "high_design_held_yields": high_optimized.tolist(),
-                            "small_amplitude_short_window_yields": early_yields.tolist(),
+                            "small_amplitude_window_replay": window_replay,
                             "no_wave_max_ordinary_E_V_m": float(jnp.max(jnp.abs(quiet.ordinary.E))),
                             "refined_held_replay": high_refined,
                             "cold_design_ledger": replay_ledger(ledger_sim, steps, middle[2])}
@@ -392,13 +415,7 @@ def main():
         order = np.argsort(spectrum)
         axes[1].plot(spectrum[order], measured_uniform[order], "o-", label="uniform PIC")
         axes[1].plot(spectrum[order], measured_optimized[order], "o-", label="optimized PIC")
-        if reference:
-            cold_uniform = np.array([item[0] for item in reference["uniform"]]).reshape(4, 2).mean(axis=1)
-            cold_optimized = np.array([item[0] for item in reference["optimized"]]).reshape(4, 2).mean(axis=1)
-            axes[1].plot(spectrum[order], cold_uniform[order],
-                         "--", label="uniform cold oracle")
-            axes[1].plot(spectrum[order], cold_optimized[order],
-                         "--", label="optimized cold oracle")
+        plot_reference(axes[1], reference, spectrum, order)
         axes[1].set(xlabel=r"incident $k_D c/\omega_0$", ylabel="transmitted photon energy / incident dark energy",
                     title="Outgoing photons, with held-out points")
         axes[0].grid(alpha=0.4)

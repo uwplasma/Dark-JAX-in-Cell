@@ -18,6 +18,8 @@ jobs:
       - run: python examples/dark_drive.py
       - run: python examples/dark_plasma.py
       - run: python examples/dark_kinetic.py
+      - run: python examples/dark_instabilities.py two-stream
+      - run: python examples/dark_instabilities.py weibel
       - run: python examples/dark_null.py
       - run: python examples/optimize_dark_photon.py --quick
       - run: python examples/dark_profile.py

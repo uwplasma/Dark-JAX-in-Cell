@@ -24,10 +24,11 @@
 - **Known-answer optimization:** a fixed-window density calibration differentiates through particle loading and the complete PIC recurrence.
 - **Cold oblique 3V check:** all velocity and field components compared with an independent magnetized fluid matrix.
 - **One mixed kinetic mode:** a seeded, current-neutral longitudinal Maxwellian check against a Vlasov–Proca root, with its fit uncertainty recorded.
+- **Current-neutral instabilities:** cold mixed two-stream and bi-Maxwellian transverse anisotropy growth checks against independent determinants, with declared fit windows.
 - **Constrained conversion design:** outgoing photon flux from a traveling dark packet, a fixed-column neutral slab, independent cold scattering, held-out/refined replay, and a finite-amplitude kinetic comparison.
 - **Slim dependency:** imports JAX-in-Cell's loading, deposition, gathering, Boris push, ordinary field step, diagnostics, and archive machinery from its reviewed `research-release` SHA.
 
-The library currently supports **periodic explicit electromagnetic Ampere runs without filters, collisions, or particle sources**. Unsupported combinations fail at construction. Kinetic instability benchmarks, nonlinear external-drive reproduction, broader profile families, and full performance comparisons remain open validation work; see [validation and limits](docs/validation.md).
+The library currently supports **periodic explicit electromagnetic Ampere runs without filters, collisions, or particle sources**. Unsupported combinations fail at construction. Broader kinetic instability surveys, nonlinear external-drive reproduction, other profile families, and full performance comparisons remain open validation work; see [validation and limits](docs/validation.md).
 
 ## Install
 
@@ -65,6 +66,8 @@ python examples/dark_photon.py --quick
 python examples/dark_drive.py
 python examples/dark_plasma.py
 python examples/dark_kinetic.py
+python examples/dark_instabilities.py two-stream
+python examples/dark_instabilities.py weibel
 python examples/dark_null.py
 python examples/optimize_dark_photon.py --quick
 python examples/dark_profile.py
@@ -72,7 +75,7 @@ python docs/scripts/make_all.py
 python -m sphinx -b html -W docs docs/_build/html
 ```
 
-Quick presets are smoke runs. `make_all.py` runs the **full** cold, prescribed-drive, oblique 3V, mixed-kinetic, homogeneous-null, density-calibration and slab-design presets and writes their figures, data, measured numbers, and provenance together. The [validation page](docs/validation.md) separates measured checks from pending research claims.
+Quick presets are smoke runs. `make_all.py` runs the **full** cold, prescribed-drive, oblique 3V, mixed-kinetic, two-stream, transverse-anisotropy, homogeneous-null, density-calibration and slab-design presets and writes their figures, data, measured numbers, and provenance together. The [validation page](docs/validation.md) separates measured checks from pending research claims.
 
 ## Credit and license
 

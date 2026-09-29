@@ -64,6 +64,20 @@ measured.update({"kinetic_pic_real": f"{kin['measured_real_over_wp']:.5f}",
                  "kinetic_frequency_error": f"{100 * kin['frequency_relative_error']:.2f}",
                  "kinetic_damping_error": f"{100 * kin['damping_relative_error']:.2f}",
                  "kinetic_damping_stderr": f"{kin['damping_slope_stderr']:.4f}"})
+instability_records = {}
+for mode, folder in (("two-stream", "mixed_two_stream"), ("weibel", "mixed_weibel")):
+    path = EVIDENCE.parent / folder
+    subprocess.run([sys.executable, str(ROOT / "examples" / "dark_instabilities.py"), mode,
+                    "--full", "--output", str(path)], cwd=ROOT, check=True)
+    instability_records[folder] = json.loads((path / "run.json").read_text())
+two = instability_records["mixed_two_stream"]["results"]
+weibel = instability_records["mixed_weibel"]["results"]
+two_record = instability_records["mixed_two_stream"]
+for name, result in (("two_stream", two), ("weibel", weibel)):
+    measured[f"{name}_root"] = f"{result['reference_growth_over_wp']:.5f}"
+    measured[f"{name}_pic"] = f"{result['pic_fits'][0]['growth_over_wp']:.5f}"
+    measured[f"{name}_refined"] = f"{result['pic_fits'][1]['growth_over_wp']:.5f}"
+    measured[f"{name}_zero_pic"] = f"{result['zero_coupling_pic_growth_over_wp']:.5f}"
 null = EVIDENCE.parent / "homogeneous_null"
 subprocess.run([sys.executable, str(ROOT / "examples" / "dark_null.py"), "--full",
                 "--output", str(null)], cwd=ROOT, check=True)
@@ -78,11 +92,14 @@ p = design_record["results"]
 high = p["finite_amplitude"]
 small_uniform = sum(p["uniform_held_yields"]) / 4
 small_optimized = sum(p["optimized_held_yields"]) / 4
-short = sum(high["small_amplitude_short_window_yields"]) / 4
+short = sum(high["small_amplitude_window_replay"]["50"]["optimized"]) / 4
+long_window = high["small_amplitude_window_replay"]["80"]
+gain_80 = 100 * (sum(long_window["optimized"]) / sum(long_window["uniform"]) - 1)
 gain = [100 * row["relative_gain"] for row in p["refined_held_replay"].values()]
 reference_residual = max(row[1] for rows in p["cold_spectral_reference"].values() for row in rows)
 measured.update({"profile_no_wave_E": f"{high['no_wave_max_ordinary_E_V_m']:.3e}",
                  "profile_window_tail_percent": f"{100 * (small_optimized - short) / small_optimized:.2f}",
+                 "profile_window_gain_80_percent": f"{gain_80:.2f}",
                  "profile_reference_flux_error": f"{reference_residual:.3e}",
                  "profile_uniform_objective": f"{p['baseline_scores']['uniform']:.7f}",
                  "profile_ramp_objective": f"{p['baseline_scores']['single_ramp']:.7f}",
@@ -107,6 +124,8 @@ measured["_provenance"] = {"cold_exchange": provenance(record, "cold_exchange"),
                            "density_calibration": provenance(calibration_record, "density_calibration"),
                            "oblique_3v": provenance(oblique_record, "oblique_3v"),
                            "mixed_kinetic": provenance(kinetic_record, "mixed_kinetic"),
+                           "mixed_two_stream": provenance(two_record, "mixed_two_stream"),
+                           "mixed_weibel": provenance(instability_records["mixed_weibel"], "mixed_weibel"),
                            "homogeneous_null": provenance(null_record, "homogeneous_null"),
                            "profile_design": provenance(design_record, "profile_design")}
 benchmark = EVIDENCE.parent / "recurrence_benchmark.json"

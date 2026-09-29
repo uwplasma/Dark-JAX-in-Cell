@@ -16,6 +16,7 @@ from darkjaxincell import (DarkField, DarkSimulation, PrescribedDrive, gauss,
 from darkjaxincell._proca import divergence, drift, gradient, kick
 from examples.optimize_dark_photon import build_objective, cold_reference
 from examples.dark_kinetic import mixed_root
+from examples.dark_instabilities import two_stream_growth, weibel_growth
 from examples.dark_profile import (build_design, cold_scattering, packet, profile,
                                    slab_basis, transmitted_fraction, make_simulation)
 
@@ -156,6 +157,8 @@ def test_mean_current_drives_both_fields():
     assert abs(float(jnp.mean(out.ordinary.J[0, :, 0]))) > 0
     assert abs(float(jnp.mean(out.ordinary.E[0, :, 0]))) > 0
     assert abs(float(jnp.mean(out.E[0, :, 0]))) > 0
+    np.testing.assert_allclose(jnp.mean(out.E[0, :, 0]), 0.1 * jnp.mean(out.ordinary.E[0, :, 0]),
+                               rtol=0.02)
 
 
 def test_drive_phase_survives_native_restart(tmp_path):
@@ -318,6 +321,26 @@ def test_mixed_kinetic_reference_root_and_zero_coupling_limit():
     np.testing.assert_allclose([mixed.real, mixed.imag], [1.4369479716, -0.1418558526], rtol=1e-8)
     np.testing.assert_allclose(plain, landau_root(0.5), rtol=1e-8)
     assert residual < 1e-10 and plain_residual < 1e-10
+
+
+def test_mixed_instability_reference_limits():
+    kc = 2 * np.pi / (0.05 * 64)
+    mixed, residual = two_stream_growth(kc, 0.25 * kc, 0.7, 0.3)
+    plain, _ = two_stream_growth(kc, 0.25 * kc, 0.7, 0)
+    pole = (0.25 * kc)**2
+    cold_plain = np.sqrt(-(2 * pole + 1 - np.sqrt(1 + 8 * pole)) / 2)
+    np.testing.assert_allclose(plain, cold_plain, rtol=1e-12)
+    np.testing.assert_allclose(mixed, 0.3466973106, rtol=1e-9)
+    np.testing.assert_allclose(two_stream_growth(kc, 0.25 * kc, 0.7, -0.3)[0], mixed)
+    assert residual < 1e-12 and mixed > plain
+
+    growing, residual = weibel_growth(1.0, 0.08, 4.0, 0.7, 0.3)
+    uncoupled, _ = weibel_growth(1.0, 0.08, 4.0, 0.7, 0)
+    np.testing.assert_allclose([growing, uncoupled], [0.0511341941, 0.0488668629], rtol=1e-8)
+    np.testing.assert_allclose(weibel_growth(1.0, 0.08, 4.0, 0.7, -0.3)[0], growing)
+    assert residual < 1e-10
+    with pytest.raises(ValueError):
+        weibel_growth(1.0, 0.08, 1.0, 0.7, 0.3)
 
 
 def test_profile_column_peak_and_independent_scattering():
