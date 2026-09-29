@@ -8,6 +8,7 @@ The ghostly wing of JAX-in-Cell: a separate, small package for periodic classica
 physics
 validation
 optimization
+profile
 kinetic
 performance
 ```

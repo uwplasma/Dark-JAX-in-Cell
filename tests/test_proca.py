@@ -1,6 +1,7 @@
 """Independent field identities and parent-integration regressions."""
 
 import numpy as np
+import itertools
 import pytest
 import jax
 import jax.numpy as jnp
@@ -15,6 +16,8 @@ from darkjaxincell import (DarkField, DarkSimulation, PrescribedDrive, gauss,
 from darkjaxincell._proca import divergence, drift, gradient, kick
 from examples.optimize_dark_photon import build_objective, cold_reference
 from examples.dark_kinetic import mixed_root
+from examples.dark_profile import (build_design, cold_scattering, packet, profile,
+                                   slab_basis, transmitted_fraction, make_simulation)
 
 
 OMEGA = 1e9
@@ -315,3 +318,84 @@ def test_mixed_kinetic_reference_root_and_zero_coupling_limit():
     np.testing.assert_allclose([mixed.real, mixed.imag], [1.4369479716, -0.1418558526], rtol=1e-8)
     np.testing.assert_allclose(plain, landau_root(0.5), rtol=1e-8)
     assert residual < 1e-10 and plain_residual < 1e-10
+
+
+def test_profile_column_peak_and_independent_scattering():
+    grid, basis, _ = slab_basis(16)
+    ell = c / OMEGA
+    column = 1.5 * N_REF * ell
+    for curve in basis:
+        np.testing.assert_allclose(np.trapezoid(curve, grid), 1, atol=1e-12)
+    for theta in (np.zeros(3), np.array([0.6, -0.6, 0.6])):
+        density = profile(grid * ell, theta, grid, basis, column)
+        np.testing.assert_allclose(np.trapezoid(density, grid * ell), column, rtol=1e-12)
+        assert max(density) < N_REF
+    for theta in itertools.product((-0.65, 0.65), repeat=3):
+        assert max(profile(grid * ell, theta, grid, basis, column)) < N_REF
+    args = (OMEGA, 0.6 * OMEGA, 0.05, column, np.zeros(3), grid, basis)
+    uncoupled = cold_scattering(OMEGA, 0.6 * OMEGA, 0, column, np.zeros(3), grid, basis)
+    np.testing.assert_allclose(uncoupled, [0, 0, 0, 1], atol=1e-8)
+    coarse, medium, fine = (cold_scattering(*args, n=n) for n in (101, 201, 401))
+    assert abs(sum(fine) - 1) < 3e-7
+    assert abs(coarse[1] - fine[1]) > 3 * abs(medium[1] - fine[1])
+    weak = cold_scattering(OMEGA, 0.6 * OMEGA, 0.025, column,
+                           np.zeros(3), grid, basis)
+    np.testing.assert_allclose(fine[1] / weak[1], 4, rtol=0.002)
+
+
+def test_uniform_slab_scattering_against_analytic_transfer():
+    """A constant slab has an exact finite-width coupled-wave transfer map."""
+    from jaxincell import mass_proton
+
+    omega, mu, eta, ell = OMEGA, 0.6 * OMEGA, 0.05, c / OMEGA
+    n0 = 0.5 * N_REF
+    grid = np.linspace(-2, 2, 4001)
+    basis = np.ones((4, len(grid))) / 4
+    numerical = cold_scattering(omega, mu, eta, 4 * ell * n0,
+                                np.zeros(3), grid, basis, n=801)[1]
+    plasma2 = n0 * e**2 / epsilon_0 * (1 / mass_electron + 1 / mass_proton)
+    kg, kd = omega / c, np.sqrt(omega**2 - mu**2) / c
+    generator = np.array([[0, 0, 1, 0], [0, 0, 0, 1],
+                          [(plasma2 - omega**2) / c**2, eta * plasma2 / c**2, 0, 0],
+                          [eta * plasma2 / c**2, (mu**2 + eta**2 * plasma2 - omega**2) / c**2, 0, 0]],
+                         dtype=complex)
+    transfer = expm(generator * 4 * ell)
+    incoming = np.array([0, 1, 0, 1j * kd])
+    reflected_photon = np.array([1, 0, -1j * kg, 0])
+    reflected_dark = np.array([0, 1, 0, -1j * kd])
+    transmitted_photon = np.array([1, 0, 1j * kg, 0])
+    transmitted_dark = np.array([0, 1, 0, 1j * kd])
+    columns = np.stack((transfer @ reflected_photon, transfer @ reflected_dark,
+                        -transmitted_photon, -transmitted_dark), axis=1)
+    amplitudes = np.linalg.solve(columns, -transfer @ incoming)
+    analytic = kg / kd * abs(amplitudes[2])**2
+    np.testing.assert_allclose(numerical, analytic, rtol=0.005)
+
+
+def test_packet_energy_zero_mixing_and_profile_derivative():
+    cells, ell = 128, c / OMEGA
+    grid, basis, positions = slab_basis(16)
+    domain = Domain(length=80 * ell, cells=cells, dt_over_dx_c=0.4)
+    packet_data = packet(domain, 0.6 * OMEGA, 0.8 / ell, -16 * ell, 3.5 * ell, 1e-5)
+    E, A, incident = packet_data[:3]
+    np.testing.assert_allclose(incident, 1e-5, rtol=1e-12)
+    packet_Bz = (np.asarray(A[:, 1]) - np.roll(np.asarray(A[:, 1]), 1)) / domain.dx
+    assert np.sum(np.asarray(E[:, 1]) * packet_Bz) > 0
+    column = 1.5 * N_REF * ell
+    detector = int(np.argmin(abs(np.asarray(domain.grid) - 8 * ell)))
+    uncoupled = make_simulation(np.zeros(3), cells, 16, 0, 0.6 * OMEGA,
+                                column, positions, E, A, 80)
+    np.testing.assert_allclose(transmitted_fraction(uncoupled, incident, 160, detector), 0, atol=1e-15)
+    no_wave = make_simulation(np.zeros(3), cells, 16, 0.05, 0.6 * OMEGA,
+                              column, positions, jnp.zeros_like(E), jnp.zeros_like(A), 80)
+    quiet = no_wave.run(8, store_every=8, store_particles=False)
+    np.testing.assert_allclose(quiet.ordinary.E, 0, atol=2e-10)
+    value_grad, objective, _ = build_design(cells, positions, 0.05, 0.6 * OMEGA,
+                                            column, [packet_data], [[0, 0, 0]], 160,
+                                            detector, particles_per_basis=16)
+    point = np.array([0.1, -0.1, 0.05])
+    direction = np.array([0.3, -0.4, 0.1])
+    gradient = np.dot(np.asarray(value_grad(point)[1]), direction)
+    h = 1e-3
+    finite = (objective(point + h * direction) - objective(point - h * direction)) / (2 * h)
+    np.testing.assert_allclose(gradient, finite, rtol=2e-5, atol=1e-9)

@@ -70,12 +70,45 @@ subprocess.run([sys.executable, str(ROOT / "examples" / "dark_null.py"), "--full
 null_record = json.loads((null / "run.json").read_text())
 measured["null_coarse_error"] = f"{null_record['results']['max_mode_amplitude_difference_over_initial'][0]:.3e}"
 measured["null_fine_error"] = f"{null_record['results']['max_mode_amplitude_difference_over_initial'][1]:.3e}"
+design = EVIDENCE.parent / "profile_design"
+subprocess.run([sys.executable, str(ROOT / "examples" / "dark_profile.py"), "--full",
+                "--output", str(design)], cwd=ROOT, check=True)
+design_record = json.loads((design / "run.json").read_text())
+p = design_record["results"]
+high = p["finite_amplitude"]
+small_uniform = sum(p["uniform_held_yields"]) / 4
+small_optimized = sum(p["optimized_held_yields"]) / 4
+short = sum(high["small_amplitude_short_window_yields"]) / 4
+gain = [100 * row["relative_gain"] for row in p["refined_held_replay"].values()]
+reference_residual = max(row[1] for rows in p["cold_spectral_reference"].values() for row in rows)
+measured.update({"profile_no_wave_E": f"{high['no_wave_max_ordinary_E_V_m']:.3e}",
+                 "profile_window_tail_percent": f"{100 * (small_optimized - short) / small_optimized:.2f}",
+                 "profile_reference_flux_error": f"{reference_residual:.3e}",
+                 "profile_uniform_objective": f"{p['baseline_scores']['uniform']:.7f}",
+                 "profile_ramp_objective": f"{p['baseline_scores']['single_ramp']:.7f}",
+                 "profile_two_ramp_objective": f"{p['baseline_scores']['two_ramp']:.7f}",
+                 "profile_random_objective": f"{p['random_best_objective']:.7f}",
+                 "profile_best_objective": f"{p['best']['objective']:.7f}",
+                 "profile_held_uniform": f"{small_uniform:.7f}",
+                 "profile_held_optimized": f"{small_optimized:.7f}",
+                 "profile_refined_gain_min": f"{min(gain):.2f}",
+                 "profile_refined_gain_max": f"{max(gain):.2f}",
+                 "profile_gradient_error": f"{abs(p['profile_gradient_ad'] - p['profile_gradient_fd']):.3e}",
+                 "profile_high_max_speed": f"{high['cold_design_ledger']['max_particle_speed_over_c']:.3f}",
+                 "profile_high_cold_yield": f"{sum(high['cold_design_held_yields']) / 4:.7f}",
+                 "profile_high_uniform_yield": f"{sum(high['uniform_held_yields']) / 4:.7f}",
+                 "profile_high_design_yield": f"{sum(high['high_design_held_yields']) / 4:.7f}",
+                 "profile_high_energy_drift": (
+                     f"{abs(high['cold_design_ledger']['closed_total_over_incident'] - 1):.3e}"),
+                 "profile_high_random_energy": (
+                     f"{high['cold_design_ledger']['local_random_kinetic_over_incident']:.3e}")})
 measured["_provenance"] = {"cold_exchange": provenance(record, "cold_exchange"),
                            "prescribed_drive": provenance(drive_record, "prescribed_drive"),
                            "density_calibration": provenance(calibration_record, "density_calibration"),
                            "oblique_3v": provenance(oblique_record, "oblique_3v"),
                            "mixed_kinetic": provenance(kinetic_record, "mixed_kinetic"),
-                           "homogeneous_null": provenance(null_record, "homogeneous_null")}
+                           "homogeneous_null": provenance(null_record, "homogeneous_null"),
+                           "profile_design": provenance(design_record, "profile_design")}
 benchmark = EVIDENCE.parent / "recurrence_benchmark.json"
 if benchmark.exists():
     data = json.loads(benchmark.read_text())

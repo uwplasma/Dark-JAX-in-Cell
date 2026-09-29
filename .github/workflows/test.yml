@@ -20,4 +20,5 @@ jobs:
       - run: python examples/dark_kinetic.py
       - run: python examples/dark_null.py
       - run: python examples/optimize_dark_photon.py --quick
+      - run: python examples/dark_profile.py
       - run: python -m sphinx -b html -W docs docs/_build/html

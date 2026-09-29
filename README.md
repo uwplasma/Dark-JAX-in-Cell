@@ -11,6 +11,10 @@
 
 *Full preset: homogeneous cold plasma, canonical coupling 0.05, and a fixed initial dark electric amplitude. Solid lines are the independent cold matrix-exponential reference; dashed lines are PIC. This is coherent field exchange, not outgoing radiation or nonlinear conversion.*
 
+![Fixed-column slab and held-out outgoing photon fractions](docs/_static/figures/profile_design/figure.png)
+
+*Full preset: a traveling dark packet crosses a neutral electron–proton slab. The profile is constrained to fixed column, support and peak; outgoing photon flux is compared with an independent cold scattering solve and held-out/refined PIC replay.*
+
 ## Features
 
 - **Dynamical Maxwell–Proca:** longitudinal and both transverse polarizations, compatible Yee operators, both Gauss laws, and a shared fixed neutralizing background.
@@ -20,9 +24,10 @@
 - **Known-answer optimization:** a fixed-window density calibration differentiates through particle loading and the complete PIC recurrence.
 - **Cold oblique 3V check:** all velocity and field components compared with an independent magnetized fluid matrix.
 - **One mixed kinetic mode:** a seeded, current-neutral longitudinal Maxwellian check against a Vlasov–Proca root, with its fit uncertainty recorded.
+- **Constrained conversion design:** outgoing photon flux from a traveling dark packet, a fixed-column neutral slab, independent cold scattering, held-out/refined replay, and a finite-amplitude kinetic comparison.
 - **Slim dependency:** imports JAX-in-Cell's loading, deposition, gathering, Boris push, ordinary field step, diagnostics, and archive machinery from its reviewed `research-release` SHA.
 
-The library currently supports **periodic explicit electromagnetic Ampere runs without filters, collisions, or particle sources**. Unsupported combinations fail at construction. Kinetic instability benchmarks, nonlinear driven-plasma reproduction, constrained profile design, and full performance comparisons remain open validation work; see [validation and limits](docs/validation.md).
+The library currently supports **periodic explicit electromagnetic Ampere runs without filters, collisions, or particle sources**. Unsupported combinations fail at construction. Kinetic instability benchmarks, nonlinear external-drive reproduction, broader profile families, and full performance comparisons remain open validation work; see [validation and limits](docs/validation.md).
 
 ## Install
 
@@ -62,11 +67,12 @@ python examples/dark_plasma.py
 python examples/dark_kinetic.py
 python examples/dark_null.py
 python examples/optimize_dark_photon.py --quick
+python examples/dark_profile.py
 python docs/scripts/make_all.py
 python -m sphinx -b html -W docs docs/_build/html
 ```
 
-Quick presets are smoke runs. `make_all.py` runs the **full** cold, prescribed-drive, oblique 3V, mixed-kinetic, homogeneous-null and density-calibration presets and writes their figures, data, measured numbers, and provenance together. The [validation page](docs/validation.md) separates measured checks from pending research claims.
+Quick presets are smoke runs. `make_all.py` runs the **full** cold, prescribed-drive, oblique 3V, mixed-kinetic, homogeneous-null, density-calibration and slab-design presets and writes their figures, data, measured numbers, and provenance together. The [validation page](docs/validation.md) separates measured checks from pending research claims.
 
 ## Credit and license
 
