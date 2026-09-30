@@ -332,7 +332,7 @@ def pair_dark_figure(folder, full=False):
     """Compare a bare finite reservoir with its nonperiodic kinetic reference."""
     presets = ((1024, 16, 0.025, 50), (2048, 32, 0.0125, 50),
                (2048, 32, 0.00625, 170), (4096, 16, 0.00625, 170),
-               (4096, 32, 0.0125, 170),
+               (4096, 32, 0.0125, 170), (8192, 32, 0.00625, 170),
                (4096, 32, 0.00625, 170)) if full else ((2048, 32, 0.0125, 50),)
     runs = [pair_dark_experiment(*preset) for preset in presets]
     curves, settings, result = runs[-1]

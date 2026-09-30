@@ -240,6 +240,8 @@ measured.update({"dark_pair_ordinary_error": (
                      f"{dark_pair_result['ordinary_matched_energy']['late_coherent_fraction']:.3f}"),
                  "dark_pair_grid_control": (
                      f"{dark_pair_refinements[(2048, 32, 0.00625)]['late_coherent_fraction']:.3f}"),
+                 "dark_pair_large_grid": (
+                     f"{dark_pair_refinements[(8192, 32, 0.00625)]['late_coherent_fraction']:.3f}"),
                  "dark_pair_marker_control": (
                      f"{dark_pair_refinements[(4096, 16, 0.00625)]['late_coherent_fraction']:.3f}"),
                  "dark_pair_clock_control": (
