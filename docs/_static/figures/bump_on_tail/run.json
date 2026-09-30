@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "651a570bf64cb60bc88a242b53a3c89889e9c9fa-dirty",
+ "git": "1ea48c7e73564de355373c43f7eff77d7be79a15",
  "example": "dark_bump",
  "settings": {
   "preset": "full",
@@ -74,9 +74,24 @@
      18,
      30
     ],
-    "parent_max_energy_drift": 0.0010223411775915903,
-    "mixed_max_energy_drift": 0.0009293595429546997,
+    "parent_max_energy_drift": 0.0010222692517720677,
+    "mixed_max_energy_drift": 0.0009292742246300723,
     "dark_gauss_relative": 5.872420581312192e-16,
+    "histogram_support_over_vth": [
+     -4.0,
+     9.0
+    ],
+    "histogram_outside_number_fraction": {
+     "parent": [
+      0.0,
+      0.0
+     ],
+     "mixed": [
+      0.0,
+      0.0
+     ]
+    },
+    "initial_beam_number_fraction_in_support": 0.029999999999998042,
     "matched_loading": "identical x, v, weights, ordinary E, grid and step"
    },
    {
@@ -106,9 +121,24 @@
      18,
      30
     ],
-    "parent_max_energy_drift": 0.0002518565390614569,
-    "mixed_max_energy_drift": 0.00023316240144954925,
+    "parent_max_energy_drift": 0.00025183915786031186,
+    "mixed_max_energy_drift": 0.0002331417026981697,
     "dark_gauss_relative": 1.1105492239104064e-15,
+    "histogram_support_over_vth": [
+     -4.0,
+     9.0
+    ],
+    "histogram_outside_number_fraction": {
+     "parent": [
+      0.0,
+      0.0
+     ],
+     "mixed": [
+      0.0,
+      0.0
+     ]
+    },
+    "initial_beam_number_fraction_in_support": 0.02999999999999805,
     "matched_loading": "identical x, v, weights, ordinary E, grid and step"
    }
   ]
