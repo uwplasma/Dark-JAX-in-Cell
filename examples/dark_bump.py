@@ -1,4 +1,4 @@
-"""A matched bump-on-tail experiment with a finite Proca reservoir.
+"""A matched bump-on-tail experiment with a self-consistent Proca field.
 
 The Maxwellian beam follows the parent bump-on-tail example. A small bulk
 counterdrift makes the loaded plasma current-neutral; both runs use exactly
@@ -64,6 +64,20 @@ def kinetic_root(wp, vth, eta, mu_over_wp=0.7):
     return answer, abs(determinant(answer))
 
 
+def number_histogram(velocity, weight, counts, edges, speed):
+    """Physical number distribution and population contributions per ``v/speed``."""
+    velocity, weight = np.asarray(velocity), np.asarray(weight)
+    total = np.sum(weight)
+    start, pieces = 0, []
+    for count in counts:
+        stop = start + count
+        bins = np.histogram(velocity[start:stop], edges, weights=weight[start:stop])[0]
+        pieces.append(speed * bins / (total * np.diff(edges)))
+        start = stop
+    outside = float(np.sum(weight[(velocity < edges[0]) | (velocity > edges[-1])]) / total)
+    return np.sum(pieces, axis=0), np.asarray(pieces), outside
+
+
 def experiment(cells, bulk_count, beam_count, dt_wp, horizon, eta=0.3):
     """Measure growth, conservation and the late velocity distribution."""
     plasma, wp, vth = build_plasma(cells, bulk_count, beam_count, dt_wp)
@@ -86,18 +100,27 @@ def experiment(cells, bulk_count, beam_count, dt_wp, horizon, eta=0.3):
                                ("mixed", linregress(t[window], np.log(mixed_mode[window]))))}
             if horizon >= 35 else None)
     energy_p, energy_d = np.asarray(energies(parent)["total"]), np.asarray(dark.energy()["total_with_dark"])
+    initial_p = float(dark.state.initial_ordinary)
+    initial_d = float(dark.state.initial_ordinary + dark.state.initial_dark)
     edges = np.linspace(-4 * vth, 9 * vth, 180)
-    histograms = {}
+    histograms, components, tails = {}, {}, {}
     initial, _ = plasma.initial_state(jax.random.PRNGKey(0))
-    for name, initial_v, final_u in (("parent", initial.u[:, 0], parent.state.u[:, 0]),
-                                     ("mixed", initial.u[:, 0], dark.state.ordinary.u[:, 0])):
-        histograms[name] = [vth * np.histogram(np.asarray(v), edges, density=True)[0]
-                            for v in (initial_v, final_u)]
+    counts = (bulk_count, beam_count)
+    for name, final in (("parent", parent.state), ("mixed", dark.state.ordinary)):
+        pairs = ((plasma._velocity(initial.u)[:, 0], initial.w),
+                 (plasma._velocity(final.u)[:, 0], final.w))
+        measured = [number_histogram(v, w, counts, edges, vth) for v, w in pairs]
+        histograms[name] = np.asarray([item[0] for item in measured])
+        components[name] = np.asarray([item[1] for item in measured])
+        tails[name] = [item[2] for item in measured]
     rho_scale = float(np.max(np.abs(np.asarray(dark.ordinary.rho))) / epsilon_0)
     return {"t": t, "parent_mode": parent_mode, "mixed_mode": mixed_mode,
             "dark_mode": dark_mode, "parent_total": energy_p, "mixed_total": energy_d,
+            "initial_parent_total": initial_p, "initial_mixed_total": initial_d,
             "velocity_edges_over_vth": edges / vth,
             "parent_histogram": histograms["parent"], "mixed_histogram": histograms["mixed"],
+            "parent_population_histogram": components["parent"],
+            "mixed_population_histogram": components["mixed"],
             "settings": {"cells": cells, "bulk_particles": bulk_count, "beam_particles": beam_count,
                          "dt_omega_p": dt_wp, "steps": steps, "store_every": stride,
                          "horizon_omega_p": steps * dt_wp, "mode": 5, "beam_density_fraction": 0.03,
@@ -107,10 +130,14 @@ def experiment(cells, bulk_count, beam_count, dt_wp, horizon, eta=0.3):
                         "mixed_root_over_wp": [mixed_root.real, mixed_root.imag],
                         "root_residuals": [parent_residual, mixed_residual], "fits": fits,
                         "fit_window_omega_p": [18, 30] if fits else None,
-                        "parent_max_energy_drift": float(np.max(np.abs(energy_p / energy_p[0] - 1))),
-                        "mixed_max_energy_drift": float(np.max(np.abs(energy_d / energy_d[0] - 1))),
+                        "parent_max_energy_drift": float(np.max(np.abs(energy_p / initial_p - 1))),
+                        "mixed_max_energy_drift": float(np.max(np.abs(energy_d / initial_d - 1))),
                         "dark_gauss_relative": float(np.max(np.abs(np.asarray(dark.dark_gauss())))
                                                      / max(rho_scale, 1.0)),
+                        "histogram_support_over_vth": [float(edges[0] / vth), float(edges[-1] / vth)],
+                        "histogram_outside_number_fraction": tails,
+                        "initial_beam_number_fraction_in_support": float(np.sum(
+                            components["parent"][0, 1] * np.diff(edges / vth))),
                         "matched_loading": "identical x, v, weights, ordinary E, grid and step"}}
 
 
@@ -130,13 +157,17 @@ def main():
                              label=f"parent, {suffix}")
             axes[0].semilogy(run["t"], run["mixed_mode"], color="#6A3D9A", alpha=0.7,
                              label=f"dark, {suffix}")
-            axes[2].plot(run["t"], run["mixed_total"] / run["mixed_total"][0] - 1,
+            axes[2].plot(run["t"], run["mixed_total"] / run["initial_mixed_total"] - 1,
                          label=f"dark, {suffix}")
         base = runs[0]
         middle = 0.5 * (base["velocity_edges_over_vth"][:-1] + base["velocity_edges_over_vth"][1:])
         for name, color in (("parent", "#0072B2"), ("mixed", "#6A3D9A")):
             axes[1].plot(middle, base[f"{name}_histogram"][1], color=color, label=name)
         axes[1].plot(middle, base["parent_histogram"][0], "--", color="#30343B", label="initial")
+        axes[1].plot(middle, base["mixed_population_histogram"][1, 0], ":",
+                     color="#D55E00", label="late core")
+        axes[1].plot(middle, base["mixed_population_histogram"][1, 1], ":",
+                     color="#009E73", label="late beam")
         axes[0].set(xlabel=r"$\omega_p t$", ylabel=r"$|E_{x,k_5}|$ (V/m)", title="Resonant beam mode")
         axes[1].set(xlabel=r"$v_x/v_{th}$", ylabel=r"$v_{th}f(v_x)$", title="Velocity distribution")
         axes[2].set(xlabel=r"$\omega_p t$", ylabel="fractional closed-energy change",
@@ -149,8 +180,10 @@ def main():
                  {"cases": [run["results"] for run in runs]}, fig,
                  **{f"case_{i}_{key}": run[key] for i, run in enumerate(runs)
                     for key in ("t", "parent_mode", "mixed_mode", "dark_mode", "parent_total",
-                                "mixed_total", "velocity_edges_over_vth", "parent_histogram",
-                                "mixed_histogram")})
+                                "mixed_total", "initial_parent_total", "initial_mixed_total",
+                                "velocity_edges_over_vth", "parent_histogram",
+                                "mixed_histogram", "parent_population_histogram",
+                                "mixed_population_histogram")})
         plt.close(fig)
     print("🦇 BUMP-ON-TAIL:", [run["results"] for run in runs])
 

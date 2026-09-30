@@ -49,9 +49,11 @@ def main():
     ledger = output.energy()
     closed = np.asarray(ledger["total_with_dark"])
     ordinary_energy = np.asarray(ledger["total"])
-    transfer = -float(output.work[-1] - output.work[0])
-    closed_error = float(abs(closed[-1] / closed[0] - 1))
-    work_error = float(abs(ordinary_energy[-1] - ordinary_energy[0] - transfer) / abs(transfer))
+    transfer = -float(output.work[-1])
+    initial_ordinary = float(output.state.initial_ordinary)
+    initial_closed = float(output.state.initial_ordinary + output.state.initial_dark)
+    closed_error = float(abs(closed[-1] / initial_closed - 1))
+    work_error = float(abs(ordinary_energy[-1] - initial_ordinary - transfer) / abs(transfer))
 
     with midnight():
         fig, ax = plt.subplots(figsize=(8, 4.5), layout="constrained")

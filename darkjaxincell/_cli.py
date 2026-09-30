@@ -87,7 +87,10 @@ def main(argv=None):
     settings["seed"] = args.seed if args.seed is not None else settings.get("seed", 0)
     out = sim.run(**settings)
     ledger = out.energy()
-    key = "total_with_dark" if isinstance(sim.dark, DarkField) else "closed_balance"
+    balance = (ledger["closed_energy_error"] if isinstance(sim.dark, DarkField)
+               else ledger["closed_balance_error"])
+    initial = out.state.initial_ordinary + out.state.initial_dark
+    scale = jnp.maximum(jnp.abs(initial), jnp.abs(out.work[-1]))
     ex = out.ordinary.E[:, :, 0]
     ordinary_gauss = ((ex - jnp.roll(ex, 1, axis=1)) / out.ordinary.dx
                       - (out.ordinary.rho + out.state.background) / epsilon_0)
@@ -95,9 +98,10 @@ def main(argv=None):
               "ordinary_gauss_max_V_m2": float(jnp.max(jnp.abs(ordinary_gauss))),
               "dark_gauss_max_V_m2": (float(jnp.max(jnp.abs(out.dark_gauss())))
                                       if isinstance(sim.dark, DarkField) else None),
-              "energy_drift": (float(ledger[key][-1] / ledger[key][0] - 1)
-                               if key in ledger else None)}
-    print(f"🦇 {settings['steps']} steps; energy drift {result['energy_drift']}; "
+              "energy_drift": float(balance[-1] / jnp.maximum(scale, jnp.finfo(scale.dtype).tiny)),
+              "max_balance_error_J_m2": float(out.state.max_balance_error),
+              "initial_energy_J_m2": float(initial)}
+    print(f"🦇 {settings['steps']} steps; relative energy balance {result['energy_drift']}; "
           f"dark Gauss {result['dark_gauss_max_V_m2']}")
     if args.save is not None:
         args.save.mkdir(parents=True, exist_ok=True)

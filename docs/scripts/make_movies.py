@@ -40,9 +40,9 @@ def _encode(fig, update, count, path):
     return path.stat().st_size
 
 
-def _energy_lines(ax, time, ledger, parent=None):
+def _energy_lines(ax, time, ledger, parent=None, initial=None):
     """Keep a fixed energy scale while revealing each history frame by frame."""
-    initial = float(np.asarray(ledger["total_with_dark"])[0])
+    initial = float(np.asarray(ledger["total_with_dark"])[0]) if initial is None else initial
     components = ((ledger["kinetic"], ORANGE, "particles"),
                   (ledger["electric"] + ledger["magnetic"], BLUE, "ordinary EM"),
                   (ledger["dark"], VIOLET, "dark field"))
@@ -72,7 +72,20 @@ def _energy_lines(ax, time, ledger, parent=None):
     return show
 
 
-def _pair_history(plasma, dark_sim, frames, stride, chunk_frames, plot_stride, wp, scale_v):
+def _marker_indices(plasma, count=8192):
+    """Sample markers in proportion to their represented physical number."""
+    total = sum(float(species.density) for species in plasma.species)
+    count = min(count, sum(species.n for species in plasma.species))
+    start, selected = 0, []
+    for i, species in enumerate(plasma.species):
+        number = (count - len(selected) if i == len(plasma.species) - 1
+                  else round(count * float(species.density) / total))
+        selected.extend(np.linspace(start, start + species.n - 1, number, dtype=int))
+        start += species.n
+    return np.asarray(selected)
+
+
+def _pair_history(plasma, dark_sim, frames, stride, chunk_frames, plot_indices, wp, scale_v):
     """Keep small plotted histories while restarting the full PIC state in chunks."""
     kept = {key: [] for key in ("time", "parent_E", "mixed_E", "dark_E",
                                 "parent_x", "mixed_x", "parent_v", "mixed_v")}
@@ -90,10 +103,10 @@ def _pair_history(plasma, dark_sim, frames, stride, chunk_frames, plot_stride, w
                             ("parent_E", parent.E[:, :, 0]),
                             ("mixed_E", out.ordinary.E[:, :, 0]),
                             ("dark_E", out.E[:, :, 0]),
-                            ("parent_x", parent.x[:, ::plot_stride, 0] / plasma.domain.length),
-                            ("mixed_x", out.ordinary.x[:, ::plot_stride, 0] / plasma.domain.length),
-                            ("parent_v", parent.v[:, ::plot_stride, 0] / scale_v),
-                            ("mixed_v", out.ordinary.v[:, ::plot_stride, 0] / scale_v)):
+                            ("parent_x", parent.x[:, plot_indices, 0] / plasma.domain.length),
+                            ("mixed_x", out.ordinary.x[:, plot_indices, 0] / plasma.domain.length),
+                            ("parent_v", parent.v[:, plot_indices, 0] / scale_v),
+                            ("mixed_v", out.ordinary.v[:, plot_indices, 0] / scale_v)):
             kept[key].append(np.asarray(values))
         for ledger, energy in ((parent_ledger, energies(parent)),
                                (dark_ledger, out.energy())):
@@ -103,7 +116,9 @@ def _pair_history(plasma, dark_sim, frames, stride, chunk_frames, plot_stride, w
     kept = {key: np.concatenate(values) for key, values in kept.items()}
     parent_ledger = {key: np.concatenate(values) for key, values in parent_ledger.items()}
     dark_ledger = {key: np.concatenate(values) for key, values in dark_ledger.items()}
-    return kept, parent_ledger, dark_ledger, max_gauss
+    initial_parent = float(dark_state.initial_ordinary)
+    initial_mixed = float(dark_state.initial_ordinary + dark_state.initial_dark)
+    return kept, parent_ledger, dark_ledger, max_gauss, initial_parent, initial_mixed
 
 
 def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
@@ -115,11 +130,11 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
     frames = steps // stride
     chunk_frames = frames if chunk_frames is None else chunk_frames
     dark_sim = DarkSimulation(plasma, DarkField(0.7 * wp, eta))
-    plot_stride = max(1, sum(s.n for s in plasma.species) // 8000)
-    kept, parent_ledger, dark_ledger, max_gauss = _pair_history(
-        plasma, dark_sim, frames, stride, chunk_frames, plot_stride, wp, scale_v)
+    plot_indices = _marker_indices(plasma)
+    kept, parent_ledger, dark_ledger, max_gauss, initial_parent, initial_mixed = _pair_history(
+        plasma, dark_sim, frames, stride, chunk_frames, plot_indices, wp, scale_v)
     time = kept["time"]
-    grid = np.asarray(plasma.domain.grid) / plasma.domain.length
+    grid = np.asarray(plasma.domain.faces) / plasma.domain.length
     fields = [kept[key] for key in ("parent_E", "mixed_E", "dark_E")]
     positions = [kept[key] for key in ("parent_x", "mixed_x")]
     speeds = [kept[key] for key in ("parent_v", "mixed_v")]
@@ -141,7 +156,8 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
         axes["fields"].set(xlim=(grid[0], grid[-1]), ylim=(-field_limit, field_limit),
                            xlabel="$x/L$", ylabel="V/m", title="Electric fields")
         axes["fields"].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=7)
-        show_energy = _energy_lines(axes["energy"], time, dark_ledger, parent_ledger)
+        show_energy = _energy_lines(axes["energy"], time, dark_ledger, parent_ledger,
+                                    initial=initial_mixed)
 
         def update(index):
             for scatter, x, v in zip(scatters, positions, speeds):
@@ -156,10 +172,10 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
     parent_total = parent_ledger["total"]
     mode_amplitudes = [np.abs(np.fft.rfft(field, axis=1)[:, mode]) / cells for field in fields]
     results = {"frames": len(time), "webp_bytes": size,
-               "closed_energy_relative_drift": float(ledger[-1] / ledger[0] - 1),
-               "parent_energy_relative_drift": float(parent_total[-1] / parent_total[0] - 1),
-               "max_closed_energy_relative_change": float(np.max(np.abs(ledger / ledger[0] - 1))),
-               "max_parent_energy_relative_change": float(np.max(np.abs(parent_total / parent_total[0] - 1))),
+               "closed_energy_relative_drift": float(ledger[-1] / initial_mixed - 1),
+               "parent_energy_relative_drift": float(parent_total[-1] / initial_parent - 1),
+               "max_closed_energy_relative_change": float(np.max(np.abs(ledger / initial_mixed - 1))),
+               "max_parent_energy_relative_change": float(np.max(np.abs(parent_total / initial_parent - 1))),
                "max_dark_gauss_V_m2": max_gauss}
     if name == "two_stream":
         reference = np.load(ROOT / "docs/_static/figures/two_stream_extended/data.npz")
@@ -183,9 +199,16 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
               "particles_per_species": [s.n for s in plasma.species],
               "steps": steps, "store_every": stride, "eta": eta, "mu_over_wp": 0.7,
               "mode": mode, "horizon_omega_p": float(time[-1]),
+              "initial_parent_energy_J_m2": initial_parent,
+              "initial_mixed_energy_J_m2": initial_mixed,
               "chunk_frames": chunk_frames,
               "stored_samples_per_plasma_period": 2 * np.pi / (stride * wp * plasma.domain.dt),
               "particles_plotted_per_panel": positions[0].shape[1],
+              "plotted_marker_counts": [int(np.count_nonzero(
+                  (plot_indices >= sum(s.n for s in plasma.species[:i]))
+                  & (plot_indices < sum(s.n for s in plasma.species[:i + 1]))))
+                  for i in range(len(plasma.species))],
+              "marker_display": "sampled by represented physical number; points are not density values",
               "matched_loading": "same particle arrays, weights, ordinary field, grid and timestep"},
              results,
              t=time, parent_mode=mode_amplitudes[0], mixed_mode=mode_amplitudes[1],
@@ -227,7 +250,8 @@ def transverse():
                           positions, initial_E, initial_A, length_units=80)
     out = sim.run(steps, store_every=stride)
     time = np.asarray(out.ordinary.t) * omega0
-    grid = np.asarray(out.ordinary.grid) / ell
+    centres = np.asarray(out.ordinary.grid) / ell
+    faces = np.asarray(out.ordinary.faces) / ell
     ordinary_e = np.asarray(out.ordinary.E[:, :, 1])
     ordinary_b = c * np.asarray(out.ordinary.B[:, :, 2])
     dark_e = np.asarray(out.E[:, :, 1])
@@ -239,14 +263,15 @@ def transverse():
         for name, electric, magnetic, title in (("ordinary", ordinary_e, ordinary_b, "Photon field"),
                                                 ("dark", dark_e, dark_b, "Dark field")):
             ax = axes[name]
-            lines.append((ax.plot(grid, electric[0], color=BLUE, label="$E_y$")[0],
-                          ax.plot(grid, magnetic[0], color=VIOLET, label="$cB_z$")[0]))
+            lines.append((ax.plot(faces, electric[0], color=BLUE, label="$E_y$")[0],
+                          ax.plot(centres, magnetic[0], color=VIOLET, label="$cB_z$")[0]))
             scale = max(np.max(np.abs(electric)), np.max(np.abs(magnetic))) * 1.1
             ax.set(xlim=(-25, 15), ylim=(-scale, scale), xlabel=r"$x/(c/\omega_0)$",
                    ylabel="V/m", title=title)
             ax.axvspan(-2, 2, color=ORANGE, alpha=0.13)
             ax.legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
-        show_energy = _energy_lines(axes["energy"], time, out.energy())
+        initial = float(out.state.initial_ordinary + out.state.initial_dark)
+        show_energy = _energy_lines(axes["energy"], time, out.energy(), initial=initial)
 
         def update(index):
             for pair, electric, magnetic in zip(lines, (ordinary_e, dark_e), (ordinary_b, dark_b)):
@@ -266,7 +291,7 @@ def transverse():
               "theta_from": "docs/_static/figures/profile_design/run.json", "theta": theta,
               "incident_dark_energy_J_m2": incident},
              {"frames": len(time), "webp_bytes": size,
-              "closed_energy_relative_drift": float(ledger[-1] / ledger[0] - 1),
+              "closed_energy_relative_drift": float(ledger[-1] / initial - 1),
               "max_dark_gauss_V_m2": float(jnp.max(jnp.abs(out.dark_gauss())))})
 
 
