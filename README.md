@@ -10,7 +10,7 @@
 
 <img src="docs/_static/movies/two_stream/figure.webp" width="900" alt="Matched two-stream phase-space roll-up, ordinary and dark electric fields, and energy">
 
-*Two cold electron streams start from identical particle arrays in both solvers. This 128-cell [movie](docs/_static/movies/two_stream/run.json) advances 131,072 particles (1,024 per cell), plots 8,192 per panel, and stores 8.4 frames per plasma period. Its WebP is about 1.2 MB. It illustrates trapping; the growth fit and long-time convergence limits use the separate runs below.*
+*Two cold electron streams start from identical particle arrays in both solvers. This 128-cell [movie](docs/_static/movies/two_stream/run.json) advances 262,144 particles (2,048 per cell) through $\omega_pt=120$, plots 8,192 per panel, and stores 6.3 frames per plasma period. Its 120-frame WebP is 2.9 MB. It illustrates trapping; the growth fit and long-time convergence limits use the separate runs below.*
 
 *The two-stream and bump movies are longitudinal, so their magnetic fields vanish by symmetry. The [slab movie](#a-finite-dark-packet-crosses-a-designed-slab) shows the evolving ordinary and dark electric **and** magnetic waves.*
 
@@ -48,11 +48,13 @@ $$
 \begin{aligned}
 \partial_t\mathbf E_D &= c^2\nabla\times\mathbf B_D+\Omega_D^2\mathbf A_D-\eta\mathbf J/\epsilon_0,\\
 \partial_t\mathbf B_D &= -\nabla\times\mathbf E_D,\\
+\partial_t\mathbf A_D &= -\mathbf E_D-\nabla\phi_D,\\
+\partial_t\phi_D &= -c^2\nabla\cdot\mathbf A_D,\\
 \nabla\cdot\mathbf E_D+\Omega_D^2\phi_D/c^2 &= \eta\rho_{\rm total}/\epsilon_0.
 \end{aligned}
 $$
 
-Particles feel $q[\mathbf E+\eta\mathbf E_D+\mathbf v\times(\mathbf B+\eta\mathbf B_D)]$. The ordinary and dark Gauss laws share the same neutralizing background, and the physical mean current remains in both Ampère updates. For a closed run, the diagnostic includes particle kinetic energy and
+The ordinary fields obey $\partial_t\mathbf E=c^2\nabla\times\mathbf B-\mathbf J/\epsilon_0$, $\partial_t\mathbf B=-\nabla\times\mathbf E$ and $\nabla\cdot\mathbf E=\rho_{\rm total}/\epsilon_0$. Particles feel $q[\mathbf E+\eta\mathbf E_D+\mathbf v\times(\mathbf B+\eta\mathbf B_D)]$. Both Gauss laws use the same neutralizing background, and the physical mean current remains in both Ampère updates. For a closed run, the diagnostic includes particle kinetic energy and
 
 $$
 U_{\rm fields}=\frac{\epsilon_0}{2}\int\left(|\mathbf E|^2+c^2|\mathbf B|^2+|\mathbf E_D|^2+c^2|\mathbf B_D|^2+\Omega_D^2\left[|\mathbf A_D|^2+\phi_D^2/c^2\right]\right)dx.
@@ -62,9 +64,9 @@ A prescribed dark drive is a separate external-force control with a work ledger;
 
 ## Numerical method and constraints
 
-The supported solver is **periodic, explicit, electromagnetic 1D3V PIC**. It uses the parent's quadratic particle shape for charge, current and field gathering, a charge-conserving continuity current with its physical mean, a Boris particle push, and staggered Maxwell Ampère/Faraday updates. The dark $\mathbf E_D,\mathbf A_D$ live on faces; $\mathbf B_D,\phi_D$ live at cell centres. A symmetric Proca kick–drift–kick surrounds the same particle push. Runs here use no source filter or collisions. The explicit Proca step has a checked stability margin; [time-step tests](docs/performance.md#which-clock-to-trust) measure its accuracy.
+The solver is periodic, explicit **1D3V PIC**: fields vary along one spatial coordinate, while particles carry three velocity components. At each step, JAX-in-Cell's quadratic, three-cell weighting transfers charge to the grid and gathers fields back to particles. Current deposition balances changing cell charge with current flowing across cell faces and preserves the box's physical mean current. A Boris push advances particles in the combined ordinary and dark Lorentz force.
 
-**There is no per-step divergence cleaning or Poisson projection.** At initialization, the parent solves ordinary Gauss and the dark longitudinal electric field is set to satisfy dark Gauss. Thereafter, the discrete continuity current and matching face-to-centre divergence preserve both constraints up to roundoff; the dark scalar potential evolves with $\partial_t\phi_D=-c^2\nabla\cdot\mathbf A_D$. The update also keeps $\mathbf B_D=\nabla\times\mathbf A_D$. We report the Gauss residual and the complete particle + Maxwell + Proca energy, including $\Omega_D^2(|\mathbf A_D|^2+\phi_D^2/c^2)$. Constraint preservation alone does not imply exact energy conservation. [Discrete operators, checks and restart state](docs/physics.md) give the details.
+The ordinary electric and magnetic fields follow staggered Ampère and Faraday updates. Dark $\mathbf E_D,\mathbf A_D$ live on grid faces and $\mathbf B_D,\phi_D$ at cell centres; symmetric Proca kick and drift updates surround the particle push. Initial longitudinal fields satisfy both Gauss laws. The same charge-conserving current and compatible grid derivatives carry those constraints through the run, while the potential update maintains $\mathbf B_D=\nabla\times\mathbf A_D$. The reported Gauss residuals measure constraint error, and the energy ledger sums particle, Maxwell and full Proca field and potential energies. The examples use collisionless particles and unsmoothed sources. [Discrete equations, stability and measured energy drift](docs/physics.md) describe the scheme in detail.
 
 ## Cold exchange: a known answer
 
@@ -82,7 +84,7 @@ A seeded Maxwellian tests a damped mode, using the same initial particles in the
 
 Two current-neutral cold electron beams grow at $0.33228\omega_p$ in JAX-in-Cell and $0.34069\omega_p$ with the dark field; independent cold roots give $0.33847$ and $0.34670$. After trapping, a [five-case grid/particle/timestep check](docs/_static/figures/two_stream_saturation/run.json) finds dark closed-energy drift of **0.680%** at 64 cells and **0.190%** at 128 cells at fixed timestep. At $120\leq\omega_pt\leq200$, a [four-case replay](docs/_static/figures/two_stream_extended/run.json) finds that the dark-minus-parent first-mode RMS changes from **−5.2%** on 128 cells to **+14.9%** on 256 cells at the *same* timestep. Thus the late difference has not converged, even in sign; a small energy drift alone does not settle it. The [full comparison](docs/kinetic.md) states the loading and windows.
 
-At 128 cells and the same timestep, the 131,072-particle movie loading can be compared with the full run's 16,000 particles. The parent/dark growth rates over $10\leq\omega_pt\leq20$ become **0.33391/0.34289** $\omega_p$, close to **0.33435/0.34302** with 16,000. The first-mode RMS differs by about **1.7%** over $40\leq\omega_pt\leq55$ after interpolating the smaller run to movie sample times. This is a particle-count check through 55; the $t=200$ spatial-convergence warning above still applies. [High-particle arrays and comparison](docs/_static/movies/two_stream/run.json).
+At 128 cells and the same timestep, the 262,144-particle movie loading can be compared with the full run's 16,000 particles. Parent/dark growth fits over $10\leq\omega_pt\leq20$ are **0.33541/0.34388** $\omega_p$, near **0.33435/0.34302** in the smaller run. The first-mode RMS differences are **0.09%/0.14%** over $40\leq\omega_pt\leq55$, then **10.0%/11.3%** over $80\leq\omega_pt\leq120$. The longer particle replay exposes late loading sensitivity; it does not settle the spatial-convergence warning above. The largest stored-frame change in complete dark-run energy is **0.188%**; its final change is **0.0046%**. [Movie measurements and arrays](docs/_static/movies/two_stream/run.json).
 
 <img src="docs/_static/figures/two_stream_extended/figure.png" width="900" alt="Matched two-stream growth, energy and phase space through normalized time 200">
 
@@ -173,7 +175,7 @@ The [field tests](tests/test_proca.py) compare longitudinal and both transverse 
 
 ## Runtime and differentiation cost
 
-The [isolated field-step benchmark](docs/_static/figures/field_cost.json) uses 8,192 particles on 128 cells for 256 steps: median warm CPU times are **176 ms** for the parent and **219 ms** for active Proca. A [131,072-particle replay](docs/_static/figures/field_cost_large.json) gives **5.30 s** and **5.71 s**, with host load varying too much to infer a reliable overhead ratio. These are *timing workloads*; the physics examples above use up to 240,000 electrons. A separate [955-step gradient recurrence](docs/_static/figures/recurrence_benchmark.json) compares native JAX checkpointing with SOLVAX. SOLVAX agrees on value and derivative but offers no clear benefit over native segmented JAX, so it remains optional. [Compile, memory and device details](docs/performance.md) are reported with the measurements.
+The [isolated field-step benchmark](docs/_static/figures/field_cost.json) uses 8,192 particles on 128 cells for 256 steps: median warm CPU times are **176 ms** for the parent and **219 ms** for active Proca. A [131,072-particle replay](docs/_static/figures/field_cost_large.json) gives **5.30 s** and **5.71 s**, with host load varying too much to infer a reliable overhead ratio. These are *timing workloads*; the two-stream movie advances 262,144 particles, and the refined kinetic bump run advances 240,000. A separate [955-step gradient recurrence](docs/_static/figures/recurrence_benchmark.json) compares native JAX checkpointing with SOLVAX. SOLVAX agrees on value and derivative but offers no clear benefit over native segmented JAX, so it remains optional. [Compile, memory and device details](docs/performance.md) are reported with the measurements.
 
 ## Related codes and scope
 

@@ -72,23 +72,57 @@ def _energy_lines(ax, time, ledger, parent=None):
     return show
 
 
-def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle):
-    """Animate one loading in the two solvers, retaining all particles in both."""
+def _pair_history(plasma, dark_sim, frames, stride, chunk_frames, plot_stride, wp, scale_v):
+    """Keep small plotted histories while restarting the full PIC state in chunks."""
+    kept = {key: [] for key in ("time", "parent_E", "mixed_E", "dark_E",
+                                "parent_x", "mixed_x", "parent_v", "mixed_v")}
+    parent_ledger = {key: [] for key in ("electric", "magnetic", "total")}
+    dark_ledger = {key: [] for key in ("kinetic", "electric", "magnetic", "dark",
+                                       "total_with_dark")}
+    parent_state = dark_state = None
+    max_gauss = 0.0
+    for first in range(0, frames, chunk_frames):
+        count = min(chunk_frames, frames - first)
+        parent = plasma.run(count * stride, store_every=stride, state=parent_state)
+        out = dark_sim.run(count * stride, store_every=stride, state=dark_state)
+        parent_state, dark_state = parent.state, out.state
+        for key, values in (("time", out.ordinary.t * wp),
+                            ("parent_E", parent.E[:, :, 0]),
+                            ("mixed_E", out.ordinary.E[:, :, 0]),
+                            ("dark_E", out.E[:, :, 0]),
+                            ("parent_x", parent.x[:, ::plot_stride, 0] / plasma.domain.length),
+                            ("mixed_x", out.ordinary.x[:, ::plot_stride, 0] / plasma.domain.length),
+                            ("parent_v", parent.v[:, ::plot_stride, 0] / scale_v),
+                            ("mixed_v", out.ordinary.v[:, ::plot_stride, 0] / scale_v)):
+            kept[key].append(np.asarray(values))
+        for ledger, energy in ((parent_ledger, energies(parent)),
+                               (dark_ledger, out.energy())):
+            for key in ledger:
+                ledger[key].append(np.asarray(energy[key]))
+        max_gauss = max(max_gauss, float(jnp.max(jnp.abs(out.dark_gauss()))))
+    kept = {key: np.concatenate(values) for key, values in kept.items()}
+    parent_ledger = {key: np.concatenate(values) for key, values in parent_ledger.items()}
+    dark_ledger = {key: np.concatenate(values) for key, values in dark_ledger.items()}
+    return kept, parent_ledger, dark_ledger, max_gauss
+
+
+def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
+                  chunk_frames=None):
+    """Animate one loading in the two solvers with fixed shared axes."""
     eta, cells = 0.3, plasma.domain.cells
     stride = max(1, round(frame_dt / (wp * plasma.domain.dt)))
     steps = stride * round(horizon / (stride * wp * plasma.domain.dt))
-    parent = plasma.run(steps, store_every=stride)
-    out = DarkSimulation(plasma, DarkField(0.7 * wp, eta)).run(steps, store_every=stride)
-    time = np.asarray(out.ordinary.t) * wp
-    grid = np.asarray(out.ordinary.grid) / plasma.domain.length
-    fields = [np.asarray(parent.E[:, :, 0]), np.asarray(out.ordinary.E[:, :, 0]),
-              np.asarray(out.E[:, :, 0])]
-    # Keep a representative, uniformly spaced subset on screen; every particle is pushed.
+    frames = steps // stride
+    chunk_frames = frames if chunk_frames is None else chunk_frames
+    dark_sim = DarkSimulation(plasma, DarkField(0.7 * wp, eta))
     plot_stride = max(1, sum(s.n for s in plasma.species) // 8000)
-    positions = [np.asarray(history.x[:, ::plot_stride, 0]) / plasma.domain.length
-                 for history in (parent, out.ordinary)]
-    speeds = [np.asarray(history.v[:, ::plot_stride, 0]) / scale_v
-              for history in (parent, out.ordinary)]
+    kept, parent_ledger, dark_ledger, max_gauss = _pair_history(
+        plasma, dark_sim, frames, stride, chunk_frames, plot_stride, wp, scale_v)
+    time = kept["time"]
+    grid = np.asarray(plasma.domain.grid) / plasma.domain.length
+    fields = [kept[key] for key in ("parent_E", "mixed_E", "dark_E")]
+    positions = [kept[key] for key in ("parent_x", "mixed_x")]
+    speeds = [kept[key] for key in ("parent_v", "mixed_v")]
     limits = max(np.max(np.abs(speed)) for speed in speeds) * 1.04
     field_limit = max(np.max(np.abs(field)) for field in fields) * 1.06
     with midnight():
@@ -107,7 +141,7 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle):
         axes["fields"].set(xlim=(grid[0], grid[-1]), ylim=(-field_limit, field_limit),
                            xlabel="$x/L$", ylabel="V/m", title="Electric fields")
         axes["fields"].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=7)
-        show_energy = _energy_lines(axes["energy"], time, out.energy(), energies(parent))
+        show_energy = _energy_lines(axes["energy"], time, dark_ledger, parent_ledger)
 
         def update(index):
             for scatter, x, v in zip(scatters, positions, speeds):
@@ -118,13 +152,15 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle):
             fig.suptitle(f"{subtitle}  ·  $\\omega_p t={time[index]:.1f}$", fontsize=12)
         folder = MOVIES / name
         size = _encode(fig, update, len(time), folder / "figure.webp")
-    ledger = np.asarray(out.energy()["total_with_dark"])
-    parent_ledger = np.asarray(energies(parent)["total"])
+    ledger = dark_ledger["total_with_dark"]
+    parent_total = parent_ledger["total"]
     mode_amplitudes = [np.abs(np.fft.rfft(field, axis=1)[:, mode]) / cells for field in fields]
     results = {"frames": len(time), "webp_bytes": size,
                "closed_energy_relative_drift": float(ledger[-1] / ledger[0] - 1),
-               "parent_energy_relative_drift": float(parent_ledger[-1] / parent_ledger[0] - 1),
-               "max_dark_gauss_V_m2": float(jnp.max(jnp.abs(out.dark_gauss())))}
+               "parent_energy_relative_drift": float(parent_total[-1] / parent_total[0] - 1),
+               "max_closed_energy_relative_change": float(np.max(np.abs(ledger / ledger[0] - 1))),
+               "max_parent_energy_relative_change": float(np.max(np.abs(parent_total / parent_total[0] - 1))),
+               "max_dark_gauss_V_m2": max_gauss}
     if name == "two_stream":
         reference = np.load(ROOT / "docs/_static/figures/two_stream_extended/data.npz")
         check = {"reference": "two_stream_extended case_1: 128 cells, 8000 particles/beam, same step"}
@@ -132,7 +168,7 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle):
             amplitude = mode_amplitudes[i]
             linear = (time >= 10) & (time <= 20)
             windows = {}
-            for start, stop in ((10, 20), (20, 40), (40, 55)):
+            for start, stop in ((10, 20), (20, 40), (40, 55), (55, 80), (80, 120)):
                 window = (time >= start) & (time <= stop)
                 baseline = np.interp(time[window], reference["case_1_t"],
                                      reference[f"case_1_{branch}_mode"])
@@ -147,17 +183,18 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle):
               "particles_per_species": [s.n for s in plasma.species],
               "steps": steps, "store_every": stride, "eta": eta, "mu_over_wp": 0.7,
               "mode": mode, "horizon_omega_p": float(time[-1]),
+              "chunk_frames": chunk_frames,
               "stored_samples_per_plasma_period": 2 * np.pi / (stride * wp * plasma.domain.dt),
               "particles_plotted_per_panel": positions[0].shape[1],
               "matched_loading": "same particle arrays, weights, ordinary field, grid and timestep"},
              results,
              t=time, parent_mode=mode_amplitudes[0], mixed_mode=mode_amplitudes[1],
-             dark_mode=mode_amplitudes[2], parent_total=parent_ledger, mixed_total=ledger)
+             dark_mode=mode_amplitudes[2], parent_total=parent_total, mixed_total=ledger)
 
 
 def two_stream():
-    """Resolved cold counterstreams roll up differently in the two solvers."""
-    cells, particles = 128, 65536
+    """Follow matched cold counterstreams through trapping and late roll-up."""
+    cells, particles = 128, 131072
     wp, length, drift = 0.05 * c * 64, 1.0, 0.25 * c
     density = wp**2 * epsilon_0 * mass_electron / e**2
     x1, v1 = quiet_start(particles, length, drift=(drift, 0, 0))
@@ -166,7 +203,8 @@ def two_stream():
     species = (Species.electrons(particles, density / 2, name="moonward").replace(x=x1, v=v1),
                Species.electrons(particles, density / 2, name="cryptward").replace(x=x2, v=v2))
     plasma = Simulation(Domain(length, cells, time_step=0.0125 / wp), species)
-    _paired_movie(plasma, wp, 1, drift, "two_stream", 55, 0.75, "Two streams meet the dark")
+    _paired_movie(plasma, wp, 1, drift, "two_stream", 120, 1.0,
+                  "Two streams meet the dark", chunk_frames=10)
 
 
 def bump_on_tail():

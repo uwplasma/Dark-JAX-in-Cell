@@ -6,47 +6,54 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "651a570bf64cb60bc88a242b53a3c89889e9c9fa-dirty",
+ "git": "5f81ea7d30c97f17e70e418e30935b45de11fb87-dirty",
  "example": "dark_movie_two_stream",
  "settings": {
   "preset": "illustration",
   "cells": 128,
   "particles_per_species": [
-   65536,
-   65536
+   131072,
+   131072
   ],
-  "steps": 4380,
-  "store_every": 60,
+  "steps": 9600,
+  "store_every": 80,
   "eta": 0.3,
   "mu_over_wp": 0.7,
   "mode": 1,
-  "horizon_omega_p": 54.750000000003865,
-  "stored_samples_per_plasma_period": 8.377580409572781,
+  "horizon_omega_p": 120.00000000001657,
+  "chunk_frames": 10,
+  "stored_samples_per_plasma_period": 6.283185307179586,
   "particles_plotted_per_panel": 8192,
   "matched_loading": "same particle arrays, weights, ordinary field, grid and timestep"
  },
  "results": {
-  "frames": 73,
-  "webp_bytes": 1227264,
-  "closed_energy_relative_drift": 0.00021905288315959837,
-  "parent_energy_relative_drift": 0.00017842482422025796,
-  "max_dark_gauss_V_m2": 1.0128132998943329e-07,
+  "frames": 120,
+  "webp_bytes": 2925746,
+  "closed_energy_relative_drift": 4.60219030931075e-05,
+  "parent_energy_relative_drift": 2.872112689722428e-05,
+  "max_closed_energy_relative_change": 0.0018794708743390398,
+  "max_parent_energy_relative_change": 0.0012437271299226005,
+  "max_dark_gauss_V_m2": 1.5390105545520782e-07,
   "particle_refinement": {
    "reference": "two_stream_extended case_1: 128 cells, 8000 particles/beam, same step",
    "parent": {
-    "high_particle_growth_over_wp": 0.3339070773238084,
+    "high_particle_growth_over_wp": 0.3354124183437451,
     "mode_rms_difference_over_high": {
-     "10_20": 0.002116228725441729,
-     "20_40": 0.012678552101985964,
-     "40_55": 0.016838466019553425
+     "10_20": 6.20837846067499e-12,
+     "20_40": 3.2764641966111014e-05,
+     "40_55": 0.0009448147705748857,
+     "55_80": 0.02497417321439378,
+     "80_120": 0.09975294254304455
     }
    },
    "mixed": {
-    "high_particle_growth_over_wp": 0.34288870482341505,
+    "high_particle_growth_over_wp": 0.34388041941815384,
     "mode_rms_difference_over_high": {
-     "10_20": 0.002105865325616445,
-     "20_40": 0.013851998630144066,
-     "40_55": 0.01685000328710075
+     "10_20": 7.224814588935147e-12,
+     "20_40": 1.1531531578740053e-05,
+     "40_55": 0.0014029960427744603,
+     "55_80": 0.019796039830413906,
+     "80_120": 0.11289680701325178
     }
    }
   }
