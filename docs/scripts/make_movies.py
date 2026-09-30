@@ -148,8 +148,14 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
         scatters = []
         for key, color, title in (("parent", BLUE, "JAX-in-Cell"),
                                   ("mixed", VIOLET, "Dark-JAX-in-Cell")):
-            scatters.append(axes[key].scatter([], [], s=0.7, color=color,
+            marker_colors = (np.where(plot_indices >= plasma.species[0].n, ORANGE, color)
+                             if name == "bump_on_tail" else color)
+            index = len(scatters)
+            scatters.append(axes[key].scatter(positions[index][0], speeds[index][0],
+                                              s=0.7, color=marker_colors,
                                               alpha=0.45, rasterized=True))
+            if name == "bump_on_tail":
+                title += " · beam in orange"
             axes[key].set(xlim=(-0.5, 0.5), ylim=(-limits, limits), xlabel="$x/L$",
                           ylabel=r"$v_x/v_{\rm scale}$", title=title)
         field_lines = [axes["fields"].plot(grid, field[0], color=color, label=label)[0]
