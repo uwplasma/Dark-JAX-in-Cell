@@ -80,6 +80,10 @@ A seeded Maxwellian tests a damped mode, using the same initial particles in the
 
 <img src="docs/_static/figures/mixed_kinetic/figure.png" width="800" alt="Matched Landau mode histories and independent kinetic root">
 
+At the smaller thermal speed $\sigma/c=0.05$, a [three-resolution replay](docs/kinetic.md#a-physical-speed-landau-replay) holds the physical plasma and dark mass fixed. The independent parent/mixed roots are $1.41566-0.15336i$ and $1.43243-0.14580i$; the 128-cell, 160,000-particle early-window fits give $1.41008-0.15175i$ and $1.44225-0.13944i$. Complete-energy drift stays below $2.64\times10^{-7}$ there. Fit-window and resolution changes still exceed the precision needed to measure the predicted damping *difference*, so that correction remains unresolved. The [record](docs/_static/figures/physical_kinetic_128/run.json) includes the complex ordinary, dark and effective mode histories.
+
+<img src="docs/_static/figures/physical_kinetic_128/figure.png" width="900" alt="Physical-speed matched Landau histories and complete particle plus field energy">
+
 ## Two streams: growth and a long-time limit
 
 Two current-neutral cold electron beams grow at $0.33228\omega_p$ in JAX-in-Cell and $0.34069\omega_p$ with the dark field; independent cold roots give $0.33847$ and $0.34670$. A Coulomb-plus-Yukawa reference explains **99.679%** of the analytic rate shift, identifying screening as the dominant linear effect in this case. After trapping, a [five-case grid/particle/timestep check](docs/_static/figures/two_stream_saturation/run.json) finds dark closed-energy drift of **0.680%** at 64 cells and **0.190%** at 128 cells at fixed timestep. At $120\leq\omega_pt\leq200$, a [four-case replay](docs/_static/figures/two_stream_extended/run.json) finds that the dark-minus-parent first-mode RMS changes from **−5.2%** on 128 cells to **+14.9%** on 256 cells at the *same* timestep. Thus the late difference has not converged, even in sign; a small energy drift alone does not settle it. The [full comparison](docs/kinetic.md) states the loading and windows.

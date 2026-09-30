@@ -70,6 +70,29 @@ measured.update({"kinetic_pic_real": f"{kin['measured_real_over_wp']:.5f}",
                  "kinetic_frequency_error": f"{100 * kin['frequency_relative_error']:.2f}",
                  "kinetic_damping_error": f"{100 * kin['damping_relative_error']:.2f}",
                  "kinetic_damping_stderr": f"{kin['damping_slope_stderr']:.4f}"})
+physical_records = {}
+for cells, particles, steps in ((32, 40000, 3000), (64, 80000, 6000),
+                                (128, 160000, 12000)):
+    folder = f"physical_kinetic_{cells}"
+    path = EVIDENCE.parent / folder
+    run_example([sys.executable, str(ROOT / "examples" / "dark_kinetic.py"),
+                 "--physical", "--full", "--cells", str(cells), "--particles",
+                 str(particles), "--steps", str(steps), "--output", str(path)],
+                cwd=ROOT, check=True)
+    record = json.loads((path / "run.json").read_text())
+    physical_records[folder] = provenance(record, folder)
+    result = record["results"]
+    for name in ("measured_real_over_wp", "measured_imag_over_wp",
+                 "parent_measured_real_over_wp", "parent_measured_imag_over_wp",
+                 "maximum_sampled_closed_energy_drift", "maximum_initial_speed_over_c"):
+        measured[f"physical_{cells}_{name}"] = f"{result[name]:.6g}"
+measured["physical_reference_parent"] = (
+    f"{result['parent_root_real_over_wp']:.5f}{result['parent_root_imag_over_wp']:+.5f}i")
+measured["physical_reference_mixed"] = (
+    f"{result['root_real_over_wp']:.5f}{result['root_imag_over_wp']:+.5f}i")
+measured["physical_reference_screened"] = (
+    f"{result['screened_root_over_wp'][0]:.5f}"
+    f"{result['screened_root_over_wp'][1]:+.5f}i")
 bump = EVIDENCE.parent / "bump_on_tail"
 run_example([sys.executable, str(ROOT / "examples" / "dark_bump.py"), "--full",
              "--output", str(bump)], cwd=ROOT, check=True)
@@ -186,6 +209,7 @@ measured["_provenance"] = {"cold_exchange": provenance(record, "cold_exchange"),
                            "density_calibration": provenance(calibration_record, "density_calibration"),
                            "oblique_3v": provenance(oblique_record, "oblique_3v"),
                            "mixed_kinetic": provenance(kinetic_record, "mixed_kinetic"),
+                           **physical_records,
                            "bump_on_tail": provenance(bump_record, "bump_on_tail"),
                            "mixed_two_stream": provenance(two_record, "mixed_two_stream"),
                            "two_stream_saturation": provenance(saturation["two_stream_saturation"],

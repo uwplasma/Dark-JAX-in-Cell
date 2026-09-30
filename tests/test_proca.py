@@ -19,7 +19,7 @@ from darkjaxincell import (DarkField, DarkSimulation, PrescribedDrive, gauss,
                            midnight, project_initial_electric, save_state)
 from darkjaxincell._proca import divergence, drift, gradient, kick
 from examples.optimize_dark_photon import build_objective, cold_reference
-from examples.dark_kinetic import longitudinal_root, mixed_root
+from examples.dark_kinetic import fixed_window_mode, longitudinal_root, mixed_root
 from examples.dark_bump import build_plasma, kinetic_root, number_histogram
 from examples.dark_saturation import integer_positions, trapping_frequency
 from examples.dark_instabilities import (cold_screened_growth, two_stream_growth,
@@ -75,6 +75,22 @@ def test_shared_multispecies_longitudinal_reference_and_screening():
                                      root, model="effective_charge")
     assert ordinary.imag < quasi.imag < effective.imag
     assert abs(root.imag - quasi.imag) < abs(root.imag - ordinary.imag)
+
+
+def test_physical_landau_scale_and_fixed_window_fit():
+    """The nonrelativistic pole and a damped standing wave use compatible units."""
+    ordinary, _ = mixed_root(10, 0.05, 0, 10)
+    mixed, residual = mixed_root(10, 0.05, 0.3, 10)
+    np.testing.assert_allclose([ordinary.real, ordinary.imag],
+                               [1.4156618886, -0.1533594669], rtol=1e-8)
+    np.testing.assert_allclose([mixed.real, mixed.imag],
+                               [1.4324272553, -0.1457983642], rtol=1e-8)
+    assert residual < 1e-8
+    time = np.linspace(0, 16, 3201)
+    signal = np.abs(np.exp(mixed.imag * time) * np.cos(mixed.real * time))
+    damping, frequency, peaks, _, _ = fixed_window_mode(time, signal)
+    np.testing.assert_allclose([frequency, damping], [mixed.real, mixed.imag], rtol=2e-3)
+    assert len(peaks) >= 4
 
 
 def test_cold_screening_explains_the_legacy_two_stream_shift():
