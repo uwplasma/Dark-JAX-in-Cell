@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "0d97bb0f39dedbd0b18bb503fb737949323c99e2",
+ "git": "f128f3fd15a6e148e99a78c1614e1b1a4524aa2f",
  "example": "dark_saturation",
  "settings": {
   "preset": "full",
