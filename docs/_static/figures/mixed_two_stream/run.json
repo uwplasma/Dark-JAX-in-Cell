@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+ "git": "8286f3ed6364c9e88476c52ea66e066b6bfe5764-dirty",
  "example": "dark_two_stream",
  "settings": {
   "preset": "full",
@@ -57,6 +57,13 @@
   "max_dark_gauss_V_m2": [
    1.2689270079135895e-08,
    3.329478204250336e-08
-  ]
+  ],
+  "screened_cold_references": {
+   "ordinary": 0.3384711930177202,
+   "quasistatic": 0.34667091025680635,
+   "effective_charge": 0.3476446802109381,
+   "full": 0.3466973106006945,
+   "quasistatic_fraction_of_full_shift": 0.9967906678184659
+  }
  }
 }
