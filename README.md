@@ -10,7 +10,7 @@
 
 <img src="docs/_static/movies/two_stream/figure.webp" width="900" alt="Matched two-stream phase-space roll-up, ordinary and dark electric fields, and energy">
 
-*Two cold electron streams start from identical particle arrays in both solvers. This 128-cell [movie](docs/_static/movies/two_stream/run.json) advances 262,144 particles (2,048 per cell) through $\omega_pt=120$, plots 8,192 per panel, and stores 6.3 frames per plasma period. Its 120-frame WebP is 2.9 MB. It illustrates trapping; the growth fit and long-time convergence limits use the separate runs below.*
+*Two cold electron streams start from identical particle arrays in both solvers. This 128-cell [movie](docs/_static/movies/two_stream/run.json) advances 262,144 particles (2,048 per cell) through ωₚt = 120, plots 8,192 per panel, and stores 6.3 frames per plasma period. Its 120-frame WebP is 2.9 MB. It illustrates trapping; the growth fit and long-time convergence limits use the separate runs below.*
 
 *The two-stream and bump movies are longitudinal, so their magnetic fields vanish by symmetry. The [slab movie](#a-finite-dark-packet-crosses-a-designed-slab) shows the evolving ordinary and dark electric **and** magnetic waves.*
 
