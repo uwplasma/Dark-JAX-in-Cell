@@ -244,6 +244,8 @@ measured.update({"dark_pair_ordinary_error": (
                      f"{dark_pair_refinements[(8192, 32, 0.00625)]['late_coherent_fraction']:.3f}"),
                  "dark_pair_marker_control": (
                      f"{dark_pair_refinements[(4096, 16, 0.00625)]['late_coherent_fraction']:.3f}"),
+                 "dark_pair_dense_markers": (
+                     f"{dark_pair_refinements[(4096, 64, 0.00625)]['late_coherent_fraction']:.3f}"),
                  "dark_pair_clock_control": (
                      f"{dark_pair_refinements[(4096, 32, 0.0125)]['late_coherent_fraction']:.3f}"),
                  "dark_pair_final_speed": f"{dark_pair_result['max_final_speed_over_c']:.3f}",
