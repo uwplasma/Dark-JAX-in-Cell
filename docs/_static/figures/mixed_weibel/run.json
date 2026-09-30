@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+ "git": "f3e4980d29b3ef8ae01071bf1c306f7451bc3b1c",
  "example": "dark_weibel",
  "settings": {
   "preset": "full",
