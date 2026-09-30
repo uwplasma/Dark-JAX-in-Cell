@@ -23,7 +23,8 @@ from examples.dark_kinetic import fixed_window_mode, longitudinal_root, mixed_ro
 from examples.dark_bump import build_plasma, kinetic_root, number_histogram
 from examples.dark_saturation import integer_positions, trapping_frequency
 from examples.dark_instabilities import (cold_screened_growth, two_stream_growth,
-                                         weibel_cutoff_squared, weibel_growth)
+                                         warm_two_stream_reference, weibel_cutoff_squared,
+                                         weibel_growth)
 from examples.dark_profile import (build_design, cold_scattering, packet, profile,
                                    slab_basis, transmitted_fraction, make_simulation)
 from docs.scripts.benchmark_time_integrators import system as vacuum_system
@@ -91,6 +92,21 @@ def test_physical_landau_scale_and_fixed_window_fit():
     damping, frequency, peaks, _, _ = fixed_window_mode(time, signal)
     np.testing.assert_allclose([frequency, damping], [mixed.real, mixed.imag], rtol=2e-3)
     assert len(peaks) >= 4
+
+
+def test_warm_two_stream_growing_and_single_humped_control():
+    growing = warm_two_stream_reference(0.01)
+    assert (growing["ordinary"].imag < growing["quasistatic"].imag
+            < growing["full"].imag < growing["effective_charge"].imag)
+    np.testing.assert_allclose(growing["full"].imag, 0.33643063655, rtol=1e-8)
+    stable = warm_two_stream_reference(0.06)
+    assert all(root.imag < 0 for root in stable.values())
+    velocity = np.linspace(0.001, 0.3, 500)  # v/c > 0
+    sigma, drift = 0.06, 0.05
+    derivative = sum(-(velocity - sign * drift) / sigma**2
+                     * np.exp(-0.5 * ((velocity - sign * drift) / sigma)**2)
+                     for sign in (1, -1))
+    assert np.all(derivative < 0)  # one hump, not a beam free-energy pocket
 
 
 def test_cold_screening_explains_the_legacy_two_stream_shift():

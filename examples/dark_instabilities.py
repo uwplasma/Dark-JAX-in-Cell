@@ -22,6 +22,10 @@ from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
                        epsilon_0, mass_electron, quiet_start, save_run,
                        speed_of_light as c)
 from darkjaxincell import DarkField, DarkSimulation, midnight
+if __package__:
+    from .dark_kinetic import longitudinal_root
+else:
+    from dark_kinetic import longitudinal_root
 
 
 def two_stream_growth(kc_over_wp, ku_over_wp, mu_over_wp, eta):
@@ -169,12 +173,137 @@ def weibel_run(cells, particles, steps, eta):
     return t, amplitude, net_current, float(jnp.max(jnp.abs(output.dark_gauss())))
 
 
+def warm_two_stream_reference(sigma_over_c, eta=0.6):
+    """Selected symmetric-beam root with fixed physical density and drift."""
+    k, wp = 2 * np.pi, 0.1 * 2 * np.pi * c
+    populations = tuple({"wp": wp / np.sqrt(2), "u": sign * 0.05 * c,
+                         "vth": np.sqrt(2) * sigma_over_c * c}
+                        for sign in (1, -1))
+    guess = 0.3j if sigma_over_c < 0.03 else -0.7j
+    return {model: longitudinal_root(k, populations, k * c, eta, guess, model)[0]
+            for model in ("ordinary", "full", "quasistatic", "effective_charge")}
+
+
+def warm_two_stream_run(cells, particles, steps, sigma_over_c, eta=0.6):
+    """Matched current-neutral warm beams, with a fixed physical seed and scales."""
+    length, k, drift = 1.0, 2 * np.pi, 0.05 * c
+    wp = 0.1 * k * c
+    density = wp**2 * epsilon_0 * mass_electron / e**2
+    vth = np.sqrt(2) * sigma_over_c * c
+    seed_fraction = 0.01 if sigma_over_c > 0.03 else 0.001
+    species = []
+    for sign, name in ((1, "moonward"), (-1, "cryptward")):
+        x, v = quiet_start(particles // 2, length, drift=(sign * drift, 0, 0),
+                           vth=(vth, 0, 0))
+        v = v.at[:, 0].add(sign * drift - jnp.mean(v[:, 0]))
+        if sign == 1:
+            x = x.at[:, 0].add(seed_fraction / k * jnp.sin(k * x[:, 0]))
+        species.append(Species.electrons(particles // 2, density / 2, name=name).replace(x=x, v=v))
+    plasma = Simulation(Domain(length, cells, dt_over_dx_c=0.5), tuple(species))
+    parent = plasma.run(steps, store_every=max(1, steps // 200), store_particles=False)
+    output = DarkSimulation(plasma, DarkField(k * c, eta)).run(
+        steps, store_every=max(1, steps // 200), store_particles=False)
+    time = np.asarray(output.ordinary.t) * wp
+    parent_mode = np.fft.rfft(np.asarray(parent.E[:, :, 0]), axis=1)[:, 1] / cells
+    mixed_mode = np.fft.rfft(np.asarray(output.ordinary.E[:, :, 0]), axis=1)[:, 1] / cells
+    initial_energy = float(output.state.initial_ordinary + output.state.initial_dark)
+    closed = np.asarray(output.energy()["total_with_dark"])
+    return {"time": time, "parent": np.abs(parent_mode), "mixed": np.abs(mixed_mode),
+            "parent_Ek": parent_mode, "mixed_Ek": mixed_mode,
+            "energy_error": (closed - initial_energy) / initial_energy,
+            "maximum_initial_speed_over_c": max(
+                float(jnp.max(jnp.linalg.norm(item.v, axis=1)) / c) for item in species),
+            "maximum_all_step_balance_over_initial": float(
+                output.state.max_balance_error / initial_energy)}
+
+
+def warm_growth_fit(history, branch, window):
+    """Return a declared-window log-amplitude slope and regression diagnostics."""
+    selected = (history["time"] > window[0]) & (history["time"] < window[1])
+    fit = linregress(history["time"][selected], np.log(history[branch][selected]))
+    return {"growth_over_wp": fit.slope, "stderr_over_wp": fit.stderr,
+            "r_squared": fit.rvalue**2}
+
+
+def warm_two_stream_main(args):
+    """Compare a growing warm branch with a single-humped stable loading."""
+    eta = 0.6  # manufactured coupling to separate PIC fits from loading noise
+    cases = ((64, 60000, 4000), (128, 120000, 8000)) if args.full else ((32, 10000, 1000),)
+    references = {name: warm_two_stream_reference(sigma, eta)
+                  for name, sigma in (("unstable", 0.01), ("stable", 0.06))}
+    histories, records = {}, {}
+    for name, sigma in (("unstable", 0.01), ("stable", 0.06)):
+        for cells, particles, steps in (cases if name == "unstable" else cases[:1]):
+            history = warm_two_stream_run(cells, particles, steps, sigma, eta)
+            key = f"{name}_{cells}"
+            histories[key] = history
+            record = {"cells": cells, "particles": particles, "steps": steps,
+                      "sigma_over_c": sigma, "maximum_initial_speed_over_c":
+                      history["maximum_initial_speed_over_c"],
+                      "seed_displacement_over_1_k": 0.01 if name == "stable" else 0.001,
+                      "maximum_all_step_balance_over_initial":
+                      history["maximum_all_step_balance_over_initial"],
+                      "maximum_sampled_closed_energy_drift": float(
+                          np.max(np.abs(history["energy_error"])))}
+            if name == "unstable" and args.full:
+                record["fits"] = {branch: warm_growth_fit(history, branch, (6, 16))
+                                  for branch in ("parent", "mixed")}
+                record["fit_window_sensitivity"] = {
+                    f"{lower}_{upper}": {
+                        branch: warm_growth_fit(history, branch, (lower, upper))
+                        for branch in ("parent", "mixed")}
+                    for lower, upper in ((8, 16), (10, 18), (12, 19))}
+            if name == "stable":
+                early = (history["time"] >= 0) & (history["time"] < 2)
+                late = (history["time"] > 12) & (history["time"] < 18)
+                if np.any(late):
+                    record["late_over_early_mode_rms"] = {
+                        branch: float(np.sqrt(np.mean(history[branch][late]**2)
+                                              / np.mean(history[branch][early]**2)))
+                        for branch in ("parent", "mixed")}
+            records[key] = record
+    with midnight():
+        fig, (ax, control) = plt.subplots(1, 2, figsize=(11, 4.5), layout="constrained")
+        for key, history in histories.items():
+            panel = control if key.startswith("stable") else ax
+            for branch, style in (("parent", "-"), ("mixed", "--")):
+                panel.semilogy(history["time"], history[branch], style,
+                               label=f"{branch}, {records[key]['cells']} cells")
+        for panel, title in ((ax, "Warm two-stream growth"),
+                             (control, "Single-humped stable control")):
+            panel.set(xlabel=r"$\omega_p t$", ylabel=r"$|E_{x,k}|$ (V/m)", title=title)
+            panel.grid(alpha=0.4)
+            panel.legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
+        settings = {"preset": "full" if args.full else "quick", "mode": "warm-two-stream",
+                    "cases_cells_particles_steps": cases, "eta": eta, "drift_over_c": 0.05,
+                    "mu_over_kc": 1.0, "linear_window_wp_t": [6, 16],
+                    "stable_sigma_over_c": 0.06, "unstable_sigma_over_c": 0.01,
+                    "background": "uniform fixed neutralizer"}
+        results = {"references": {
+            name: {model: [z.real, z.imag] for model, z in values.items()}
+            for name, values in references.items()}, "cases": records}
+        save_run(args.output, "warm_two_stream", settings, results, fig,
+                 **{f"{key}_{field}": value for key, history in histories.items()
+                    for field, value in history.items() if isinstance(value, np.ndarray)})
+        plt.close(fig)
+    print(f"🦇 WARM STREAMS: {len(records)} paired cases; "
+          f"root {references['unstable']['full'].imag:.5f} ωp")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Check two honest plasma hauntings")
-    parser.add_argument("mode", choices=("two-stream", "weibel"))
+    parser.add_argument("mode", choices=("two-stream", "warm-two-stream", "weibel"))
     parser.add_argument("--full", action="store_true")
     parser.add_argument("--output", type=Path, default=Path("artifacts/dark_instabilities"))
     args = parser.parse_args()
+    if args.mode == "warm-two-stream":
+        warm_two_stream_main(args)
+    else:
+        legacy_main(args)
+
+
+def legacy_main(args):
+    """Retain the cold-stream and transverse regressions."""
     if args.mode == "two-stream":
         reference = two_stream_growth(2 * np.pi / (0.05 * 64), 0.25 * 2 * np.pi / (0.05 * 64), 0.7, 0.3)
         uncoupled = two_stream_growth(2 * np.pi / (0.05 * 64), 0.25 * 2 * np.pi / (0.05 * 64), 0.7, 0)

@@ -92,6 +92,12 @@ At 128 cells and the same timestep, the 262,144-particle movie loading can be co
 
 <img src="docs/_static/figures/two_stream_extended/figure.png" width="900" alt="Matched two-stream growth, energy and phase space through normalized time 200">
 
+## Warm two streams and a stable loading
+
+Two Maxwellian streams at $\pm0.05c$ grow from the same loaded particles in both solvers; a hotter, single-humped control phase mixes without sustained growth. The [warm example](examples/dark_instabilities.py) compares full kinetic, Yukawa-screened and constant-charge roots. For the growing case, the independent ordinary/full rates are $0.31994/0.33643\,\omega_p$; 64- and 128-cell PIC fits give $0.32846/0.34826$ and $0.32855/0.34856\,\omega_p$. The paired rates are stable across these two grids, but the inferred difference changes with the fit window and remains below the precision gate. The control's late mode RMS is 0.066 of its early RMS in the mixed run. This is a deliberately large-coupling numerical test; the [full setup and limits](docs/kinetic.md#warm-two-streams-and-a-stable-control) give the physical speeds, energy ledger and uncertainties.
+
+<img src="docs/_static/figures/warm_two_stream/figure.png" width="900" alt="Matched warm two-stream growth and a single-humped stable control">
+
 ## Bump on tail: a warm kinetic comparison
 
 The [bump example](examples/dark_bump.py) starts from the parent's two-Maxwellian beam setup, with a compensating bulk drift so the mean current vanishes. A 3% beam travels at $5v_{th}$; the seeded $k_5$ wave resonates with its tail. Both solvers advance the same loaded electrons. The reference evaluates the drifting-Maxwellian dielectric $\epsilon_L(\omega,k)$ independently of PIC and solves

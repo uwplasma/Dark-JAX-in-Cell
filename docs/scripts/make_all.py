@@ -109,6 +109,23 @@ for mode, folder in (("two-stream", "mixed_two_stream"), ("weibel", "mixed_weibe
     run_example([sys.executable, str(ROOT / "examples" / "dark_instabilities.py"), mode,
                  "--full", "--output", str(path)], cwd=ROOT, check=True)
     instability_records[folder] = json.loads((path / "run.json").read_text())
+warm_path = EVIDENCE.parent / "warm_two_stream"
+run_example([sys.executable, str(ROOT / "examples" / "dark_instabilities.py"),
+             "warm-two-stream", "--full", "--output", str(warm_path)], cwd=ROOT,
+            check=True)
+warm_record = json.loads((warm_path / "run.json").read_text())
+warm = warm_record["results"]
+for model, root in warm["references"]["unstable"].items():
+    measured[f"warm_{model}_root"] = f"{root[1]:.5f}"
+for cells in (64, 128):
+    case = warm["cases"][f"unstable_{cells}"]
+    for branch in ("parent", "mixed"):
+        measured[f"warm_{cells}_{branch}_fit"] = (
+            f"{case['fits'][branch]['growth_over_wp']:.5f}")
+    measured[f"warm_{cells}_energy_drift"] = (
+        f"{case['maximum_sampled_closed_energy_drift']:.3e}")
+measured["warm_stable_late_over_early"] = (
+    f"{warm['cases']['stable_64']['late_over_early_mode_rms']['mixed']:.3f}")
 two = instability_records["mixed_two_stream"]["results"]
 weibel = instability_records["mixed_weibel"]["results"]
 two_record = instability_records["mixed_two_stream"]
@@ -217,6 +234,7 @@ measured["_provenance"] = {"cold_exchange": provenance(record, "cold_exchange"),
                            "two_stream_extended": provenance(saturation["two_stream_extended"],
                                                              "two_stream_extended"),
                            "mixed_weibel": provenance(instability_records["mixed_weibel"], "mixed_weibel"),
+                           "warm_two_stream": provenance(warm_record, "warm_two_stream"),
                            "homogeneous_null": provenance(null_record, "homogeneous_null"),
                            "mobile_ions": provenance(mobile_record, "mobile_ions"),
                            "profile_design": provenance(design_record, "profile_design")}
