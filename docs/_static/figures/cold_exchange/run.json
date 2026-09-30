@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+ "git": "c3f9bc77237a56b0afe09e0cb49207eaa8269816",
  "example": "dark_photon",
  "settings": {
   "preset": "full",
@@ -21,7 +21,7 @@
  "results": {
   "max_mean_field_error_over_D0": 0.00029217224187882973,
   "max_dark_gauss_over_enref_eps0": 1.1567664235585228e-18,
-  "closed_energy_relative_drift": 8.704813447590887e-05,
-  "ordinary_energy_vs_dark_work_relative_error": 8.906804567855398e-05
+  "closed_energy_relative_drift": 8.708540779300833e-05,
+  "ordinary_energy_vs_dark_work_relative_error": 8.906779738062498e-05
  }
 }

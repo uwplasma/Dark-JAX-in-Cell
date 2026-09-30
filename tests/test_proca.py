@@ -7,21 +7,29 @@ import pytest
 import jax
 import jax.numpy as jnp
 from scipy.linalg import expm
+from scipy.integrate import trapezoid
+from scipy.special import wofz
 
 from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
-                       epsilon_0, mass_electron, speed_of_light as c)
+                       epsilon_0, mass_electron, quiet_start, speed_of_light as c)
 from jaxincell._core import curl_E
 from jaxincell.theory import landau_root
 from darkjaxincell import (DarkField, DarkSimulation, PrescribedDrive, gauss,
-                           load_state, load_toml, main, midnight, save_state)
+                           load_for_continuation, load_state, load_toml, main,
+                           midnight, project_initial_electric, save_state)
 from darkjaxincell._proca import divergence, drift, gradient, kick
 from examples.optimize_dark_photon import build_objective, cold_reference
-from examples.dark_kinetic import mixed_root
-from examples.dark_bump import build_plasma, kinetic_root
-from examples.dark_instabilities import two_stream_growth, weibel_growth
+from examples.dark_kinetic import fixed_window_mode, longitudinal_root, mixed_root
+from examples.dark_bump import (build_plasma, bump_reference_scan, kinetic_root,
+                                number_histogram)
+from examples.dark_saturation import integer_positions, trapping_frequency
+from examples.dark_instabilities import (cold_screened_growth, two_stream_growth,
+                                         warm_two_stream_reference, weibel_cutoff_scan,
+                                         weibel_cutoff_squared, weibel_growth)
 from examples.dark_profile import (build_design, cold_scattering, packet, profile,
                                    slab_basis, transmitted_fraction, make_simulation)
 from docs.scripts.benchmark_time_integrators import system as vacuum_system
+from docs.scripts.make_movies import _marker_indices
 
 
 OMEGA = 1e9
@@ -45,9 +53,191 @@ def test_bump_loading_and_independent_kinetic_limit():
     assert max(residual0, residual) < 1e-7
 
 
-def plasma(density=0.0, n=16, cells=16, external_E=None):
+def test_bump_selected_pole_crosses_threshold_with_screening():
+    wp = 0.05 * c * 128
+    scan = bump_reference_scan(wp, wp / (5 * 2 * np.pi * 5))
+    ordinary = scan["roots"]["ordinary"][:, 1, 1]
+    full = scan["roots"]["full"][:, 1, 1]
+    screened = scan["roots"]["quasistatic"][:, 1, 1]
+    assert ordinary[0].imag > 0 > full[0].imag
+    assert ordinary[3].imag > 0 and full[3].imag > ordinary[3].imag
+    assert np.max(np.abs(full - screened)) < 1e-3
+    np.testing.assert_allclose(full[3].imag, 0.15392197436, rtol=1e-8)
+
+
+def test_shared_multispecies_longitudinal_reference_and_screening():
+    K = 2 * np.pi / (0.05 * 64)
+    k, wp = 2 * np.pi, 0.05 * c * 64
+    populations = ({"wp": wp / np.sqrt(2), "u": 0.25 * c, "vth": 0.03 * c},
+                   {"wp": wp / np.sqrt(2), "u": -0.25 * c, "vth": 0.03 * c})
+    root, residual = longitudinal_root(k, populations, 0.7 * wp, 0.3,
+                                       0.02 + 0.34j)
+    assert root.imag > 0 and residual < 1e-8
+    sigma = 0.03 * c / np.sqrt(2)
+    chi = 0j
+    for species in populations:
+        zeta = (root * wp - k * species["u"]) / (np.sqrt(2) * k * sigma)
+        chi += (species["wp"] / (k * sigma)) ** 2 * (
+            1 + zeta * 1j * np.sqrt(np.pi) * wofz(zeta))
+    s = root**2 - K**2
+    assert abs((s - 0.7**2) * (1 + chi) + 0.3**2 * s * chi) < 1e-8
+    ordinary, _ = longitudinal_root(k, populations, 0.7 * wp, 0,
+                                    0.02 + 0.34j, model="ordinary")
+    quasi, _ = longitudinal_root(k, populations, 0.7 * wp, 0.3,
+                                 root, model="quasistatic")
+    effective, _ = longitudinal_root(k, populations, 0.7 * wp, 0.3,
+                                     root, model="effective_charge")
+    assert ordinary.imag < quasi.imag < effective.imag
+    assert abs(root.imag - quasi.imag) < abs(root.imag - ordinary.imag)
+
+
+def test_physical_landau_scale_and_fixed_window_fit():
+    """The nonrelativistic pole and a damped standing wave use compatible units."""
+    ordinary, _ = mixed_root(10, 0.05, 0, 10)
+    mixed, residual = mixed_root(10, 0.05, 0.3, 10)
+    np.testing.assert_allclose([ordinary.real, ordinary.imag],
+                               [1.4156618886, -0.1533594669], rtol=1e-8)
+    np.testing.assert_allclose([mixed.real, mixed.imag],
+                               [1.4324272553, -0.1457983642], rtol=1e-8)
+    assert residual < 1e-8
+    time = np.linspace(0, 16, 3201)
+    signal = np.abs(np.exp(mixed.imag * time) * np.cos(mixed.real * time))
+    damping, frequency, peaks, _, _ = fixed_window_mode(time, signal)
+    np.testing.assert_allclose([frequency, damping], [mixed.real, mixed.imag], rtol=2e-3)
+    assert len(peaks) >= 4
+
+
+def test_warm_two_stream_growing_and_single_humped_control():
+    growing = warm_two_stream_reference(0.01)
+    assert (growing["ordinary"].imag < growing["quasistatic"].imag
+            < growing["full"].imag < growing["effective_charge"].imag)
+    np.testing.assert_allclose(growing["full"].imag, 0.33643063655, rtol=1e-8)
+    stable = warm_two_stream_reference(0.06)
+    assert all(root.imag < 0 for root in stable.values())
+    velocity = np.linspace(0.001, 0.3, 500)  # v/c > 0
+    sigma, drift = 0.06, 0.05
+    derivative = sum(-(velocity - sign * drift) / sigma**2
+                     * np.exp(-0.5 * ((velocity - sign * drift) / sigma)**2)
+                     for sign in (1, -1))
+    assert np.all(derivative < 0)  # one hump, not a beam free-energy pocket
+
+
+def test_cold_screening_explains_the_legacy_two_stream_shift():
+    K = 2 * np.pi / (0.05 * 64)
+    b, mu, eta = 0.25 * K, 0.7, 0.3
+    ordinary = cold_screened_growth(K, b, mu, eta, "ordinary")
+    quasistatic = cold_screened_growth(K, b, mu, eta, "quasistatic")
+    full = two_stream_growth(K, b, mu, eta)[0]
+    np.testing.assert_allclose([ordinary, quasistatic, full],
+                               [0.3384711930, 0.3466709103, 0.3466973106], rtol=2e-9)
+    np.testing.assert_allclose((quasistatic - ordinary) / (full - ordinary),
+                               0.9967906678, rtol=2e-9)
+    np.testing.assert_allclose(cold_screened_growth(K, b, 1e8, eta, "quasistatic"),
+                               ordinary, rtol=1e-13)
+    np.testing.assert_allclose(cold_screened_growth(K, b, 0, eta, "quasistatic"),
+                               cold_screened_growth(K, b, 0, eta, "effective_charge"),
+                               rtol=1e-13)
+    assert cold_screened_growth(K, 1.01 * np.sqrt(1 + eta**2),
+                                0, eta, "effective_charge") == 0
+
+
+def test_retarded_longitudinal_identity_refines_against_pic():
+    """The same nonlinear current history obeys the independent memory kernel."""
+    omega, eta = OMEGA, 0.3
+    wp = np.sqrt(0.2) * omega
+    length = 2 * np.pi * c / omega
+    k = 2 * np.pi / length
+    positions, velocities = quiet_start(256, length)
+    positions = positions.at[:, 0].add(0.002 * jnp.sin(k * positions[:, 0]) / k)
+    electrons = Species.electrons(256, 0.2 * N_REF).replace(x=positions, v=velocities)
+    errors = []
+    for dt_wp in (0.04, 0.02):
+        domain = Domain(length, 32, time_step=dt_wp / wp)
+        base = Simulation(domain, (electrons,))
+        sim = DarkSimulation(base, DarkField(omega, eta))
+        initial, _ = sim.initial_state(jax.random.PRNGKey(0))
+        output = sim.run(round(4 / dt_wp), store_particles=False)
+        electric = np.r_[np.fft.rfft(np.asarray(initial.ordinary.E[:, 0]))[1] / 32,
+                         np.fft.rfft(np.asarray(output.ordinary.E[:, :, 0]), axis=1)[:, 1] / 32]
+        dark = np.r_[np.fft.rfft(np.asarray(initial.E[:, 0]))[1] / 32,
+                     np.fft.rfft(np.asarray(output.E[:, :, 0]), axis=1)[:, 1] / 32]
+        time = np.r_[0, np.asarray(output.ordinary.t)]
+        khat = 2 * np.sin(k * domain.dx / 2) / domain.dx
+        frequency = np.sqrt(c**2 * khat**2 + omega**2)
+        memory = np.array([
+            -eta * omega**2 * trapezoid(
+                np.sin(frequency * (instant - time[:i + 1])) / frequency
+                * electric[:i + 1], time[:i + 1])
+            for i, instant in enumerate(time)])
+        response = dark - eta * electric
+        errors.append(float(np.max(np.abs(response - memory))
+                            / np.max(np.abs(response))))
+    assert errors[1] < 0.002
+    assert 3.5 < errors[0] / errors[1] < 4.5
+
+
+def test_weibel_marginal_screening_limits():
+    Q, eta = 0.2, 0.3
+    np.testing.assert_allclose(weibel_cutoff_squared(Q, 0.7, 0), Q, rtol=1e-14)
+    np.testing.assert_allclose(weibel_cutoff_squared(Q, 1e8, eta), Q, rtol=1e-14)
+    np.testing.assert_allclose(weibel_cutoff_squared(Q, 0, eta),
+                               (1 + eta**2) * Q, rtol=1e-14)
+    scan = weibel_cutoff_scan()
+    cutoff = np.interp(0.3, scan["mixings"], scan["cutoff_mu_0.7"])
+    np.testing.assert_allclose(cutoff, 1.79846552539, rtol=1e-10)
+    assert 1 < cutoff < 2
+    with pytest.raises(ValueError):
+        weibel_growth(2, 0.08, 4, 0.7, 0.3)
+
+
+def test_bump_histogram_represents_number_not_marker_count():
+    velocity = np.array([-0.2, -0.1, 0.1, 0.2, 1.0, 1.1])
+    weight = np.array([0.97 / 4] * 4 + [0.03 / 2] * 2)
+    edges = np.linspace(-0.5, 1.5, 41)
+    total, pieces, outside = number_histogram(velocity, weight, (4, 2), edges, 1.0)
+    np.testing.assert_allclose(np.sum(pieces, axis=0), total)
+    np.testing.assert_allclose(np.sum(pieces * np.diff(edges), axis=1), [0.97, 0.03])
+    assert outside == 0
+    split_v = np.concatenate((velocity[:4], np.repeat(velocity[4:], 2)))
+    split_w = np.concatenate((weight[:4], np.repeat(weight[4:] / 2, 2)))
+    split, _, _ = number_histogram(split_v, split_w, (4, 4), edges, 1.0)
+    np.testing.assert_allclose(split, total)
+    centres = (edges[:-1] + edges[1:]) / 2
+    assert abs(np.sum(centres * total * np.diff(edges)) - np.sum(velocity * weight)) < 0.025
+    bump, _, _ = build_plasma(32, 8000, 4000)
+    selected = _marker_indices(bump)
+    assert len(selected) == 8192
+    assert np.count_nonzero(selected >= 8000) == 246
+
+
+def test_effective_trapping_uses_complex_field_sum():
+    k = 2 * np.pi
+    ordinary = np.array([1 + 0j, 2 + 0j])
+    np.testing.assert_allclose(trapping_frequency(ordinary, -ordinary / 0.3, 0.3, k), 0)
+    shifted = trapping_frequency(np.array([1 + 0j]), np.array([1j / 0.3]), 0.3, k)
+    reference = trapping_frequency(np.array([2**0.5 + 0j]), 0, 0, k)
+    np.testing.assert_allclose(shifted, reference)
+
+
+def test_stored_phase_positions_match_integer_time_not_half_step():
+    base = plasma(N_REF * 0.2)
+    parent = base.run(3)
+    dark = DarkSimulation(base, DarkField(OMEGA, 0.1)).run(3)
+    for output, state in ((parent, parent.state), (dark.ordinary, dark.state.ordinary)):
+        last = np.asarray(output.x[-1, :, 0])
+        half = np.asarray(state.x[:, 0])
+        velocity = np.asarray(base._velocity(state.u)[:, 0])
+        delta = (half - last + base.domain.length / 2) % base.domain.length - base.domain.length / 2
+        np.testing.assert_allclose(delta, base.domain.dt * velocity / 2,
+                                   rtol=2e-13, atol=1e-12)
+        np.testing.assert_allclose(integer_positions(base, state), output.x[-1],
+                                   rtol=2e-13, atol=1e-12)
+
+
+def plasma(density=0.0, n=16, cells=16, external_E=None, external_B=None):
     domain = Domain(length=2 * np.pi * c / OMEGA, cells=cells, dt_over_dx_c=0.2)
-    return Simulation(domain, (Species.electrons(n, density=density),), external_E=external_E)
+    return Simulation(domain, (Species.electrons(n, density=density),),
+                      external_E=external_E, external_B=external_B)
 
 
 def test_dark_toml_and_cli_save_complete_restart(tmp_path):
@@ -131,7 +321,9 @@ store_particles = false
     assert isinstance(sim.dark, PrescribedDrive) and run["store_particles"] is False
     assert main([str(source), "--save", str(tmp_path / "driven")]) == 0
     result = json.loads((tmp_path / "driven/run.json").read_text())["results"]
-    assert result["dark_gauss_max_V_m2"] is None and result["energy_drift"] is None
+    assert result["dark_gauss_max_V_m2"] is None
+    assert np.isfinite(result["energy_drift"])
+    assert result["max_balance_error_J_m2"] >= 0
 
 
 def test_compatible_kick_drift_and_continuity():
@@ -202,6 +394,82 @@ def test_zero_coupling_matches_parent_and_restart(tmp_path):
     np.testing.assert_array_equal(second.ordinary.E, out.ordinary.E[3:])
 
 
+def test_reduced_energy_and_all_step_maxima_survive_stride_and_restart(tmp_path):
+    sim = DarkSimulation(plasma(N_REF * 0.3, n=64), DarkField(OMEGA, 0.1))
+    dense = sim.run(8, store_every=1)
+    reduced = sim.run(8, store_every=2, store_particles=False)
+    for key in ("kinetic", "electric", "magnetic", "dark", "total_with_dark",
+                "dark_source_work", "closed_energy_error"):
+        np.testing.assert_allclose(reduced.energy()[key], dense.energy()[key][1::2], rtol=2e-14)
+    for key in ("initial_ordinary", "initial_dark", "max_balance_error",
+                "max_ordinary_gauss", "max_dark_gauss"):
+        np.testing.assert_allclose(getattr(reduced.state, key), getattr(dense.state, key), rtol=2e-14)
+    first = sim.run(4, store_every=2, store_particles=False)
+    path = save_state(tmp_path / "reduced", first.state, sim)
+    second = sim.run(4, store_every=2, store_particles=False, state=load_state(path, sim))
+    np.testing.assert_allclose(second.energy()["total_with_dark"], reduced.energy()["total_with_dark"][2:])
+    np.testing.assert_allclose(second.state.max_balance_error, reduced.state.max_balance_error)
+    np.testing.assert_allclose(second.state.initial_ordinary, reduced.state.initial_ordinary)
+
+
+def test_restart_parameters_and_explicit_continuation(tmp_path):
+    base = plasma(N_REF * 0.2)
+    original = DarkSimulation(base, DarkField(OMEGA, 0.1))
+    path = save_state(tmp_path / "field", original.run(3).state, original)
+    for model in (DarkField(1.1 * OMEGA, 0.1), DarkField(OMEGA, 0.2)):
+        changed = DarkSimulation(base, model)
+        with pytest.raises(ValueError, match="dark.(omega|eta)"):
+            load_state(path, changed)
+        continued = load_for_continuation(path, original, changed)
+        assert int(continued.ordinary.steps) == 3
+        assert float(continued.work) == 0
+        assert float(continued.max_balance_error) == 0
+        residual = gauss(continued.E, continued.phi,
+                         continued.ordinary.rho + continued.background,
+                         base.domain.dx, model.omega, model.eta)
+        assert float(jnp.max(jnp.abs(residual))) < 1e-5
+    other_domain = Domain(length=base.domain.length * 2, cells=16, dt_over_dx_c=0.2)
+    other = DarkSimulation(Simulation(other_domain, base.species), DarkField(OMEGA, 0.1))
+    with pytest.raises(ValueError, match="dark.(length|dt)"):
+        load_for_continuation(path, original, other)
+
+
+def test_drive_archive_rejects_changed_force(tmp_path):
+    base = plasma(N_REF * 0.2)
+    original = DarkSimulation(base, PrescribedDrive(0.1, jnp.array([1e-5, 0, 0]), OMEGA, 0.2))
+    path = save_state(tmp_path / "drive", original.run(2).state, original)
+    for model in (PrescribedDrive(0.1, jnp.array([2e-5, 0, 0]), OMEGA, 0.2),
+                  PrescribedDrive(0.1, jnp.array([1e-5, 0, 0]), OMEGA, 0.4),
+                  PrescribedDrive(0.1, jnp.array([1e-5, 0, 0]), 1.1 * OMEGA, 0.2)):
+        with pytest.raises(ValueError, match="dark.(amplitude|phase|omega)"):
+            load_state(path, DarkSimulation(base, model))
+
+
+def test_initial_longitudinal_projection_reports_correction():
+    base = plasma(N_REF * 0.2)
+    input_E = jnp.zeros((base.domain.cells, 3)).at[:, 0].set(
+        jnp.sin(2 * jnp.pi * jnp.arange(base.domain.cells) / base.domain.cells))
+    sim = DarkSimulation(base, DarkField(OMEGA, 0.1, initial_E=input_E))
+    state, _ = sim.initial_state(jax.random.PRNGKey(0))
+    projected, norm = project_initial_electric(input_E, state.ordinary.rho, state.background,
+                                               state.phi, base.domain.dx, OMEGA, 0.1)
+    np.testing.assert_allclose(state.E, projected)
+    np.testing.assert_allclose(state.initial_projection_norm, norm)
+    assert float(norm) > 0
+
+
+@pytest.mark.parametrize("value", [np.float32(np.nan), jnp.asarray(np.inf), jnp.asarray(-1.0)])
+def test_invalid_dark_frequency_scalar(value):
+    with pytest.raises(ValueError, match="rest frequency"):
+        DarkSimulation(plasma(), DarkField(value, 0.1))
+
+
+def test_external_electric_field_requires_work_accounting():
+    base = plasma(external_E=jnp.zeros((16, 3)))
+    with pytest.raises(ValueError, match="external_E"):
+        DarkSimulation(base, DarkField(OMEGA, 0.1))
+
+
 def test_prescribed_static_drive_equals_parent_external_field_and_work():
     amplitude = 2e-5
     eta = 0.1
@@ -220,15 +488,36 @@ def test_prescribed_static_drive_equals_parent_external_field_and_work():
 def test_prescribed_drive_requires_vector_amplitude():
     with pytest.raises(ValueError, match="three-component E vector"):
         DarkSimulation(plasma(), PrescribedDrive(0.1, 1e-5, OMEGA))
+    with pytest.raises(ValueError, match="finite"):
+        DarkSimulation(plasma(), PrescribedDrive(
+            0.1, jnp.array([np.nan, 0.0, 0.0]), OMEGA))
+    base = plasma()
+    traced = jax.jit(lambda amplitude: DarkSimulation(
+        base, PrescribedDrive(0.1, amplitude, OMEGA)).dark.amplitude)
+    np.testing.assert_allclose(traced(jnp.array([1e-5, 0.0, 0.0])), [1e-5, 0, 0])
 
 
-def test_output_without_particles_and_drive_has_no_dark_gauss():
+def test_continuation_requires_matching_complete_field_state():
+    base = plasma()
+    field = DarkSimulation(base, DarkField(OMEGA, 0.1))
+    drive = DarkSimulation(base, PrescribedDrive(0.1, jnp.zeros(3), OMEGA))
+    state, _ = field.initial_state(jax.random.PRNGKey(0))
+    with pytest.raises(ValueError, match="complete Proca state"):
+        field.continue_with_parameters(state.replace(A=None))
+    with pytest.raises(ValueError, match="drive mode does not match"):
+        drive.continue_with_parameters(state)
+    driven, _ = drive.initial_state(jax.random.PRNGKey(0))
+    continued = drive.continue_with_parameters(driven)
+    assert continued.E is None and float(continued.work) == 0.0
+
+
+def test_output_without_particles_keeps_complete_energy_and_drive_has_no_dark_gauss():
     field = DarkSimulation(plasma(N_REF * 0.1), DarkField(OMEGA, 0.1)).run(
         1, store_particles=False)
     drive = DarkSimulation(plasma(N_REF * 0.1), PrescribedDrive(
         0.1, jnp.array([1e-5, 0.0, 0.0]), OMEGA)).run(1, store_particles=False)
-    assert "dark" in field.energy() and "total_with_dark" not in field.energy()
-    assert "external_work" in drive.energy() and "closed_balance" not in drive.energy()
+    assert "dark" in field.energy() and "total_with_dark" in field.energy()
+    assert "external_work" in drive.energy() and "closed_balance" in drive.energy()
     with pytest.raises(ValueError, match="no dark Gauss law"):
         drive.dark_gauss()
 
@@ -240,6 +529,8 @@ def test_output_without_particles_and_drive_has_no_dark_gauss():
     (DarkField(OMEGA, 0.1, initial_E=jnp.zeros((15, 3))), "initial_E"),
     (DarkField(OMEGA, 0.1, initial_A=jnp.zeros((15, 3))), "initial_A"),
     (DarkField(OMEGA, 0.1, initial_phi=jnp.zeros(15)), "initial_phi"),
+    (DarkField(OMEGA, 0.1, initial_E=jnp.full((16, 3), jnp.nan)), "finite"),
+    (DarkField(OMEGA, 0.1, initial_phi=jnp.full(16, jnp.nan)), "finite"),
 ])
 def test_invalid_dark_configuration_fails_early(model, message):
     with pytest.raises((TypeError, ValueError), match=message):
@@ -254,9 +545,9 @@ def test_invalid_run_length_fails_early(steps, store_every):
 
 
 @pytest.mark.parametrize("missing, message", [
-    ("dark.mode", "dark mode"), ("dark.background", "missing background"),
-    ("dark.work", "missing background or work"), ("dark.E", "missing Proca"),
-    ("dark.phi", "missing Proca"),
+    ("dark.mode", "dark.mode"), ("dark.background", "dark.background"),
+    ("dark.work", "dark.work"), ("dark.E", "dark.E"),
+    ("dark.phi", "dark.phi"), ("dark.initial_ordinary", "dark.initial_ordinary"),
 ])
 def test_incomplete_dark_archive_is_rejected(tmp_path, missing, message):
     sim = DarkSimulation(plasma(), DarkField(OMEGA, 0.1))
@@ -266,6 +557,24 @@ def test_incomplete_dark_archive_is_rejected(tmp_path, missing, message):
     np.savez(path, **arrays)
     with pytest.raises(ValueError, match=message):
         load_state(path, sim)
+
+
+def test_archive_roundtrips_external_magnetic_field_and_checks_dark_shapes(tmp_path):
+    base = plasma(external_B=jnp.zeros((16, 3)))
+    sim = DarkSimulation(base, DarkField(OMEGA, 0.1))
+    state = sim.run(1).state
+    path = save_state(tmp_path / "magnetic", state, sim)
+    restored = load_state(path, sim)
+    np.testing.assert_allclose(restored.E, state.E)
+    with np.load(path, allow_pickle=False) as saved:
+        arrays = {name: saved[name] for name in saved.files}
+    assert "dark.external_B" in arrays
+    for key, invalid, message in (("dark.E", np.zeros((16, 2)), "dark.E"),
+                                  ("dark.work", np.zeros(1), "dark.work")):
+        broken = tmp_path / f"broken_{key}.npz"
+        np.savez(broken, **{**arrays, key: invalid})
+        with pytest.raises(ValueError, match=message):
+            load_state(broken, sim)
 
 
 def test_midnight_style_restores_matplotlib_settings():
@@ -312,6 +621,20 @@ def test_dark_coupling_gradient_matches_finite_difference():
     finite = (signal(1e-4) - signal(-1e-4)) / 2e-4
     np.testing.assert_allclose(automatic, finite, rtol=2e-4, atol=1e-12)
     assert abs(float(automatic)) > 0
+
+
+def test_reduced_energy_gradient_matches_full_history():
+    base = plasma(density=N_REF * 0.2)
+    wave = jnp.broadcast_to(jnp.array([0.0, 1e-5, 0.0]), (base.domain.cells, 3))
+
+    def objective(eta, keep):
+        out = DarkSimulation(base, DarkField(OMEGA, eta, initial_E=wave)).run(
+            6, store_every=2, store_particles=keep)
+        return out.energy()["total_with_dark"][-1]
+
+    full = jax.grad(lambda eta: objective(eta, True))(0.1)
+    reduced = jax.grad(lambda eta: objective(eta, False))(0.1)
+    np.testing.assert_allclose(reduced, full, rtol=1e-12, atol=1e-21)
 
 
 def test_cold_homogeneous_exchange_against_matrix_exponential():
@@ -392,11 +715,12 @@ def test_closed_energy_error_refines():
         out = DarkSimulation(base, DarkField(OMEGA, 0.05, initial_E=wave)).run(round(10 / (OMEGA * d.dt)))
         ledger = out.energy()
         total = np.asarray(ledger["total_with_dark"])
-        errors.append(abs(total[-1] / total[0] - 1))
-        dark_work_errors.append(np.max(np.abs(np.asarray(ledger["dark_work_residual"]))) / total[0])
+        initial = out.state.initial_ordinary + out.state.initial_dark
+        errors.append(abs(total[-1] / initial - 1))
+        dark_work_errors.append(np.max(np.abs(np.asarray(ledger["dark_work_residual"]))) / initial)
         np.testing.assert_allclose(
             ledger["dark_work_residual"] + ledger["ordinary_work_residual"],
-            total - total[0], rtol=1e-9, atol=1e-30)
+            total - initial, rtol=1e-9, atol=1e-30)
     assert errors[0] > 2.5 * errors[1] > 6 * errors[2]
     assert dark_work_errors[0] > 2.5 * dark_work_errors[1] > 2.5 * dark_work_errors[2]
 

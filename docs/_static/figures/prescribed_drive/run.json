@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+ "git": "ffb213ef3cfca9df620631e4fd261a41fd3ed299",
  "example": "dark_drive",
  "settings": {
   "preset": "full",
@@ -20,6 +20,6 @@
  },
  "results": {
   "max_waveform_error_over_D0": 7.487975289688268e-05,
-  "ordinary_energy_vs_external_work_relative_error": 0.00027718321903775334
+  "ordinary_energy_vs_external_work_relative_error": 0.00027718930636857217
  }
 }

@@ -1,0 +1,81 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "30826379a94101495dc11eda1b4564b24c0fbdc5-dirty",
+ "example": "dark_kinetic",
+ "settings": {
+  "preset": "physical-full",
+  "cells": 32,
+  "particles": 40000,
+  "steps": 3000,
+  "length_m": 1.0,
+  "omega_p_rad_s": 188365156.73088533,
+  "eta": 0.3,
+  "mu_over_wp": 10.0,
+  "mu_over_kc": 1.0,
+  "sigma_over_c": 0.05,
+  "k_lambda_D": 0.5,
+  "seed_displacement_over_1_k": 0.01,
+  "background": "uniform fixed neutralizer",
+  "comparison": "same species arrays, grid, timestep, seed and ordinary initial field"
+ },
+ "results": {
+  "root_real_over_wp": 1.4324272553241388,
+  "root_imag_over_wp": -0.14579836424081344,
+  "root_residual": 2.067807345681255e-11,
+  "parent_root_real_over_wp": 1.4156618886061298,
+  "parent_root_imag_over_wp": -0.1533594669096525,
+  "parent_root_residual": 7.530283592242679e-10,
+  "screened_root_over_wp": [
+   1.4326148923744733,
+   -0.14575842696024716
+  ],
+  "screened_root_residual": 2.3596204564762237e-14,
+  "effective_charge_root_over_wp": [
+   1.4492000220706283,
+   -0.13858880557793252
+  ],
+  "effective_charge_root_residual": 6.0402029230282e-15,
+  "maximum_initial_speed_over_c": 0.2084641556976748,
+  "fit_status": "resolved",
+  "maximum_sampled_closed_energy_drift": 1.3713322306512795e-06,
+  "maximum_all_step_balance_over_initial": 1.3713060992276815e-06,
+  "fit_window_sensitivity": {
+   "2_14": {
+    "mixed_gamma_over_wp": -0.16283835493735926,
+    "parent_gamma_over_wp": -0.1664801888718934
+   },
+   "3_16": {
+    "mixed_gamma_over_wp": -0.15611682953005893,
+    "parent_gamma_over_wp": -0.1648371035286979
+   }
+  },
+  "measured_real_over_wp": 1.434977578475388,
+  "measured_imag_over_wp": -0.16744934749340437,
+  "frequency_relative_error": 0.0017804207102105618,
+  "damping_relative_error": 0.14849949356654135,
+  "damping_slope_stderr": 0.005942815157724678,
+  "frequency_estimated_stderr": 0.021821729721079913,
+  "linear_window_wp_t": [
+   2.0,
+   12.0
+  ],
+  "fitted_maxima_interval_wp_t": [
+   2.4445517835745645,
+   11.201741305455798
+  ],
+  "maxima_used": 5,
+  "late_mode_floor_V_m": null,
+  "parent_measured_real_over_wp": 1.385281385281437,
+  "parent_measured_imag_over_wp": -0.1777460965525091,
+  "parent_maxima_used": 5,
+  "parent_late_mode_floor_V_m": null,
+  "parent_frequency_relative_error": 0.02146028198485006,
+  "parent_damping_relative_error": 0.15901613466890385
+ }
+}

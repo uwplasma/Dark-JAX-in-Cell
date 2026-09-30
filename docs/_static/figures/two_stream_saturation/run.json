@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+ "git": "f128f3fd15a6e148e99a78c1614e1b1a4524aa2f",
  "example": "dark_saturation",
  "settings": {
   "preset": "full",
@@ -95,16 +95,16 @@
      "mixed": 67599.11642096653
     },
     "late_fluctuating_energy_over_initial": {
-     "parent": 0.09596814958756661,
-     "mixed": 0.08971252111529053
+     "parent": 0.09596814957192053,
+     "mixed": 0.08971252110066434
     },
     "bounce_over_growth": {
      "parent": 1.5441408803824048,
-     "mixed": 1.4705101133085927
+     "mixed": 1.5246314844849056
     },
-    "parent_max_energy_drift": 0.006995738263068096,
-    "mixed_max_energy_drift": 0.006771281662053319,
-    "max_dark_work_residual_over_transfer": 1.9092349200638694e-05,
+    "parent_max_energy_drift": 0.006995738098893423,
+    "mixed_max_energy_drift": 0.0067712814749918415,
+    "max_dark_work_residual_over_transfer": 1.9092470491883798e-05,
     "max_dark_gauss": 4.528556019067764e-08
    },
    {
@@ -117,16 +117,16 @@
      "mixed": 67974.10946651589
     },
     "late_fluctuating_energy_over_initial": {
-     "parent": 0.09761427353989412,
-     "mixed": 0.08999800841374582
+     "parent": 0.09761427352237367,
+     "mixed": 0.08999800839759238
     },
     "bounce_over_growth": {
      "parent": 1.5442284902248513,
-     "mixed": 1.4705589139840036
+     "mixed": 1.5246837202873778
     },
-    "parent_max_energy_drift": 0.007009473777874975,
-    "mixed_max_energy_drift": 0.0067966493725286625,
-    "max_dark_work_residual_over_transfer": 4.652952545419578e-06,
+    "parent_max_energy_drift": 0.0070094735971304445,
+    "mixed_max_energy_drift": 0.006796649161673107,
+    "max_dark_work_residual_over_transfer": 4.652982797001276e-06,
     "max_dark_gauss": 4.831235855817795e-08
    },
    {
@@ -139,16 +139,16 @@
      "mixed": 67896.51652741109
     },
     "late_fluctuating_energy_over_initial": {
-     "parent": 0.09757662528329665,
-     "mixed": 0.09001419932791427
+     "parent": 0.0975766252657832,
+     "mixed": 0.09001419931175815
     },
     "bounce_over_growth": {
      "parent": 1.5442284875593542,
-     "mixed": 1.4705589196076758
+     "mixed": 1.5246837262051594
     },
-    "parent_max_energy_drift": 0.007009473864456162,
-    "mixed_max_energy_drift": 0.00679665005545238,
-    "max_dark_work_residual_over_transfer": 4.8406341627556134e-06,
+    "parent_max_energy_drift": 0.007009473683713852,
+    "mixed_max_energy_drift": 0.006796649844598823,
+    "max_dark_work_residual_over_transfer": 4.840664488232929e-06,
     "max_dark_gauss": 4.98257577419281e-08
    },
    {
@@ -161,16 +161,16 @@
      "mixed": 65036.95176153235
     },
     "late_fluctuating_energy_over_initial": {
-     "parent": 0.09279068381030323,
-     "mixed": 0.08112549594862417
+     "parent": 0.09279068380650854,
+     "mixed": 0.08112549594530653
     },
     "bounce_over_growth": {
      "parent": 1.5392261786685137,
-     "mixed": 1.4663048850905167
+     "mixed": 1.5201977480455007
     },
-    "parent_max_energy_drift": 0.0023438446122354684,
-    "mixed_max_energy_drift": 0.0018965590729422832,
-    "max_dark_work_residual_over_transfer": 6.899407261680198e-06,
+    "parent_max_energy_drift": 0.00234384457124448,
+    "mixed_max_energy_drift": 0.0018965590262483012,
+    "max_dark_work_residual_over_transfer": 6.8994388095242634e-06,
     "max_dark_gauss": 1.0541407391428947e-07
    },
    {
@@ -183,16 +183,16 @@
      "mixed": 64556.68334025353
     },
     "late_fluctuating_energy_over_initial": {
-     "parent": 0.09426717091831731,
-     "mixed": 0.08086516822944055
+     "parent": 0.09426717091446224,
+     "mixed": 0.08086516822613354
     },
     "bounce_over_growth": {
      "parent": 1.5392261709799206,
-     "mixed": 1.4663048813621424
+     "mixed": 1.520197744010717
     },
-    "parent_max_energy_drift": 0.0023438461900617824,
-    "mixed_max_energy_drift": 0.0018965581798358055,
-    "max_dark_work_residual_over_transfer": 6.905524195073576e-06,
+    "parent_max_energy_drift": 0.002343846149070572,
+    "mixed_max_energy_drift": 0.0018965581331413794,
+    "max_dark_work_residual_over_transfer": 6.905555745446528e-06,
     "max_dark_gauss": 1.1338852345943451e-07
    }
   ],

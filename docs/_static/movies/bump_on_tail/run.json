@@ -6,10 +6,11 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "651a570bf64cb60bc88a242b53a3c89889e9c9fa-dirty",
+ "git": "f0729e110b164bc1dd26ac9430660e7204bcfcb9-dirty",
  "example": "dark_movie_bump_on_tail",
  "settings": {
   "preset": "illustration",
+  "source_git": "f0729e110b164bc1dd26ac9430660e7204bcfcb9",
   "cells": 128,
   "particles_per_species": [
    80000,
@@ -21,15 +22,27 @@
   "mu_over_wp": 0.7,
   "mode": 5,
   "horizon_omega_p": 44.999999999998245,
+  "initial_parent_energy_J_m2": 0.09947327085097851,
+  "initial_mixed_energy_J_m2": 0.09947360033351844,
+  "chunk_frames": 90,
   "stored_samples_per_plasma_period": 12.566370614359172,
-  "particles_plotted_per_panel": 8000,
+  "particles_plotted_per_panel": 8192,
+  "plotted_marker_counts": [
+   7946,
+   246
+  ],
+  "marker_display": "sampled by represented physical number; points are not density values",
   "matched_loading": "same particle arrays, weights, ordinary field, grid and timestep"
  },
  "results": {
   "frames": 90,
-  "webp_bytes": 2957798,
-  "closed_energy_relative_drift": 0.0007805086714425258,
-  "parent_energy_relative_drift": 0.0009101869838332721,
-  "max_dark_gauss_V_m2": 1.3969838619232178e-08
+  "webp_bytes": 2504832,
+  "closed_energy_relative_drift": 0.0007804233658059712,
+  "parent_energy_relative_drift": 0.0009101150660721924,
+  "max_closed_energy_relative_change": 0.0009292742246300723,
+  "max_parent_energy_relative_change": 0.0010222692517720677,
+  "max_dark_gauss_V_m2": 1.3969838619232178e-08,
+  "all_step_max_dark_gauss_V_m2": 1.487096567207381e-08,
+  "all_step_max_balance_J_m2": 9.256458873823539e-05
  }
 }

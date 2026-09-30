@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+ "git": "bf3d27e675067178ffe67cdc71cb11b07654e30f-dirty",
  "example": "dark_kinetic",
  "settings": {
   "preset": "full",
@@ -23,17 +23,17 @@
   "comparison": "same species arrays, grid, timestep, seed and ordinary initial field"
  },
  "results": {
-  "root_real_over_wp": 1.436947971622669,
-  "root_imag_over_wp": -0.14185585257930974,
-  "root_residual": 2.5299344200252475e-14,
+  "root_real_over_wp": 1.4369479716226667,
+  "root_imag_over_wp": -0.14185585257931047,
+  "root_residual": 2.0429428222379416e-14,
   "parent_root_real_over_wp": 1.4156618886045311,
-  "parent_root_imag_over_wp": -0.15335946690960556,
-  "parent_root_residual": 5.0142027785651374e-14,
+  "parent_root_imag_over_wp": -0.1533594669096056,
+  "parent_root_residual": 5.070886539672696e-14,
   "fit_status": "resolved",
   "measured_real_over_wp": 1.4320650272773918,
   "measured_imag_over_wp": -0.14575935772864987,
-  "frequency_relative_error": 0.0033981358001174966,
-  "damping_relative_error": 0.027517406426060154,
+  "frequency_relative_error": 0.0033981358001159423,
+  "damping_relative_error": 0.027517406426054825,
   "damping_slope_stderr": 0.004267507794027535,
   "frequency_estimated_stderr": 0.010267667480043409,
   "linear_window_wp_t": [
@@ -47,6 +47,6 @@
   "parent_maxima_used": 7,
   "parent_late_mode_floor_V_m": 45.412966477601984,
   "parent_frequency_relative_error": 0.0026207770457147284,
-  "parent_damping_relative_error": 0.0001618638462050903
+  "parent_damping_relative_error": 0.00016186384620464622
  }
 }

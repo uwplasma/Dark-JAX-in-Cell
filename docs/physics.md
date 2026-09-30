@@ -1,4 +1,4 @@
-# The ghost's equations
+# Maxwell–Proca equations
 
 ## Canonical fields and SI units
 
@@ -33,7 +33,7 @@ Charge and $\phi_D$ live at cell centres; $\mathbf E_D$ and $\mathbf A_D$ live a
 
 For a half-step $h$, the kick changes $\mathbf E_D$ by $h(c^2\operatorname{curl}\mathbf B_D+\Omega_D^2\mathbf A_D-\eta\mathbf J/\epsilon_0)$ and $\phi_D$ by $-hc^2D\mathbf A_D$. The drift changes $\mathbf A_D$ by $-h(\mathbf E_D+G\phi_D)$ and $\mathbf B_D$ by $-h\operatorname{curl}\mathbf E_D$. We use kick–drift before the particle push and drift–kick after it, with JAX-in-Cell's two trajectory-current deposits. In the kick, the mass terms cancel in $D\mathbf E_D+\Omega_D^2\phi_D/c^2$; continuity supplies the remaining charge change. The drift preserves both Gauss and $\mathbf B_D-\operatorname{curl}\mathbf A_D$.
 
-Initialization sets the longitudinal electric fields from both Gauss laws. The parent's quadratic particle shape, charge-conserving current and physical mean-current closure feed both field updates; matching divergence and curl differences then propagate the constraints. The dark extension uses the parent's explicit electromagnetic Ampère solver with collisionless particles and unsmoothed sources in a periodic box.
+Initialization sets the longitudinal electric fields from both Gauss laws. A supplied `DarkField.initial_E[:, 0]` is **projected** onto the dark Gauss solution; its spatial mean is retained and the L2 size of the correction is returned as `state.initial_projection_norm`. `project_initial_electric` exposes the same operation for preparation and inspection. The default `E_D = eta E`, `phi_D = 0` is a compatible bare-field preparation, not a screened equilibrium or a single in-medium eigenmode. The parent's quadratic particle shape, charge-conserving current and physical mean-current closure feed both field updates; matching divergence and curl differences then propagate the constraints. The dark extension uses the parent's explicit electromagnetic Ampère solver with collisionless particles and unsmoothed sources in a periodic box.
 
 For source-free fields the mass adds a frequency even in a homogeneous box. The field-only stability bound is $\Delta t\sqrt{4c^2/\Delta x^2+\Omega_D^2}<2$; construction uses a 1.9 margin. Resolve plasma and gyro frequencies separately. No implicit or SOLVAX solve is used in this explicit step.
 
@@ -59,7 +59,9 @@ $$
 \end{aligned}
 $$
 
-`DarkOutput.energy()` reports `dark_source_work`, `dark_work_residual` $=U_D(t)-U_D(t_0)-[W_D(t)-W_D(t_0)]$, and `ordinary_work_residual` $=U_{\rm particles+EM}(t)-U_{\rm particles+EM}(t_0)+[W_D(t)-W_D(t_0)]$. The two residuals add to the closed total-energy change. Monitor both Gauss laws, $\mathbf B_D-\nabla\times\mathbf A_D$, and this work ledger: small total drift alone can hide cancellation between the sectors. The finite-step residuals need not vanish exactly for the explicit particle scheme.
+`DarkOutput.energy()` reports `dark_source_work`, `dark_work_residual` $=U_D(t)-U_D(0)-W_D(t)$, and `ordinary_work_residual` $=U_{\rm particles+EM}(t)-U_{\rm particles+EM}(0)+W_D(t)$. The two residuals add to the closed total-energy change. The inherited `energy_error` key measures the **ordinary-sector change**; in a mixed run it is not a closed-system conservation error. Use `closed_energy_error` for that test. The initial energies and cumulative work survive sparse output and exact-parameter restart; `max_balance_error`, `max_ordinary_gauss`, and `max_dark_gauss` record every step, including unobserved steps. `store_particles=False` retains species kinetic and all field-energy histories without particle-position histories. Monitor both Gauss laws, $\mathbf B_D-\nabla\times\mathbf A_D$, and this work ledger: small total drift alone can hide cancellation between the sectors. The finite-step residuals need not vanish exactly for the explicit particle scheme.
+
+Native archives include the dark mass, coupling, drive controls, grid and physical species parameters. Ordinary `load_state` rejects a changed experiment. Older archives without this versioned metadata must be regenerated. `load_for_continuation` explicitly permits a dark-parameter jump from an old model to a new one, reprojects longitudinal dark E and starts a new energy/work ledger at the archived state; the clock and particle state remain continuous. An ordinary imposed electric field is rejected by the dark wrapper because its work is absent from this ledger.
 
 For the homogeneous prescribed drive $E_D=D_0\cos\Omega t$ and an initially quiet cold plasma, the ordinary field obeys $\ddot E+\omega_p^2E=-\eta\omega_p^2D_0\cos\Omega t$. Its resonant limit is $E=-\eta\omega_pD_0t\sin(\omega_pt)/2$. The [drive example](../examples/dark_drive.py) evaluates the continuous, stable sinc form near resonance and checks the accumulated external-work balance. This is the same effective ordinary forcing; its linear-in-time amplitude is not exponential growth.
 

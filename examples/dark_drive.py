@@ -38,8 +38,9 @@ def main():
     waveform_error = float(np.max(np.abs(electric - reference)) / amplitude)
     ordinary = np.asarray(output.energy()["total"])
     work = np.asarray(output.work)
-    transferred = work[-1] - work[0]
-    work_error = float(abs(ordinary[-1] - ordinary[0] - transferred) / abs(transferred))
+    transferred = work[-1]
+    work_error = float(abs(ordinary[-1] - float(output.state.initial_ordinary) - transferred)
+                       / abs(transferred))
     with midnight():
         fig, ax = plt.subplots(figsize=(8, 4.5), layout="constrained")
         ax.plot(time * omega, reference / amplitude, label="cold forced oracle")

@@ -10,14 +10,20 @@ ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE = ROOT / "docs" / "_static" / "figures" / "cold_exchange"
 
 
+def run_example(*args, **kwargs):
+    """Reuse measured full records without rerunning PIC when requested."""
+    if "--records-only" not in sys.argv[1:]:
+        subprocess.run(*args, **kwargs)
+
+
 def provenance(record, folder):
     """Keep substitutions slim; the complete run record lives beside its figure."""
     keys = ("jaxincell", "jax", "numpy", "python", "platform", "jax_enable_x64", "backend", "git")
     return {**{key: record[key] for key in keys}, "run": f"{folder}/run.json"}
 
 
-subprocess.run([sys.executable, str(ROOT / "examples" / "dark_photon.py"), "--full",
-                "--output", str(EVIDENCE)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "examples" / "dark_photon.py"), "--full",
+             "--output", str(EVIDENCE)], cwd=ROOT, check=True)
 record = json.loads((EVIDENCE / "run.json").read_text())
 results = record["results"]
 measured = {"cold_mean_error": f"{results['max_mean_field_error_over_D0']:.3e}",
@@ -26,15 +32,15 @@ measured = {"cold_mean_error": f"{results['max_mean_field_error_over_D0']:.3e}",
             "cold_work_error": f"{results['ordinary_energy_vs_dark_work_relative_error']:.3e}",
             "_provenance": record}
 drive = EVIDENCE.parent / "prescribed_drive"
-subprocess.run([sys.executable, str(ROOT / "examples" / "dark_drive.py"), "--full",
-                "--output", str(drive)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "examples" / "dark_drive.py"), "--full",
+             "--output", str(drive)], cwd=ROOT, check=True)
 drive_record = json.loads((drive / "run.json").read_text())
 drive_results = drive_record["results"]
 measured.update({"drive_wave_error": f"{drive_results['max_waveform_error_over_D0']:.3e}",
                  "drive_work_error": f"{drive_results['ordinary_energy_vs_external_work_relative_error']:.3e}"})
 calibration = EVIDENCE.parent / "density_calibration"
-subprocess.run([sys.executable, str(ROOT / "examples" / "optimize_dark_photon.py"), "--full",
-                "--output", str(calibration)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "examples" / "optimize_dark_photon.py"), "--full",
+             "--output", str(calibration)], cwd=ROOT, check=True)
 calibration_record = json.loads((calibration / "run.json").read_text())
 cal = calibration_record["results"]
 measured.update({"calibration_pic_p": f"{cal['pic_best_p']:.7f}",
@@ -48,13 +54,13 @@ measured.update({"calibration_pic_p": f"{cal['pic_best_p']:.7f}",
                  "calibration_refined_gradient_error": (
                      f"{abs(cal['refined_pic']['gradient_at_0p97'] - cal['gradient_cold_at_0p97']):.3e}")})
 oblique = EVIDENCE.parent / "oblique_3v"
-subprocess.run([sys.executable, str(ROOT / "examples" / "dark_plasma.py"), "--full",
-                "--output", str(oblique)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "examples" / "dark_plasma.py"), "--full",
+             "--output", str(oblique)], cwd=ROOT, check=True)
 oblique_record = json.loads((oblique / "run.json").read_text())
 measured["oblique_six_field_error"] = f"{oblique_record['results']['max_all_six_field_error_over_D0']:.3e}"
 kinetic = EVIDENCE.parent / "mixed_kinetic"
-subprocess.run([sys.executable, str(ROOT / "examples" / "dark_kinetic.py"), "--full",
-                "--output", str(kinetic)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "examples" / "dark_kinetic.py"), "--full",
+             "--output", str(kinetic)], cwd=ROOT, check=True)
 kinetic_record = json.loads((kinetic / "run.json").read_text())
 kin = kinetic_record["results"]
 measured.update({"kinetic_pic_real": f"{kin['measured_real_over_wp']:.5f}",
@@ -64,10 +70,36 @@ measured.update({"kinetic_pic_real": f"{kin['measured_real_over_wp']:.5f}",
                  "kinetic_frequency_error": f"{100 * kin['frequency_relative_error']:.2f}",
                  "kinetic_damping_error": f"{100 * kin['damping_relative_error']:.2f}",
                  "kinetic_damping_stderr": f"{kin['damping_slope_stderr']:.4f}"})
+physical_records = {}
+for cells, particles, steps in ((32, 40000, 3000), (64, 80000, 6000),
+                                (128, 160000, 12000)):
+    folder = f"physical_kinetic_{cells}"
+    path = EVIDENCE.parent / folder
+    run_example([sys.executable, str(ROOT / "examples" / "dark_kinetic.py"),
+                 "--physical", "--full", "--cells", str(cells), "--particles",
+                 str(particles), "--steps", str(steps), "--output", str(path)],
+                cwd=ROOT, check=True)
+    record = json.loads((path / "run.json").read_text())
+    physical_records[folder] = provenance(record, folder)
+    result = record["results"]
+    for name in ("measured_real_over_wp", "measured_imag_over_wp",
+                 "parent_measured_real_over_wp", "parent_measured_imag_over_wp",
+                 "maximum_sampled_closed_energy_drift", "maximum_initial_speed_over_c"):
+        measured[f"physical_{cells}_{name}"] = f"{result[name]:.6g}"
+measured["physical_reference_parent"] = (
+    f"{result['parent_root_real_over_wp']:.5f}{result['parent_root_imag_over_wp']:+.5f}i")
+measured["physical_reference_mixed"] = (
+    f"{result['root_real_over_wp']:.5f}{result['root_imag_over_wp']:+.5f}i")
+measured["physical_reference_screened"] = (
+    f"{result['screened_root_over_wp'][0]:.5f}"
+    f"{result['screened_root_over_wp'][1]:+.5f}i")
 bump = EVIDENCE.parent / "bump_on_tail"
-subprocess.run([sys.executable, str(ROOT / "examples" / "dark_bump.py"), "--full",
-                "--output", str(bump)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "examples" / "dark_bump.py"), "--full",
+             "--output", str(bump)], cwd=ROOT, check=True)
 bump_record = json.loads((bump / "run.json").read_text())
+selected = bump_record["results"]["reference_scan"]["selected_roots_over_wp"]
+for model in ("ordinary", "full", "quasistatic", "effective_charge"):
+    measured[f"bump_threshold_{model}_imag"] = f"{selected[model][0][1][1][1]:+.5f}"
 for i, name in enumerate(("base", "refined")):
     result = bump_record["results"]["cases"][i]
     for branch in ("parent", "mixed"):
@@ -77,9 +109,26 @@ for i, name in enumerate(("base", "refined")):
 instability_records = {}
 for mode, folder in (("two-stream", "mixed_two_stream"), ("weibel", "mixed_weibel")):
     path = EVIDENCE.parent / folder
-    subprocess.run([sys.executable, str(ROOT / "examples" / "dark_instabilities.py"), mode,
-                    "--full", "--output", str(path)], cwd=ROOT, check=True)
+    run_example([sys.executable, str(ROOT / "examples" / "dark_instabilities.py"), mode,
+                 "--full", "--output", str(path)], cwd=ROOT, check=True)
     instability_records[folder] = json.loads((path / "run.json").read_text())
+warm_path = EVIDENCE.parent / "warm_two_stream"
+run_example([sys.executable, str(ROOT / "examples" / "dark_instabilities.py"),
+             "warm-two-stream", "--full", "--output", str(warm_path)], cwd=ROOT,
+            check=True)
+warm_record = json.loads((warm_path / "run.json").read_text())
+warm = warm_record["results"]
+for model, root in warm["references"]["unstable"].items():
+    measured[f"warm_{model}_root"] = f"{root[1]:.5f}"
+for cells in (64, 128):
+    case = warm["cases"][f"unstable_{cells}"]
+    for branch in ("parent", "mixed"):
+        measured[f"warm_{cells}_{branch}_fit"] = (
+            f"{case['fits'][branch]['growth_over_wp']:.5f}")
+    measured[f"warm_{cells}_energy_drift"] = (
+        f"{case['maximum_sampled_closed_energy_drift']:.3e}")
+measured["warm_stable_late_over_early"] = (
+    f"{warm['cases']['stable_64']['late_over_early_mode_rms']['mixed']:.3f}")
 two = instability_records["mixed_two_stream"]["results"]
 weibel = instability_records["mixed_weibel"]["results"]
 two_record = instability_records["mixed_two_stream"]
@@ -88,12 +137,16 @@ for name, result in (("two_stream", two), ("weibel", weibel)):
     measured[f"{name}_pic"] = f"{result['pic_fits'][0]['growth_over_wp']:.5f}"
     measured[f"{name}_refined"] = f"{result['pic_fits'][1]['growth_over_wp']:.5f}"
     measured[f"{name}_zero_pic"] = f"{result['zero_coupling_pic_growth_over_wp']:.5f}"
+measured["weibel_cutoff_kc_over_wp"] = (
+    f"{weibel['weibel_marginal']['cutoff_kc_over_wp']['cutoff_mu_0.7'][30]:.5f}")
+measured["weibel_stable_late_over_early"] = (
+    f"{weibel['stable_mode_2']['late_over_early_magnetic_rms']:.3f}")
 saturation = {}
 for preset, folder in (("--full", "two_stream_saturation"),
                        ("--extended", "two_stream_extended")):
     path = EVIDENCE.parent / folder
-    subprocess.run([sys.executable, str(ROOT / "examples" / "dark_saturation.py"), preset,
-                    "--output", str(path)], cwd=ROOT, check=True)
+    run_example([sys.executable, str(ROOT / "examples" / "dark_saturation.py"), preset,
+                 "--output", str(path)], cwd=ROOT, check=True)
     saturation[folder] = json.loads((path / "run.json").read_text())
 short = saturation["two_stream_saturation"]["results"]["cases"]
 long = saturation["two_stream_extended"]["results"]["cases"]
@@ -117,14 +170,14 @@ for i, name in ((2, "halfstep"), (3, "fine")):
         f"{100 * (fields['mixed'] / fields['parent'] - 1):+.1f}")
 measured["saturation_long_fine_drift_percent"] = f"{100 * long[3]['mixed_max_energy_drift']:.3f}"
 null = EVIDENCE.parent / "homogeneous_null"
-subprocess.run([sys.executable, str(ROOT / "examples" / "dark_null.py"), "--full",
-                "--output", str(null)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "examples" / "dark_null.py"), "--full",
+             "--output", str(null)], cwd=ROOT, check=True)
 null_record = json.loads((null / "run.json").read_text())
 measured["null_coarse_error"] = f"{null_record['results']['max_mode_amplitude_difference_over_initial'][0]:.3e}"
 measured["null_fine_error"] = f"{null_record['results']['max_mode_amplitude_difference_over_initial'][1]:.3e}"
 mobile = EVIDENCE.parent / "mobile_ions"
-subprocess.run([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--full",
-                "--output", str(mobile)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--full",
+             "--output", str(mobile)], cwd=ROOT, check=True)
 mobile_record = json.loads((mobile / "run.json").read_text())
 m = mobile_record["results"]
 measured.update({"mobile_external_oracle_error": f"{m['cases']['external']['mean_error']:.3e}",
@@ -141,8 +194,8 @@ measured.update({"mobile_external_oracle_error": f"{m['cases']['external']['mean
                      f"{100 * m['finite_vs_external']['large_reservoir']['dark_depletion_fraction']:.1f}"),
                  "mobile_max_balance": f"{max(abs(v['balance_over_scale']) for v in m['cases'].values()):.3e}"})
 design = EVIDENCE.parent / "profile_design"
-subprocess.run([sys.executable, str(ROOT / "examples" / "dark_profile.py"), "--full",
-                "--output", str(design)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "examples" / "dark_profile.py"), "--full",
+             "--output", str(design)], cwd=ROOT, check=True)
 design_record = json.loads((design / "run.json").read_text())
 p = design_record["results"]
 high = p["finite_amplitude"]
@@ -180,6 +233,7 @@ measured["_provenance"] = {"cold_exchange": provenance(record, "cold_exchange"),
                            "density_calibration": provenance(calibration_record, "density_calibration"),
                            "oblique_3v": provenance(oblique_record, "oblique_3v"),
                            "mixed_kinetic": provenance(kinetic_record, "mixed_kinetic"),
+                           **physical_records,
                            "bump_on_tail": provenance(bump_record, "bump_on_tail"),
                            "mixed_two_stream": provenance(two_record, "mixed_two_stream"),
                            "two_stream_saturation": provenance(saturation["two_stream_saturation"],
@@ -187,6 +241,7 @@ measured["_provenance"] = {"cold_exchange": provenance(record, "cold_exchange"),
                            "two_stream_extended": provenance(saturation["two_stream_extended"],
                                                              "two_stream_extended"),
                            "mixed_weibel": provenance(instability_records["mixed_weibel"], "mixed_weibel"),
+                           "warm_two_stream": provenance(warm_record, "warm_two_stream"),
                            "homogeneous_null": provenance(null_record, "homogeneous_null"),
                            "mobile_ions": provenance(mobile_record, "mobile_ions"),
                            "profile_design": provenance(design_record, "profile_design")}
@@ -219,4 +274,13 @@ if large_cost.exists():
         measured[f"large_{name}_first_s"] = f"{row['first_call_s']:.2f}"
         measured[f"large_{name}_rss_mib"] = f"{row['peak_rss_bytes'] / 2**20:.0f}"
     measured["_provenance"]["field_cost_large"] = data["settings"]
+storage_cost = EVIDENCE.parent / "storage_cost.json"
+if storage_cost.exists():
+    data = json.loads(storage_cost.read_text())
+    for row in data["rows"]:
+        name = row["case"]
+        measured[f"storage_{name}_warm_s"] = f"{row['warm_median_s']:.3f}"
+        measured[f"storage_{name}_first_s"] = f"{row['first_call_s']:.2f}"
+        measured[f"storage_{name}_rss_mib"] = f"{row['peak_rss_bytes'] / 2**20:.1f}"
+    measured["_provenance"]["storage_cost"] = data["settings"]
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")

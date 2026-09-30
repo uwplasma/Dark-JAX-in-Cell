@@ -12,7 +12,19 @@ from jaxincell._config import pytree_dataclass
 from jaxincell._core import E_x_from_rho, curl_E, wrap_positions
 from jaxincell._simulation import Output
 
-from ._proca import drift, energy, gauss, kick
+from ._proca import divergence, drift, energy, gauss, kick
+
+
+def _plain_scalar(value, name, *, positive=False):
+    """Check concrete controls on the host; traced trials need an external feasibility check."""
+    if isinstance(value, jax.core.Tracer):
+        return None
+    number = np.asarray(value)
+    if number.shape != () or not np.isfinite(number):
+        raise ValueError(f"{name} must be a finite scalar")
+    if positive and number <= 0:
+        raise ValueError(f"{name} must be positive")
+    return float(number)
 
 
 def _check_phi_mean(phi):
@@ -25,6 +37,74 @@ def _check_phi_mean(phi):
         raise ValueError("periodic neutral Proca initial_phi must have zero mean")
 
 
+def project_initial_electric(E, rho, background, phi, dx, omega, eta):
+    """Return Gauss-compatible face E and the L2 norm of its longitudinal correction."""
+    source = eta * (rho + background) - epsilon_0 * omega**2 / c**2 * phi
+    longitudinal = E_x_from_rho(source, dx, (0, 0)) + jnp.mean(E[:, 0])
+    correction = jnp.sqrt(dx * jnp.sum((longitudinal - E[:, 0])**2))
+    return E.at[:, 0].set(longitudinal), correction
+
+
+def _kinetic_species(plasma, ordinary, mass):
+    """Sum each physical population using the parent's pusher-energy convention."""
+    particle_energy = ordinary.w * plasma._kinetic(mass, ordinary.u)
+    start, values = 0, []
+    for species in plasma.species:
+        values.append(jnp.sum(particle_energy[start:start + species.n]))
+        start += species.n
+    return jnp.stack(values)
+
+
+def _ordinary_total(ordinary, kinetic, dx):
+    fields = 0.5 * epsilon_0 * dx * jnp.sum(ordinary.E**2 + c**2 * ordinary.B**2)
+    return fields + jnp.sum(kinetic)
+
+
+def _reset_diagnostics(state, plasma, model, mass):
+    """Start an energy/constraint ledger at this physical state."""
+    ordinary, dx = state.ordinary, plasma.domain.dx
+    kinetic = _kinetic_species(plasma, ordinary, mass)
+    initial_ordinary = _ordinary_total(ordinary, kinetic, dx)
+    initial_dark = (energy(state.E, state.B, state.A, state.phi, dx, model.omega)
+                    if isinstance(model, DarkField) else jnp.zeros(()))
+    ordinary_gauss = jnp.max(jnp.abs(divergence(ordinary.E, dx)
+                                     - (ordinary.rho + state.background) / epsilon_0))
+    dark_gauss = (jnp.max(jnp.abs(gauss(state.E, state.phi, ordinary.rho + state.background,
+                                        dx, model.omega, model.eta)))
+                  if isinstance(model, DarkField) else jnp.zeros(()))
+    return state.replace(work=jnp.zeros(()), initial_ordinary=initial_ordinary,
+                         initial_dark=initial_dark, max_balance_error=jnp.zeros(()),
+                         max_ordinary_gauss=ordinary_gauss, max_dark_gauss=dark_gauss)
+
+
+def _check_field_model(model, domain):
+    omega = _plain_scalar(model.omega, "dark rest frequency", positive=True)
+    _plain_scalar(model.eta, "dark coupling")
+    if omega is not None:
+        limit = float(domain.dt) * (4 * c**2 / float(domain.dx)**2 + omega**2) ** 0.5
+        if limit >= 1.9:
+            raise ValueError("dark field exceeds the explicit Proca stability margin")
+    for name, shape in (("initial_E", (domain.cells, 3)), ("initial_A", (domain.cells, 3)),
+                        ("initial_phi", (domain.cells,))):
+        value = getattr(model, name)
+        if value is not None and jnp.shape(value) != shape:
+            raise ValueError(f"{name} must have shape {shape}")
+        if value is not None and not isinstance(value, jax.core.Tracer):
+            if not np.all(np.isfinite(np.asarray(value))):
+                raise ValueError(f"{name} must be finite")
+    _check_phi_mean(model.initial_phi)
+
+
+def _check_drive_model(model):
+    for name in ("eta", "omega", "phase"):
+        _plain_scalar(getattr(model, name), f"drive {name}")
+    if jnp.shape(model.amplitude) != (3,):
+        raise ValueError("prescribed amplitude must be a three-component E vector")
+    if not isinstance(model.amplitude, jax.core.Tracer):
+        if not np.all(np.isfinite(np.asarray(model.amplitude))):
+            raise ValueError("prescribed amplitude must be finite")
+
+
 @pytree_dataclass(static=())
 class DarkField:
     """Dynamical canonical field: ``omega`` is the rest frequency in rad/s.
@@ -32,7 +112,8 @@ class DarkField:
     ``eta`` is the exact current-coupling ratio. Initial arrays use the parent's
     face E/A and centre B convention; E and A are (cells, 3), phi is (cells,).
     When E is omitted, ``eta * ordinary E`` satisfies the shared background Gauss
-    law. An explicit E requires a constraint-consistent phi.
+    law. A supplied longitudinal E is projected onto dark Gauss; the correction
+    norm is returned in ``DarkState.initial_projection_norm``.
     """
 
     omega: object
@@ -58,7 +139,7 @@ class PrescribedDrive:
 
 @pytree_dataclass(static=())
 class DarkState:
-    """Complete restart state; ``background`` is the fixed neutralizing charge density."""
+    """Complete restart state, including initial energy and all-step residual maxima."""
 
     ordinary: object
     E: object
@@ -67,11 +148,17 @@ class DarkState:
     phi: object
     background: object
     work: object
+    initial_ordinary: object
+    initial_dark: object
+    initial_projection_norm: object
+    max_balance_error: object
+    max_ordinary_gauss: object
+    max_dark_gauss: object
 
 
 @pytree_dataclass(static=())
 class DarkOutput:
-    """Parent output and complete ghost histories at stored times."""
+    """Parent output and dark histories at stored times, with reduced kinetic ledgers."""
 
     ordinary: Output
     E: object
@@ -81,22 +168,38 @@ class DarkOutput:
     work: object
     state: DarkState
     model: object
+    kinetic_species: object
 
     def energy(self):
-        """Energy and source-work ledgers in J/m²; differences start at the first sample."""
+        """Energy and source-work ledgers in J/m², referenced to the physical t=0 state."""
         ordinary = energies(self.ordinary)
+        kinetic = jnp.sum(self.kinetic_species, axis=1)
+        ordinary["kinetic"] = kinetic
+        for index, name in enumerate(self.ordinary.names):
+            ordinary[f"kinetic_{name}"] = self.kinetic_species[:, index]
+        ordinary["total"] = ordinary["electric"] + ordinary["magnetic"] + kinetic
+        ordinary["energy_error"] = (jnp.abs(ordinary["total"] - self.state.initial_ordinary)
+                                    / jnp.maximum(jnp.abs(self.state.initial_ordinary),
+                                                  jnp.finfo(kinetic.dtype).tiny))
         if isinstance(self.model, DarkField):
             dark = energy(self.E, self.B, self.A, self.phi, self.ordinary.dx, self.model.omega)
-            transfer = self.work - self.work[0]
+            transfer = self.work
             result = {**ordinary, "dark": dark, "dark_source_work": self.work,
-                      "dark_work_residual": dark - dark[0] - transfer}
-            if "total" in ordinary:
-                result["total_with_dark"] = ordinary["total"] + dark
-                result["ordinary_work_residual"] = ordinary["total"] - ordinary["total"][0] + transfer
+                      "dark_work_residual": dark - self.state.initial_dark - transfer}
+            result["total_with_dark"] = ordinary["total"] + dark
+            result["ordinary_work_residual"] = ordinary["total"] - self.state.initial_ordinary + transfer
+            result["closed_energy_error"] = result["total_with_dark"] - (
+                self.state.initial_ordinary + self.state.initial_dark)
+            result["max_dark_gauss_V_m2"] = self.state.max_dark_gauss
+            result["initial_projection_norm"] = self.state.initial_projection_norm
+            result["max_balance_error"] = self.state.max_balance_error
+            result["max_ordinary_gauss_V_m2"] = self.state.max_ordinary_gauss
             return result
         result = {**ordinary, "external_work": self.work}
-        if "total" in ordinary:
-            result["closed_balance"] = ordinary["total"] - self.work
+        result["closed_balance"] = ordinary["total"] - self.work
+        result["closed_balance_error"] = result["closed_balance"] - self.state.initial_ordinary
+        result["max_balance_error"] = self.state.max_balance_error
+        result["max_ordinary_gauss_V_m2"] = self.state.max_ordinary_gauss
         return result
 
     def dark_gauss(self):
@@ -109,7 +212,7 @@ class DarkOutput:
 
 @pytree_dataclass(static=())
 class DarkSimulation:
-    """Periodic explicit Maxwell PIC with a dynamical ghost or prescribed drive.
+    """Periodic explicit Maxwell PIC with a dynamical Proca field or prescribed drive.
 
     All particle loading, deposits, gathers, pushers and ordinary field updates
     are imported from ``jaxincell``. Unsupported solver combinations fail early.
@@ -127,21 +230,12 @@ class DarkSimulation:
                 or s.filter_passes or self.plasma.collisions is not None or self.plasma.sources):
             raise ValueError("dark runs require periodic explicit electromagnetic Ampere PIC, "
                              "with no filtering, sources or collisions")
+        if self.plasma.external_E is not None:
+            raise ValueError("prescribed ordinary external_E needs its own work ledger")
         if isinstance(self.dark, DarkField):
-            if isinstance(self.dark.omega, (int, float)) and self.dark.omega <= 0:
-                raise ValueError("dark rest frequency must be positive")
-            if isinstance(d.dt, (int, float)) and isinstance(self.dark.omega, (int, float)):
-                limit = d.dt * (4 * c**2 / d.dx**2 + self.dark.omega**2) ** 0.5
-                if limit >= 1.9:
-                    raise ValueError("ghost field exceeds the explicit Proca stability margin")
-            for name, shape in (("initial_E", (d.cells, 3)), ("initial_A", (d.cells, 3)),
-                                ("initial_phi", (d.cells,))):
-                value = getattr(self.dark, name)
-                if value is not None and jnp.shape(value) != shape:
-                    raise ValueError(f"{name} must have shape {shape}")
-            _check_phi_mean(self.dark.initial_phi)
-        elif jnp.shape(self.dark.amplitude) != (3,):
-            raise ValueError("prescribed amplitude must be a three-component E vector")
+            _check_field_model(self.dark, d)
+        else:
+            _check_drive_model(self.dark)
 
     def initial_state(self, key):
         """Use parent loading and freeze its initial neutralizing background."""
@@ -152,14 +246,31 @@ class DarkSimulation:
             A = jnp.zeros(shape) if self.dark.initial_A is None else jnp.asarray(self.dark.initial_A)
             E = self.dark.eta * ordinary.E if self.dark.initial_E is None else jnp.asarray(self.dark.initial_E)
             phi = jnp.zeros((shape[0],)) if self.dark.initial_phi is None else jnp.asarray(self.dark.initial_phi)
-            source = (self.dark.eta * (ordinary.rho + background)
-                      - epsilon_0 * self.dark.omega**2 / c**2 * phi)
-            E = E.at[:, 0].set(E_x_from_rho(source, self.plasma.domain.dx, (0, 0)) + jnp.mean(E[:, 0]))
+            E, correction = project_initial_electric(
+                E, ordinary.rho, background, phi, self.plasma.domain.dx,
+                self.dark.omega, self.dark.eta)
             B = curl_E(A, jnp.zeros(shape), self.plasma.domain.dx, (0, 0))
         else:
             E = B = A = phi = None
-        state = DarkState(ordinary, E, B, A, phi, background, jnp.zeros(()))
-        return state, extra
+            correction = jnp.zeros(())
+        state = DarkState(ordinary, E, B, A, phi, background, jnp.zeros(()),
+                          jnp.zeros(()), jnp.zeros(()), correction,
+                          jnp.zeros(()), jnp.zeros(()), jnp.zeros(()))
+        return _reset_diagnostics(state, self.plasma, self.dark, extra[0]), extra
+
+    def continue_with_parameters(self, state):
+        """Begin a new experiment at this state; reclose Gauss and reset all ledgers."""
+        if isinstance(self.dark, DarkField):
+            if state.E is None or state.A is None or state.phi is None:
+                raise ValueError("continuation needs a complete Proca state")
+            E, correction = project_initial_electric(
+                state.E, state.ordinary.rho, state.background, state.phi,
+                self.plasma.domain.dx, self.dark.omega, self.dark.eta)
+            state = state.replace(E=E, initial_projection_norm=correction)
+        elif state.E is not None:
+            raise ValueError("continuation drive mode does not match the saved field state")
+        state = _reset_diagnostics(state, self.plasma, self.dark, self.plasma.per_particle[0])
+        return state
 
     def _step(self, state, extra):
         """Mirrored field halves around the parent's Boris push and two deposits."""
@@ -202,8 +313,24 @@ class DarkSimulation:
         totals = p._accumulate(o.moments, x_next, v_new, o.w)
         ordinary = o.replace(E=E, B=B, x=x_half, u=u, rho=rho_next,
                              time=o.time + d.dt, steps=o.steps + 1, moments=totals)
-        next_state = DarkState(ordinary, E_D, B_D, A, phi, state.background, work)
-        return next_state, (x_next, v_new, o.w, E, B, (J1 + J2) / 2, rho_next)
+        kinetic = _kinetic_species(p, ordinary, m)
+        ordinary_total = _ordinary_total(ordinary, kinetic, dx)
+        if isinstance(model, DarkField):
+            dark_total = energy(E_D, B_D, A, phi, dx, model.omega)
+            balance = ordinary_total + dark_total - state.initial_ordinary - state.initial_dark
+            dark_gauss = jnp.max(jnp.abs(gauss(E_D, phi, rho_next + state.background,
+                                               dx, model.omega, model.eta)))
+        else:
+            balance = ordinary_total - work - state.initial_ordinary
+            dark_gauss = state.max_dark_gauss
+        ordinary_gauss = jnp.max(jnp.abs(divergence(E, dx)
+                                         - (rho_next + state.background) / epsilon_0))
+        next_state = state.replace(
+            ordinary=ordinary, E=E_D, B=B_D, A=A, phi=phi, work=work,
+            max_balance_error=jnp.maximum(state.max_balance_error, jnp.abs(balance)),
+            max_ordinary_gauss=jnp.maximum(state.max_ordinary_gauss, ordinary_gauss),
+            max_dark_gauss=jnp.maximum(state.max_dark_gauss, dark_gauss))
+        return next_state, (x_next, v_new, o.w, E, B, (J1 + J2) / 2, rho_next, kinetic)
 
     def run(self, steps, seed=0, store_every=1, store_particles=True, state=None):
         """Run the same discrete transition with sparse parent and dark histories."""
@@ -211,7 +338,7 @@ class DarkSimulation:
             raise ValueError("steps must be positive and divisible by store_every")
         carry, extra = self.initial_state(random.PRNGKey(seed)) if state is None else (state, self.plasma.per_particle)
         carry, history = _advance(self, carry, extra, steps // store_every, store_every, store_particles)
-        x, v, w, E, B, J, rho, wall, t, n, sigma, E_D, B_D, A, phi, work = history
+        x, v, w, E, B, J, rho, kinetic, wall, t, n, sigma, E_D, B_D, A, phi, work = history
         d, (m, q) = self.plasma.domain, extra
         ordinary = Output(t=t, steps=n, sigma=sigma, x=x, v=v, E=E, B=B, J=J, rho=rho,
                           grid=d.grid, dx=d.dx, dt=d.dt, length=d.length, charge=q, mass=m,
@@ -220,18 +347,25 @@ class DarkSimulation:
                           state=carry.ordinary, names=tuple(s.name for s in self.plasma.species),
                           counts=tuple(s.n for s in self.plasma.species),
                           relativistic=self.plasma.solver.relativistic, field_bc=d.field_bc)
-        return DarkOutput(ordinary, E_D, B_D, A, phi, work, carry, self.dark)
+        return DarkOutput(ordinary, E_D, B_D, A, phi, work, carry, self.dark, kinetic)
 
 
 @partial(jax.jit, static_argnames=("chunks", "store_every", "store_particles"))
 def _advance(sim, carry, extra, chunks, store_every, store_particles):
+    placeholder = (carry.ordinary.x, sim.plasma._velocity(carry.ordinary.u), carry.ordinary.w,
+                   carry.ordinary.E, carry.ordinary.B, jnp.zeros_like(carry.ordinary.E),
+                   carry.ordinary.rho, _kinetic_species(sim.plasma, carry.ordinary, extra[0]))
+
+    def advance(pair, _):
+        return sim._step(pair[0], extra), None
+
     def chunk(state, _):
-        state, history = lax.scan(lambda st, _: sim._step(st, extra), state, None, length=store_every)
-        x, v, w, E, B, J, rho = jax.tree.map(lambda a: a[-1], history)
+        (state, (x, v, w, E, B, J, rho, kinetic)), _ = lax.scan(
+            advance, (state, placeholder), None, length=store_every)
         if not store_particles:
             x = v = w = None
         o = state.ordinary
-        return state, (x, v, w, E, B, J, rho, o.wall, o.time, o.steps, o.sigma,
+        return state, (x, v, w, E, B, J, rho, kinetic, o.wall, o.time, o.steps, o.sigma,
                        state.E, state.B, state.A, state.phi, state.work)
 
     return lax.scan(chunk, carry, None, length=chunks)
