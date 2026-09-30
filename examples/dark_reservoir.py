@@ -19,24 +19,24 @@ from scipy.linalg import expm
 from scipy.stats import linregress
 import sys
 
-from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
+from jaxincell import (Domain, Simulation, Solver, Species, elementary_charge as e,
                        epsilon_0, mass_electron, mass_proton, quiet_start,
                        save_run, speed_of_light as c)
 from darkjaxincell import DarkField, DarkSimulation, PrescribedDrive, midnight
 from darkjaxincell._proca import energy as dark_energy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "docs" / "scripts"))
-from pair_reference import growth, seeded_response  # noqa: E402
+from pair_reference import (coupled_response, growth, relativistic_response,
+                            seeded_response)  # noqa: E402
 
 
-def pair_experiment(cells, particles_per_cell, dtau, horizon, seed=2e-4, pump_enabled=True):
-    """Ordinary oscillating waterbag pair plasma, with a Vlasov edge oracle."""
+def pair_plasma(cells, particles_per_cell, dtau, seed, relativistic=False):
+    """Load matched neutral waterbags for ordinary and dark pair runs."""
     omega_0 = 1e9
     omega_p = omega_0 / np.sqrt(2)
     density = omega_p**2 * epsilon_0 * mass_electron / e**2
     length = 70 * c / omega_0
-    half_width, pump_scale = 0.05, 0.2 / np.sqrt(2)
-    quiver = pump_scale if pump_enabled else 0.0
+    half_width = 0.05
     mode = round(0.6 * 70 / (2 * np.pi * half_width))
     k = 2 * np.pi * mode / length
     count = cells * particles_per_cell
@@ -53,7 +53,29 @@ def pair_experiment(cells, particles_per_cell, dtau, horizon, seed=2e-4, pump_en
         species.append(Species(name, count, charge, mass_electron, density,
                                x=positions, v=velocity))
     domain = Domain(length=length, cells=cells, time_step=dtau / omega_0)
-    plasma = Simulation(domain, tuple(species))
+    plasma = Simulation(domain, tuple(species), Solver(relativistic=relativistic))
+    return plasma, species, k, omega_0
+
+
+def pair_bulk_ratio(current, field_amplitude, relativistic):
+    """Cold counterstream energy from the mean current, over field energy."""
+    if relativistic:
+        root = np.sqrt(1 - current**2)
+        bulk = 2 * current**2 / (root * (1 + root))
+    else:
+        bulk = current**2
+    return bulk / field_amplitude**2
+
+
+def pair_experiment(cells, particles_per_cell, dtau, horizon, seed=2e-4,
+                    pump_enabled=True, force_quiver=0.2 / np.sqrt(2), relativistic=False):
+    """Ordinary oscillating pair plasma with an independent Vlasov reference."""
+    plasma, species, k, omega_0 = pair_plasma(
+        cells, particles_per_cell, dtau, seed, relativistic)
+    domain = plasma.domain
+    length = domain.length
+    half_width, pump_scale = 0.05, force_quiver
+    quiver = pump_scale if pump_enabled else 0.0
     sim = DarkSimulation(plasma, PrescribedDrive(0.0, jnp.zeros(3), omega_0))
     start, _ = sim.initial_state(random.PRNGKey(0))
     field_scale = mass_electron * c * omega_0 / e
@@ -67,16 +89,23 @@ def pair_experiment(cells, particles_per_cell, dtau, horizon, seed=2e-4, pump_en
     field = np.asarray(out.ordinary.E[:, :, 0]) / field_scale
     faces = np.asarray(domain.faces)
     coefficient = np.mean(field * np.exp(-1j * k * faces)[None, :], axis=1)
-    reference = seeded_response(t, k * c / omega_0, seed, half_width, quiver)
+    if relativistic:
+        reference, _, background = relativistic_response(
+            t, k * c / omega_0, seed, 0, 1, quiver, 0, half_width, linear_end=60)
+        cold_mean = background[0]
+    else:
+        reference = seeded_response(t, k * c / omega_0, seed, half_width, quiver)
+        cold_mean = quiver * np.cos(t)
     pump = field.mean(axis=1)
     energy = out.energy()
     total = np.asarray(energy["total"])
     current = np.asarray(out.ordinary.J[:, :, 0]).mean(axis=1)
     current /= epsilon_0 * field_scale * omega_0
-    coherent = (pump**2 + current**2) / pump_scale**2
+    bulk = pair_bulk_ratio(current, pump_scale, relativistic)
+    coherent = pump**2 / pump_scale**2 + bulk
     initial_pump_energy = 0.5 * epsilon_0 * length * (pump_scale * field_scale)**2
     random_gain = ((np.asarray(energy["kinetic"]) - float(energy["kinetic"][0]))
-                   / initial_pump_energy - (current**2 - current[0]**2) / pump_scale**2)
+                   / initial_pump_energy - (bulk - bulk[0]))
     nonzero = np.mean((field - pump[:, None])**2, axis=1)
     linear = t <= 35
     residual = float(np.linalg.norm(coefficient[linear] - reference[linear]) /
@@ -106,14 +135,16 @@ def pair_experiment(cells, particles_per_cell, dtau, horizon, seed=2e-4, pump_en
               "vlasov_cycle_fit": cycle_rate(reference),
               "linear_mode_relative_l2_error": residual,
               "early_mean_error_over_initial_field": float(np.max(
-                  abs(pump[linear] - quiver * np.cos(t[linear]))) / pump_scale),
+                  abs(pump[linear] - cold_mean[linear])) / pump_scale),
               "late_mean_departure_over_initial_field": float(np.max(
-                  abs(pump - quiver * np.cos(t))) / pump_scale),
+                  abs(pump - cold_mean)) / pump_scale),
               "max_total_energy_drift": float(np.max(abs(total / total[0] - 1))),
               "final_nonzero_field_over_initial_pump": float(nonzero[-1] / pump_scale**2),
               "late_coherent_fraction": float(np.mean(coherent[t >= t[-1] - 20])),
               "late_random_gain_over_initial_pump": float(np.mean(random_gain[t >= t[-1] - 20])),
               "half_coherence_time_omega0": float(t[crossing[0]]) if len(crossing) else None,
+              "max_final_speed_over_c": float(np.max(abs(np.asarray(
+                  plasma._velocity(out.state.ordinary.u)[:, 0]))) / c),
               "max_initial_speed_over_c": float(np.max(np.abs(np.concatenate(
                   [np.asarray(species[0].v[:, 0]), np.asarray(species[1].v[:, 0])])) / c))}
     settings = {"model": "ordinary neutral electron-positron waterbag",
@@ -124,13 +155,116 @@ def pair_experiment(cells, particles_per_cell, dtau, horizon, seed=2e-4, pump_en
                 "particles_per_cell_per_species": particles_per_cell,
                 "dt_omega0": dtau, "horizon_omega0": float(t[-1]),
                 "waterbag_full_width_over_c": 2 * half_width,
-                "initial_field_over_mec_omega_p_e": 0.2 if pump_enabled else 0.0,
+                "initial_field_over_mec_omega_p_e": force_quiver * np.sqrt(2) if pump_enabled else 0.0,
                 "quiver_over_c": quiver, "velocity_seed_over_c": seed,
-                "seed_mode": mode, "seed_k_vT_over_omega0": k * c / omega_0 * half_width,
+                "seed_mode": round(k * length / (2 * np.pi)),
+                "seed_k_vT_over_omega0": k * c / omega_0 * half_width,
+                "relativistic_pusher": relativistic,
+                "kinetic_reference": ("relativistic 64-node orbit quadrature" if relativistic
+                                      else "nonrelativistic four-edge waterbag"),
                 "diagnostic": "all nonzero electric modes; complete ordinary particle-field energy"}
-    return dict(t=t, pump=pump, mode=coefficient, reference=reference,
+    return dict(t=t, pump=pump, cold_mean=cold_mean,
+                mode=coefficient, reference=reference,
                 nonzero=nonzero, total=total, coherent=coherent,
                 random_gain=random_gain), settings, result
+
+
+def pair_dark_experiment(cells, particles_per_cell, dtau, horizon,
+                         seed=2e-4, eta=0.5, mass=1.0, force=0.05,
+                         relativistic=True):
+    """Coupled pair plasma and its independent finite-time Vlasov–Proca trace."""
+    plasma, _, k, omega_0 = pair_plasma(
+        cells, particles_per_cell, dtau, seed, relativistic)
+    domain = plasma.domain
+    field_scale = mass_electron * c * omega_0 / e
+    initial_dark = force * field_scale / eta
+    dark_field = jnp.tile(jnp.array([initial_dark, 0., 0.]), (cells, 1))
+    sim = DarkSimulation(plasma, DarkField(mass * omega_0, eta, initial_E=dark_field))
+    start, _ = sim.initial_state(random.PRNGKey(0))
+    stride = max(1, round(0.2 / dtau))
+    steps = stride * round(horizon / dtau / stride)
+    out = sim.run(steps, state=start, store_every=stride, store_particles=False)
+    t = np.asarray(out.ordinary.t) * omega_0
+    ordinary = np.asarray(out.ordinary.E[:, :, 0]) / field_scale
+    dark = np.asarray(out.E[:, :, 0]) / field_scale
+    ordinary_mean, dark_mean = ordinary.mean(axis=1), dark.mean(axis=1)
+    phase = np.exp(-1j * k * np.asarray(domain.faces))
+    ordinary_mode = np.mean(ordinary * phase[None, :], axis=1)
+    dark_mode = np.mean(dark * phase[None, :], axis=1)
+    oracle = relativistic_response if relativistic else coupled_response
+    if relativistic:
+        reference, dark_reference, background = oracle(
+            t, k * c / omega_0, seed, eta, mass, 0, force / eta,
+            linear_end=60)
+    else:
+        reference, dark_reference, background = oracle(
+            t, k * c / omega_0, seed, eta, mass, 0, force / eta)
+    energy = out.energy()
+    total = np.asarray(energy["total_with_dark"])
+    current = np.asarray(out.ordinary.J[:, :, 0]).mean(axis=1)
+    current /= epsilon_0 * field_scale * omega_0
+    vector = np.asarray(out.A[:, :, 0]).mean(axis=1) * omega_0 / field_scale
+    reservoir_scale = (force / eta)**2
+    bulk = pair_bulk_ratio(current, force / eta, relativistic)
+    coherent = ((ordinary_mean**2 + dark_mean**2 + mass**2 * vector**2)
+                / reservoir_scale + bulk)
+    initial_energy = 0.5 * epsilon_0 * domain.length * field_scale**2 * reservoir_scale
+    random_gain = ((np.asarray(energy["kinetic"]) - float(energy["kinetic"][0]))
+                   / initial_energy - (bulk - bulk[0]))
+    nonzero_ordinary = np.mean((ordinary - ordinary_mean[:, None])**2, axis=1)
+    mean_dark_energy = (0.5 * epsilon_0 * domain.length * field_scale**2
+                        * (dark_mean**2 + mass**2 * vector**2))
+    nonzero_dark = (np.asarray(energy["dark"]) - mean_dark_energy) / initial_energy
+    early = t <= 35
+
+    def relative_error(measured, oracle):
+        return float(np.linalg.norm(measured[early] - oracle[early]) /
+                     max(np.linalg.norm(oracle[early]), 1e-30))
+
+    crossing = np.flatnonzero(coherent < 0.5)
+    final_velocity = np.asarray(plasma._velocity(out.state.ordinary.u)[:, 0])
+    constraint_scale = field_scale * omega_0 / c
+    result = {"ordinary_mode_early_relative_l2_error": relative_error(ordinary_mode, reference),
+              "dark_mode_early_relative_l2_error": relative_error(dark_mode, dark_reference),
+              "homogeneous_early_error_over_initial_dark": float(max(
+                  np.max(abs(ordinary_mean[early] - background[0, early])),
+                  np.max(abs(dark_mean[early] - background[1, early]))) / (force / eta)),
+              "max_closed_energy_drift": float(np.max(abs(total / total[0] - 1))),
+              "max_all_step_balance_error_over_initial": float(
+                  out.state.max_balance_error / total[0]),
+              "max_ordinary_gauss_over_scale": float(
+                  out.state.max_ordinary_gauss / constraint_scale),
+              "max_dark_gauss_over_scale": float(out.state.max_dark_gauss / constraint_scale),
+              "max_ordinary_work_residual_over_initial": float(
+                  np.max(abs(np.asarray(energy["ordinary_work_residual"]))) / initial_energy),
+              "max_dark_work_residual_over_initial": float(
+                  np.max(abs(np.asarray(energy["dark_work_residual"]))) / initial_energy),
+              "late_coherent_fraction": float(np.mean(coherent[t >= t[-1] - 20])),
+              "late_random_gain_over_initial_reservoir": float(
+                  np.mean(random_gain[t >= t[-1] - 20])),
+              "half_coherence_time_omega0": float(t[crossing[0]]) if len(crossing) else None,
+              "max_final_speed_over_c": float(np.max(abs(final_velocity)) / c),
+              "initial_dark_over_matched_ordinary_field_energy": 1 / eta**2}
+    settings = {"model": "neutral waterbag pair plasma with a bare homogeneous Proca reservoir",
+                "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+                "omega0_rad_s": omega_0, "length_c_over_omega0": 70,
+                "cells": cells, "particles_per_cell_per_species": particles_per_cell,
+                "dt_omega0": dtau, "horizon_omega0": float(t[-1]),
+                "waterbag_full_width_over_c": 0.1, "seed_mode": round(k * domain.length / (2 * np.pi)),
+                "velocity_seed_over_c": seed, "eta": eta, "dark_mass_over_omega0": mass,
+                "initial_effective_quiver_over_c": force,
+                "relativistic_pusher": relativistic,
+                "kinetic_reference": ("relativistic 64-node orbit quadrature" if relativistic
+                                      else "nonrelativistic four-edge waterbag"),
+                "initial_ordinary_field": 0., "initial_dark_field_over_mec_omega0_e": force / eta,
+                "reference": "relativistic orbit quadrature on a coupled two-mode background"}
+    return dict(t=t, ordinary_mean=ordinary_mean, dark_mean=dark_mean,
+                ordinary_background=background[0], dark_background=background[1],
+                ordinary_mode=ordinary_mode, dark_mode=dark_mode,
+                ordinary_reference=reference, dark_reference=dark_reference,
+                coherent=coherent, random_gain=random_gain,
+                nonzero_ordinary=nonzero_ordinary / reservoir_scale,
+                nonzero_dark=nonzero_dark, total=total), settings, result
 
 
 def pair_figure(folder, full=False):
@@ -139,18 +273,21 @@ def pair_figure(folder, full=False):
                (2048, 64, 0.0125, 50), (4096, 16, 0.0125, 50),
                (4096, 32, 0.0125, 50), (4096, 32, 0.00625, 170)) if full else (
         (1024, 16, 0.025, 50),)
-    runs = [pair_experiment(*preset) for preset in presets]
+    runs = [pair_experiment(*preset, relativistic=True) for preset in presets]
     curves, settings, result = runs[-1]
-    controls = ({"no_pump": pair_experiment(4096, 32, 0.00625, 170, pump_enabled=False),
-                 "fivefold_seed": pair_experiment(4096, 32, 0.00625, 170, seed=1e-3)}
-                if full else {})
+    controls = {}
+    if full:
+        controls["no_pump"] = pair_experiment(
+            4096, 32, 0.00625, 170, pump_enabled=False, relativistic=True)
+        controls["fivefold_seed"] = pair_experiment(
+            4096, 32, 0.00625, 170, seed=1e-3, relativistic=True)
     t = curves["t"]
     with midnight():
         fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout="constrained")
         axes[0, 0].plot(t, curves["pump"], label="ordinary PIC")
         early = t <= 60
-        axes[0, 0].plot(t[early], (0.2 / np.sqrt(2)) * np.cos(t[early]),
-                        "--", label="cold pair oscillator")
+        axes[0, 0].plot(t[early], curves["cold_mean"][early],
+                        "--", label="homogeneous pair oscillator")
         axes[0, 1].plot(t, np.abs(curves["mode"]), label="PIC seeded mode")
         axes[0, 1].plot(t[early], np.abs(curves["reference"][early]),
                         "--", label="linear waterbag")
@@ -158,10 +295,10 @@ def pair_figure(folder, full=False):
         axes[1, 0].plot(t, curves["coherent"], label="coherent pump")
         axes[1, 0].plot(t, curves["nonzero"] / (0.2 / np.sqrt(2))**2,
                         label="nonzero electric field")
-        axes[1, 0].plot(t, curves["random_gain"], label="random kinetic gain")
+        axes[1, 0].plot(t, curves["random_gain"], label="kinetic excess above cold flow")
         if full:
             axes[1, 0].plot(t, controls["no_pump"][0]["random_gain"], "--",
-                            label="no-pump random gain")
+                            label="no-pump kinetic excess")
         axes[1, 1].plot(t, curves["total"] / curves["total"][0] - 1)
         axes[0, 0].set(xlabel=r"$\omega_0 t$", ylabel=r"$\langle E_x\rangle/(m_ec\omega_0/e)$")
         axes[0, 1].set(xlabel=r"$\omega_0 t$", ylabel="seeded electric mode")
@@ -175,13 +312,72 @@ def pair_figure(folder, full=False):
         save_run(folder, "oscillating_pair", {**settings, "preset": "full" if full else "quick"},
                  {**result, "refinements": [run[2] for run in runs],
                   "controls": {name: run[2] for name, run in controls.items()},
-                  "claim": "ordinary pair bridge; dark extension unverified"},
+                  "claim": "ordinary relativistic pair benchmark"},
                  fig, **curves,
                  **{f"{name}_{key}": value for name, run in controls.items()
                     for key, value in run[0].items()
                     if key in ("coherent", "random_gain", "nonzero", "total")})
         plt.close(fig)
     print("🦇 PAIR PLASMA:", result)
+
+
+def pair_dark_figure(folder, full=False):
+    """Compare a bare finite reservoir with its nonperiodic kinetic reference."""
+    presets = ((1024, 16, 0.025, 50), (2048, 32, 0.0125, 50),
+               (4096, 32, 0.00625, 170)) if full else ((2048, 32, 0.0125, 50),)
+    runs = [pair_dark_experiment(*preset) for preset in presets]
+    curves, settings, result = runs[-1]
+    ordinary = (pair_experiment(4096, 32, 0.00625, 170,
+                                force_quiver=0.05, relativistic=True)
+                if full else None)
+    t = curves["t"]
+    early = t <= 50
+    with midnight():
+        fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout="constrained")
+        for key, oracle, color, label in (
+                ("ordinary_mean", "ordinary_background", "#0072B2", "ordinary"),
+                ("dark_mean", "dark_background", "#6A3D9A", "dark")):
+            axes[0, 0].plot(t, curves[key], color=color, label=label)
+            axes[0, 0].plot(t[early], curves[oracle][early], "--", color=color)
+        for key, oracle, color, label in (
+                ("ordinary_mode", "ordinary_reference", "#0072B2", "ordinary"),
+                ("dark_mode", "dark_reference", "#6A3D9A", "dark")):
+            axes[0, 1].plot(t, abs(curves[key]), color=color, label=label)
+            axes[0, 1].plot(t[early], abs(curves[oracle][early]), "--", color=color)
+        axes[0, 1].set_yscale("log")
+        if ordinary is not None:
+            base = ordinary[0]
+            axes[0, 0].plot(base["t"], base["pump"], color="#D55E00",
+                            alpha=0.65, label="ordinary, same initial force")
+            axes[0, 1].plot(base["t"], abs(base["mode"]), color="#D55E00",
+                            alpha=0.65, label="ordinary, same initial force")
+        axes[1, 0].plot(t, curves["coherent"], label="coherent reservoir")
+        axes[1, 0].plot(t, curves["random_gain"], label="kinetic excess above cold flow")
+        axes[1, 0].plot(t, curves["nonzero_ordinary"] + curves["nonzero_dark"],
+                        label="finite-k fields and Proca potential")
+        axes[1, 1].plot(t, curves["total"] / curves["total"][0] - 1,
+                        label="full Maxwell–Proca")
+        if ordinary is not None:
+            base = ordinary[0]
+            axes[1, 1].plot(base["t"], base["total"] / base["total"][0] - 1,
+                            "--", label="matched-force ordinary")
+        axes[0, 0].set(xlabel=r"$\omega_0 t$", ylabel=r"mean $E_x/(m_ec\omega_0/e)$")
+        axes[0, 1].set(xlabel=r"$\omega_0 t$", ylabel="seeded electric modes")
+        axes[1, 0].set(xlabel=r"$\omega_0 t$", ylabel="energy / initial dark reservoir")
+        axes[1, 1].set(xlabel=r"$\omega_0 t$", ylabel="relative total-energy change")
+        for ax in axes.flat:
+            ax.grid(alpha=0.3)
+            ax.legend(facecolor="white", fontsize="small")
+        save_run(folder, "oscillating_dark_pair", {**settings, "preset": "full" if full else "quick"},
+                 {**result, "refinements": [run[2] for run in runs],
+                  "ordinary_matched_force": ordinary[2] if ordinary is not None else None,
+                  "claim": "finite-time kinetic comparison; no new nonlinear mechanism claimed"},
+                 fig, **curves,
+                 **({f"matched_ordinary_{key}": ordinary[0][key] for key in (
+                     "coherent", "random_gain", "mode", "total")}
+                    if ordinary is not None else {}))
+        plt.close(fig)
+    print("🦇 DARK PAIR:", result)
 
 
 def cold_reference(t, initial, eta, mass_ratio, drive_amplitude=None):
@@ -381,11 +577,16 @@ def main():
     preset = parser.add_mutually_exclusive_group()
     preset.add_argument("--full", action="store_true", help="two physical resolutions")
     preset.add_argument("--paper-pilot", action="store_true", help="short paper-geometry loading check")
-    parser.add_argument("--pair", action="store_true", help="ordinary oscillating pair-plasma bridge")
+    pair_mode = parser.add_mutually_exclusive_group()
+    pair_mode.add_argument("--pair", action="store_true", help="ordinary oscillating pair-plasma bridge")
+    pair_mode.add_argument("--pair-dark", action="store_true", help="finite Proca pair-plasma bridge")
     parser.add_argument("--output", type=Path, default=Path("artifacts/dark_reservoir"))
     args = parser.parse_args()
     if args.pair:
         pair_figure(args.output, args.full)
+        return
+    if args.pair_dark:
+        pair_dark_figure(args.output, args.full)
         return
     if args.paper_pilot:
         paper_geometry_pilot(args.output)

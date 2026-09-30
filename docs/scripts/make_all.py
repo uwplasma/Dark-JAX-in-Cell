@@ -215,6 +215,24 @@ measured.update({"pair_pic_growth": f"{pair_result['pic_cycle_fit']['growth_over
                  "pair_seed_expected_shift": (
                      f"{math.log(5) / pair_result['floquet_growth_over_omega0']:.1f}"),
                  "pair_energy_drift": f"{pair_result['max_total_energy_drift']:.3e}"})
+dark_pair = EVIDENCE.parent / "oscillating_dark_pair"
+run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"),
+             "--pair-dark", "--full", "--output", str(dark_pair)], cwd=ROOT, check=True)
+dark_pair_record = json.loads((dark_pair / "run.json").read_text())
+dark_pair_result = dark_pair_record["results"]
+dark_pair_gauss = max(dark_pair_result["max_ordinary_gauss_over_scale"],
+                      dark_pair_result["max_dark_gauss_over_scale"])
+measured.update({"dark_pair_ordinary_error": (
+                     f"{dark_pair_result['ordinary_mode_early_relative_l2_error']:.3f}"),
+                 "dark_pair_dark_error": (
+                     f"{dark_pair_result['dark_mode_early_relative_l2_error']:.3f}"),
+                 "dark_pair_mean_error": (
+                     f"{dark_pair_result['homogeneous_early_error_over_initial_dark']:.3e}"),
+                 "dark_pair_gauss": f"{dark_pair_gauss:.3e}",
+                 "dark_pair_coherent": f"{dark_pair_result['late_coherent_fraction']:.3f}",
+                 "dark_pair_kinetic": f"{dark_pair_result['late_random_gain_over_initial_reservoir']:.3f}",
+                 "dark_pair_final_speed": f"{dark_pair_result['max_final_speed_over_c']:.3f}",
+                 "dark_pair_energy_drift": f"{dark_pair_result['max_closed_energy_drift']:.3e}"})
 design = EVIDENCE.parent / "profile_design"
 run_example([sys.executable, str(ROOT / "examples" / "dark_profile.py"), "--full",
              "--output", str(design)], cwd=ROOT, check=True)
@@ -267,6 +285,7 @@ measured["_provenance"] = {"cold_exchange": provenance(record, "cold_exchange"),
                            "homogeneous_null": provenance(null_record, "homogeneous_null"),
                            "mobile_ions": provenance(mobile_record, "mobile_ions"),
                            "oscillating_pair": provenance(pair_record, "oscillating_pair"),
+                           "oscillating_dark_pair": provenance(dark_pair_record, "oscillating_dark_pair"),
                            "profile_design": provenance(design_record, "profile_design")}
 benchmark = EVIDENCE.parent / "recurrence_benchmark.json"
 if benchmark.exists():

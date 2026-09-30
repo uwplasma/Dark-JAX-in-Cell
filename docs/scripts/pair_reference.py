@@ -1,12 +1,13 @@
-"""Independent linear waterbag reference for an oscillating ordinary pair plasma.
+"""Independent linear waterbag references for ordinary and Proca pair plasmas.
 
 Time is in 1/omega_0, velocity in c, and each species has omega_p^2=1/2.
-The four unknowns are perturbations of the two waterbag edges per species;
-Gauss's law determines the nonzero-k electric field at every stage.
+The nonrelativistic limit propagates four edges; the relativistic reference
+propagates orbit quadrature. Gauss's law closes each nonzero-k response.
 """
 
 import numpy as np
 from scipy.integrate import solve_ivp
+from numpy.polynomial.legendre import leggauss
 
 
 def edge_matrix(t, k, half_width, quiver):
@@ -51,3 +52,111 @@ def seeded_response(times, k, seed, half_width=0.05,
     if not solution.success:
         raise RuntimeError(solution.message)
     return charge.repeat(2) @ solution.y / (1j * k)
+
+
+def coupled_response(times, k, seed, eta, mass, ordinary_field, dark_field,
+                     half_width=0.05):
+    """Finite-time pair response to a homogeneous Maxwell–Proca reservoir.
+
+    The bare reservoir generally contains two incommensurate normal modes, so
+    this returns an initial-value history rather than a Floquet exponent.
+    Potentials and both Gauss laws are retained at finite wavenumber.
+    """
+    times = np.asarray(times)
+    matrix = np.array([[0, 0, 0, -1], [0, 0, mass**2, -eta],
+                       [0, -1, 0, 0], [1, eta, 0, 0]], dtype=float)
+    background = solve_ivp(lambda t, y: matrix @ y, (0, float(times[-1])),
+                           [ordinary_field, dark_field, 0, 0], dense_output=True,
+                           rtol=2e-11, atol=2e-13)
+    if not background.success:
+        raise RuntimeError(background.message)
+    charge = np.array([-1.0, -1.0, 1.0, 1.0])
+    edge = np.array([-half_width, half_width] * 2)
+    source = -charge * np.array([1.0, -1.0] * 2) / (4 * half_width)
+    initial_edges = -seed * charge * np.array([1.0, -1.0] * 2) / (8 * half_width)
+
+    def rhs(t, values):
+        edges, potential, scalar = values[:4], values[4], values[5]
+        drift = charge * background.sol(t)[3]
+        rho = charge @ edges
+        ordinary = rho / (1j * k)
+        dark = (eta * rho - mass**2 * scalar) / (1j * k)
+        next_edges = (-1j * k * (edge + drift) * edges
+                      + source * (ordinary + eta * dark))
+        return np.r_[next_edges, -dark - 1j * k * scalar, -1j * k * potential]
+
+    solution = solve_ivp(rhs, (0, float(times[-1])),
+                         np.r_[initial_edges, 0j, 0j], t_eval=times,
+                         rtol=2e-10, atol=2e-12)
+    if not solution.success:
+        raise RuntimeError(solution.message)
+    rho = charge @ solution.y[:4]
+    ordinary = rho / (1j * k)
+    dark = (eta * rho - mass**2 * solution.y[5]) / (1j * k)
+    return ordinary, dark, background.sol(times)
+
+
+def relativistic_response(times, k, seed, eta, mass, ordinary_field,
+                          dark_field, half_width=0.05, nodes=64, linear_end=None):
+    """Quadrature Vlasov–Proca initial value problem with a relativistic pusher.
+
+    Initial velocities are uniform on [-vT,vT]. Linearized displacement and
+    momentum along each unperturbed orbit avoid differentiating a waterbag's
+    discontinuous edge; Gauss closes the ordinary and massive fields.
+    """
+    times = np.asarray(times)
+    points, weights = leggauss(nodes)
+    velocity = half_width * points
+    momentum = velocity / np.sqrt(1 - velocity**2)
+    weights = weights / 2
+    charge = np.array([-1.0, 1.0])[:, None]
+
+    def mean_velocity(pump_momentum):
+        orbit = momentum + pump_momentum
+        return weights @ (orbit / np.sqrt(1 + orbit**2))
+
+    def pump_rhs(t, state):
+        ordinary, dark, potential, pump_momentum = state
+        current = mean_velocity(pump_momentum)
+        return [-current, mass**2 * potential - eta * current,
+                -dark, ordinary + eta * dark]
+
+    pump = solve_ivp(pump_rhs, (0, float(times[-1])),
+                     [ordinary_field, dark_field, 0, 0], dense_output=True,
+                     rtol=2e-11, atol=2e-13)
+    if not pump.success:
+        raise RuntimeError(pump.message)
+    start_displacement = np.zeros((2, nodes), dtype=complex)
+    start_momentum = charge * seed / 2 * (1 + momentum**2)**1.5
+    initial = np.r_[start_displacement.ravel(), start_momentum.ravel(), 0j, 0j]
+
+    def fields(state):
+        displacement = state[:2 * nodes].reshape(2, nodes)
+        rho = -1j * k * np.sum(charge[:, 0] * (displacement @ weights)) / 2
+        ordinary = rho / (1j * k)
+        dark = (eta * rho - mass**2 * state[-1]) / (1j * k)
+        return ordinary, dark
+
+    def rhs(t, state):
+        displacement = state[:2 * nodes].reshape(2, nodes)
+        perturbation = state[2 * nodes:4 * nodes].reshape(2, nodes)
+        p = momentum[None, :] + charge * pump.sol(t)[3]
+        speed = p / np.sqrt(1 + p**2)
+        acceleration = (1 + p**2)**-1.5
+        ordinary, dark = fields(state)
+        next_displacement = -1j * k * speed * displacement + acceleration * perturbation
+        next_momentum = -1j * k * speed * perturbation + charge * (ordinary + eta * dark)
+        return np.r_[next_displacement.ravel(), next_momentum.ravel(),
+                     -dark - 1j * k * state[-1], -1j * k * state[-2]]
+
+    selected = times if linear_end is None else times[times <= linear_end]
+    solution = solve_ivp(rhs, (0, float(selected[-1])), initial, t_eval=selected,
+                         rtol=2e-8, atol=2e-10)
+    if not solution.success:
+        raise RuntimeError(solution.message)
+    coefficients = np.full((2, len(times)), np.nan + 0j)
+    coefficients[:, :len(selected)] = np.array([
+        fields(solution.y[:, index]) for index in range(len(selected))]).T
+    background = pump.sol(times)
+    background[3] = np.array([mean_velocity(value) for value in background[3]])
+    return coefficients[0], coefficients[1], background
