@@ -14,14 +14,16 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.optimize import root
 from scipy.stats import linregress
 
 from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
                        energies, epsilon_0, mass_electron, quiet_start, save_run,
                        speed_of_light as c)
-from jaxincell.theory import electrostatic_epsilon
 from darkjaxincell import DarkField, DarkSimulation, midnight
+if __package__:
+    from .dark_kinetic import longitudinal_root
+else:
+    from dark_kinetic import longitudinal_root
 
 
 def build_plasma(cells, bulk_count, beam_count, dt_wp=0.025):
@@ -51,17 +53,11 @@ def kinetic_root(wp, vth, eta, mu_over_wp=0.7):
                     "u": -fraction * 5 * vth / (1 - fraction), "vth": vth},
                    {"wp": wp * np.sqrt(fraction), "u": 5 * vth, "vth": 0.7 * vth})
 
-    def determinant(z):
-        epsilon, _ = electrostatic_epsilon(z * wp, k, populations)
-        s = z**2 - (k * c / wp)**2
-        return (s - mu_over_wp**2) * epsilon + eta**2 * s * (epsilon - 1)
-
-    solved = root(lambda pair: (determinant(complex(*pair)).real,
-                                determinant(complex(*pair)).imag), (0.85, 0.15))
-    answer = complex(*solved.x)
-    if not solved.success or abs(determinant(answer)) > 1e-7 or answer.imag <= 0:
-        raise RuntimeError("the bump's independent growing root did not converge")
-    return answer, abs(determinant(answer))
+    answer, residual = longitudinal_root(k, populations, mu_over_wp * wp,
+                                         eta, 0.85 + 0.15j)
+    if answer.imag <= 0:
+        raise RuntimeError("the bump's growing branch was not found")
+    return answer, residual
 
 
 def number_histogram(velocity, weight, counts, edges, speed):

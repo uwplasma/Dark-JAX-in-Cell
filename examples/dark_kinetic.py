@@ -13,32 +13,53 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import root
-from scipy.special import wofz
 from scipy.stats import linregress
 
 from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
                        epsilon_0, mass_electron, quiet_start, save_run,
                        speed_of_light as c)
-from jaxincell.theory import damped_mode
+from jaxincell.theory import damped_mode, electrostatic_epsilon
 from darkjaxincell import DarkField, DarkSimulation, midnight
 
 
-def mixed_root(kc_over_wp, sigma_over_c, eta, mu_over_wp):
-    """Independent Vlasov–Proca determinant with Landau continuation."""
-    def dispersion(omega):
-        zeta = omega / (np.sqrt(2) * kc_over_wp * sigma_over_c)
-        plasma_z = 1j * np.sqrt(np.pi) * wofz(zeta)
-        chi = (1 + zeta * plasma_z) / (kc_over_wp * sigma_over_c) ** 2
-        s = omega**2 - kc_over_wp**2
-        return (s - mu_over_wp**2) * (1 + chi) + eta**2 * s * chi
+def longitudinal_root(k, populations, omega_dark, eta, guess, model="full"):
+    """Multispecies Landau root in units of total ``omega_p``.
 
-    solution = root(lambda pair: [dispersion(pair[0] + 1j * pair[1]).real,
-                                  dispersion(pair[0] + 1j * pair[1]).imag],
-                    [1.4, -0.15])
-    frequency = complex(*solution.x)
-    if not solution.success or abs(dispersion(frequency)) > 1e-8:
-        raise RuntimeError("mixed kinetic reference root did not converge")
-    return frequency, float(abs(dispersion(frequency)))
+    The parent supplies each drifting Maxwellian susceptibility. This reference
+    supplies the independent Maxwell–Proca or screened-field algebra.
+    """
+    wp = np.sqrt(sum(species["wp"] ** 2 for species in populations))
+    K, mu = k * c / wp, omega_dark / wp
+    if model not in ("full", "ordinary", "quasistatic", "effective_charge"):
+        raise ValueError(f"unknown longitudinal reference {model}")
+
+    def determinant(z):
+        eps, _ = electrostatic_epsilon(z * wp, k, populations)
+        chi = eps - 1
+        s = z**2 - K**2
+        if model == "full":
+            return (s - mu**2) * eps + eta**2 * s * chi
+        if model == "quasistatic":
+            return 1 + (1 + eta**2 * K**2 / (K**2 + mu**2)) * chi
+        if model == "effective_charge":
+            return 1 + (1 + eta**2) * chi
+        return eps
+
+    solved = root(lambda pair: (determinant(complex(*pair)).real,
+                                determinant(complex(*pair)).imag),
+                  (guess.real, guess.imag))
+    answer = complex(*solved.x)
+    residual = float(abs(determinant(answer)))
+    if not solved.success or residual > 1e-7:
+        raise RuntimeError(f"{model} longitudinal root did not converge: {residual:.2e}")
+    return answer, residual
+
+
+def mixed_root(kc_over_wp, sigma_over_c, eta, mu_over_wp):
+    """Single-Maxwellian wrapper retaining the original normalized interface."""
+    k = kc_over_wp / c
+    population = ({"wp": 1.0, "u": 0.0, "vth": np.sqrt(2) * sigma_over_c * c},)
+    return longitudinal_root(k, population, mu_over_wp, eta, 1.4 - 0.15j)
 
 
 def main():

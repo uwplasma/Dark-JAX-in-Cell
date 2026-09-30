@@ -43,6 +43,66 @@ def two_stream_growth(kc_over_wp, ku_over_wp, mu_over_wp, eta):
     return float(gamma), float(abs(residual))
 
 
+def cold_screened_growth(kc_over_wp, ku_over_wp, mu_over_wp, eta, model):
+    """Cold-beam ordinary, quasistatic Yukawa or constant-charge surrogate."""
+    K, b = kc_over_wp, ku_over_wp
+    if model == "ordinary":
+        alpha = 1.0
+    elif model == "quasistatic":
+        alpha = 1 + eta**2 * K**2 / (K**2 + mu_over_wp**2)
+    elif model == "effective_charge":
+        alpha = 1 + eta**2
+    else:
+        raise ValueError(f"unknown cold surrogate {model}")
+    if b**2 >= alpha:
+        return 0.0
+    positive = b**2 + alpha / 2 + np.sqrt(alpha**2 + 8 * alpha * b**2) / 2
+    return float(np.sqrt(b**2 * (alpha - b**2) / positive))
+
+
+def weibel_cutoff_squared(Q, mu_over_wp, eta):
+    """Stable quadratic evaluation of the transverse marginal ``(kc/wp)^2``."""
+    if Q <= 0:
+        raise ValueError("positive anisotropy drive Q is required")
+    mass2 = mu_over_wp**2
+    b = (1 + eta**2) * Q - mass2
+    discriminant = np.hypot(b, 2 * mu_over_wp * np.sqrt(Q))
+    return float(2 * mass2 * Q / (discriminant - b) if b < 0
+                 else (b + discriminant) / 2)
+
+
+def screening_references(K, b, mu, eta):
+    """Cold controls and the fraction of the full shift explained by screening."""
+    values = {model: cold_screened_growth(K, b, mu, eta, model)
+              for model in ("ordinary", "quasistatic", "effective_charge")}
+    values["full"] = two_stream_growth(K, b, mu, eta)[0]
+    values["quasistatic_fraction_of_full_shift"] = (
+        (values["quasistatic"] - values["ordinary"])
+        / (values["full"] - values["ordinary"]))
+    return values
+
+
+def plot_screened_growth(ax, screening, K, b):
+    """Show how much of a cold mass scan is Yukawa screening."""
+    masses = np.geomspace(0.1, 10, 61)
+    curves = {"mass_over_kc": masses / K,
+              "full_growth_over_wp": np.array([
+                  two_stream_growth(K, b, mass, 0.3)[0] for mass in masses]),
+              "quasistatic_growth_over_wp": np.array([
+                  cold_screened_growth(K, b, mass, 0.3, "quasistatic")
+                  for mass in masses])}
+    for key, style, label in (("full_growth_over_wp", "-", "full Proca"),
+                              ("quasistatic_growth_over_wp", "--", "Yukawa limit")):
+        ax.semilogx(curves["mass_over_kc"], curves[key] - screening["ordinary"],
+                    style, label=label)
+    ax.axvline(0.7 / K, color="#30343B", ls=":", label="PIC setting")
+    ax.set(xlabel=r"$\Omega_D/(kc)$", ylabel=r"$\Delta\gamma/\omega_p$",
+           title="Cold screening explains the shift")
+    ax.grid(alpha=0.4)
+    ax.legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
+    return curves
+
+
 def weibel_growth(kc_over_wp, sigma_over_c, anisotropy, mu_over_wp, eta):
     """Bi-Maxwellian transverse determinant continued to omega=i gamma."""
     def determinant(gamma):
@@ -140,8 +200,18 @@ def main():
         selected = (t0 > window[0]) & (t0 < window[1])
         zero_control = float(linregress(t0[selected], np.log(amp0[selected])).slope)
 
+    screening = None
+    if args.mode == "two-stream":
+        K = 2 * np.pi / (0.05 * 64)
+        b = 0.25 * K
+        screening = screening_references(K, b, 0.7, 0.3)
+
     with midnight():
-        fig, ax = plt.subplots(figsize=(8, 4.5), layout="constrained")
+        if screening is None:
+            fig, ax = plt.subplots(figsize=(8, 4.5), layout="constrained")
+        else:
+            fig, (ax, screened_ax) = plt.subplots(1, 2, figsize=(11, 4.5),
+                                                  layout="constrained")
         for index, ((cells, particles, _), (t, amplitude, _, _), fit) in enumerate(
                 zip(cases, histories, fits)):
             ax.semilogy(t, amplitude, label=f"{cells} cells, {particles} particles")
@@ -156,6 +226,9 @@ def main():
                title=f"{args.mode}: a current-neutral haunting")
         ax.grid(alpha=0.4)
         ax.legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
+        curves = {}
+        if screening is not None:
+            curves = plot_screened_growth(screened_ax, screening, K, b)
         settings = {"preset": "full" if args.full else "quick", "mode": args.mode,
                     "cases_cells_particles_steps": cases, "eta": 0.3, "mu_over_wp": 0.7,
                     "linear_window_wp_t": window, "background": "uniform fixed neutralizer"}
@@ -163,10 +236,11 @@ def main():
                    "uncoupled_reference_growth_over_wp": uncoupled[0],
                    "pic_fits": fits, "zero_coupling_pic_growth_over_wp": zero_control,
                    "initial_net_current_A_m2": [item[2] for item in histories],
-                   "max_dark_gauss_V_m2": [item[3] for item in histories]}
+                   "max_dark_gauss_V_m2": [item[3] for item in histories],
+                   "screened_cold_references": screening}
         save_run(args.output, f"dark_{args.mode.replace('-', '_')}", settings, results, fig,
                  t=histories[0][0], amplitude=histories[0][1],
-                 refined_t=histories[-1][0], refined_amplitude=histories[-1][1])
+                 refined_t=histories[-1][0], refined_amplitude=histories[-1][1], **curves)
         plt.close(fig)
     print(f"🦇 {args.mode.upper()}: root {reference[0]:.5f}; "
           f"PIC {fits[0]['growth_over_wp']:.5f}" if args.full

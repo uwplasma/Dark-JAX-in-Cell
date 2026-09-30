@@ -7,9 +7,11 @@ import pytest
 import jax
 import jax.numpy as jnp
 from scipy.linalg import expm
+from scipy.integrate import trapezoid
+from scipy.special import wofz
 
 from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
-                       epsilon_0, mass_electron, speed_of_light as c)
+                       epsilon_0, mass_electron, quiet_start, speed_of_light as c)
 from jaxincell._core import curl_E
 from jaxincell.theory import landau_root
 from darkjaxincell import (DarkField, DarkSimulation, PrescribedDrive, gauss,
@@ -17,10 +19,11 @@ from darkjaxincell import (DarkField, DarkSimulation, PrescribedDrive, gauss,
                            midnight, project_initial_electric, save_state)
 from darkjaxincell._proca import divergence, drift, gradient, kick
 from examples.optimize_dark_photon import build_objective, cold_reference
-from examples.dark_kinetic import mixed_root
+from examples.dark_kinetic import longitudinal_root, mixed_root
 from examples.dark_bump import build_plasma, kinetic_root, number_histogram
 from examples.dark_saturation import integer_positions, trapping_frequency
-from examples.dark_instabilities import two_stream_growth, weibel_growth
+from examples.dark_instabilities import (cold_screened_growth, two_stream_growth,
+                                         weibel_cutoff_squared, weibel_growth)
 from examples.dark_profile import (build_design, cold_scattering, packet, profile,
                                    slab_basis, transmitted_fraction, make_simulation)
 from docs.scripts.benchmark_time_integrators import system as vacuum_system
@@ -46,6 +49,94 @@ def test_bump_loading_and_independent_kinetic_limit():
     np.testing.assert_allclose([parent.real, parent.imag], [0.848257, 0.151347], atol=2e-6)
     assert mixed.imag > parent.imag and mixed.real > parent.real
     assert max(residual0, residual) < 1e-7
+
+
+def test_shared_multispecies_longitudinal_reference_and_screening():
+    K = 2 * np.pi / (0.05 * 64)
+    k, wp = 2 * np.pi, 0.05 * c * 64
+    populations = ({"wp": wp / np.sqrt(2), "u": 0.25 * c, "vth": 0.03 * c},
+                   {"wp": wp / np.sqrt(2), "u": -0.25 * c, "vth": 0.03 * c})
+    root, residual = longitudinal_root(k, populations, 0.7 * wp, 0.3,
+                                       0.02 + 0.34j)
+    assert root.imag > 0 and residual < 1e-8
+    sigma = 0.03 * c / np.sqrt(2)
+    chi = 0j
+    for species in populations:
+        zeta = (root * wp - k * species["u"]) / (np.sqrt(2) * k * sigma)
+        chi += (species["wp"] / (k * sigma)) ** 2 * (
+            1 + zeta * 1j * np.sqrt(np.pi) * wofz(zeta))
+    s = root**2 - K**2
+    assert abs((s - 0.7**2) * (1 + chi) + 0.3**2 * s * chi) < 1e-8
+    ordinary, _ = longitudinal_root(k, populations, 0.7 * wp, 0,
+                                    0.02 + 0.34j, model="ordinary")
+    quasi, _ = longitudinal_root(k, populations, 0.7 * wp, 0.3,
+                                 root, model="quasistatic")
+    effective, _ = longitudinal_root(k, populations, 0.7 * wp, 0.3,
+                                     root, model="effective_charge")
+    assert ordinary.imag < quasi.imag < effective.imag
+    assert abs(root.imag - quasi.imag) < abs(root.imag - ordinary.imag)
+
+
+def test_cold_screening_explains_the_legacy_two_stream_shift():
+    K = 2 * np.pi / (0.05 * 64)
+    b, mu, eta = 0.25 * K, 0.7, 0.3
+    ordinary = cold_screened_growth(K, b, mu, eta, "ordinary")
+    quasistatic = cold_screened_growth(K, b, mu, eta, "quasistatic")
+    full = two_stream_growth(K, b, mu, eta)[0]
+    np.testing.assert_allclose([ordinary, quasistatic, full],
+                               [0.3384711930, 0.3466709103, 0.3466973106], rtol=2e-9)
+    np.testing.assert_allclose((quasistatic - ordinary) / (full - ordinary),
+                               0.9967906678, rtol=2e-9)
+    np.testing.assert_allclose(cold_screened_growth(K, b, 1e8, eta, "quasistatic"),
+                               ordinary, rtol=1e-13)
+    np.testing.assert_allclose(cold_screened_growth(K, b, 0, eta, "quasistatic"),
+                               cold_screened_growth(K, b, 0, eta, "effective_charge"),
+                               rtol=1e-13)
+    assert cold_screened_growth(K, 1.01 * np.sqrt(1 + eta**2),
+                                0, eta, "effective_charge") == 0
+
+
+def test_retarded_longitudinal_identity_refines_against_pic():
+    """The same nonlinear current history obeys the independent memory kernel."""
+    omega, eta = OMEGA, 0.3
+    wp = np.sqrt(0.2) * omega
+    length = 2 * np.pi * c / omega
+    k = 2 * np.pi / length
+    positions, velocities = quiet_start(256, length)
+    positions = positions.at[:, 0].add(0.002 * jnp.sin(k * positions[:, 0]) / k)
+    electrons = Species.electrons(256, 0.2 * N_REF).replace(x=positions, v=velocities)
+    errors = []
+    for dt_wp in (0.04, 0.02):
+        domain = Domain(length, 32, time_step=dt_wp / wp)
+        base = Simulation(domain, (electrons,))
+        sim = DarkSimulation(base, DarkField(omega, eta))
+        initial, _ = sim.initial_state(jax.random.PRNGKey(0))
+        output = sim.run(round(4 / dt_wp), store_particles=False)
+        electric = np.r_[np.fft.rfft(np.asarray(initial.ordinary.E[:, 0]))[1] / 32,
+                         np.fft.rfft(np.asarray(output.ordinary.E[:, :, 0]), axis=1)[:, 1] / 32]
+        dark = np.r_[np.fft.rfft(np.asarray(initial.E[:, 0]))[1] / 32,
+                     np.fft.rfft(np.asarray(output.E[:, :, 0]), axis=1)[:, 1] / 32]
+        time = np.r_[0, np.asarray(output.ordinary.t)]
+        khat = 2 * np.sin(k * domain.dx / 2) / domain.dx
+        frequency = np.sqrt(c**2 * khat**2 + omega**2)
+        memory = np.array([
+            -eta * omega**2 * trapezoid(
+                np.sin(frequency * (instant - time[:i + 1])) / frequency
+                * electric[:i + 1], time[:i + 1])
+            for i, instant in enumerate(time)])
+        response = dark - eta * electric
+        errors.append(float(np.max(np.abs(response - memory))
+                            / np.max(np.abs(response))))
+    assert errors[1] < 0.002
+    assert 3.5 < errors[0] / errors[1] < 4.5
+
+
+def test_weibel_marginal_screening_limits():
+    Q, eta = 0.2, 0.3
+    np.testing.assert_allclose(weibel_cutoff_squared(Q, 0.7, 0), Q, rtol=1e-14)
+    np.testing.assert_allclose(weibel_cutoff_squared(Q, 1e8, eta), Q, rtol=1e-14)
+    np.testing.assert_allclose(weibel_cutoff_squared(Q, 0, eta),
+                               (1 + eta**2) * Q, rtol=1e-14)
 
 
 def test_bump_histogram_represents_number_not_marker_count():
