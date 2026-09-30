@@ -1,0 +1,54 @@
+{
+  "settings": {
+    "cells": 128,
+    "particles": 120000,
+    "steps": 128,
+    "store_every": 8,
+    "precision": "float64",
+    "backend": "cpu",
+    "jax": "0.10.2",
+    "platform": "macOS-15.1.1-arm64-arm-64bit",
+    "python": "3.11.14",
+    "git": "8ae1fd5b5e482becd205b47a66b3618db9c4da6a",
+    "samples_per_case": 3,
+    "note": "fresh process per case; final total and all-step balance consumed"
+  },
+  "rows": [
+    {
+      "case": "sparse",
+      "first_call_s": 3.9513703329721466,
+      "warm_s": [
+        0.9421239999355748,
+        0.9555414590286091,
+        0.983123250072822
+      ],
+      "warm_median_s": 0.9555414590286091,
+      "peak_rss_bytes": 585826304,
+      "host_load": [
+        3.890625,
+        5.76318359375,
+        6.36328125
+      ],
+      "final_energy_J_m2": 8.339284709648566e-22,
+      "all_step_max_balance_J_m2": 1.823064906300403e-26
+    },
+    {
+      "case": "full",
+      "first_call_s": 4.388488875003532,
+      "warm_s": [
+        1.0217758750077337,
+        1.0029154170770198,
+        1.0175301670096815
+      ],
+      "warm_median_s": 1.0175301670096815,
+      "peak_rss_bytes": 729464832,
+      "host_load": [
+        4.77490234375,
+        5.88671875,
+        6.3994140625
+      ],
+      "final_energy_J_m2": 8.339284709648566e-22,
+      "all_step_max_balance_J_m2": 1.823064906300403e-26
+    }
+  ]
+}
