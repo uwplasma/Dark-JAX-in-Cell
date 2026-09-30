@@ -181,14 +181,14 @@
       "run": "mobile_ions/run.json"
     },
     "oscillating_pair": {
-      "jaxincell": "unknown",
+      "jaxincell": "0.7.dev302+g83d327118",
       "jax": "0.6.2",
       "numpy": "2.2.4",
       "python": "3.10.12",
       "platform": "Linux x86_64",
       "jax_enable_x64": true,
       "backend": "gpu",
-      "git": "unknown",
+      "git": "a8184d3f9fb189e026749af31245ab9a035cab6c",
       "run": "oscillating_pair/run.json"
     },
     "profile_design": {
