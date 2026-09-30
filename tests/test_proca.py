@@ -19,7 +19,7 @@ from darkjaxincell._proca import divergence, drift, gradient, kick
 from examples.optimize_dark_photon import build_objective, cold_reference
 from examples.dark_kinetic import mixed_root
 from examples.dark_bump import build_plasma, kinetic_root, number_histogram
-from examples.dark_saturation import trapping_frequency
+from examples.dark_saturation import integer_positions, trapping_frequency
 from examples.dark_instabilities import two_stream_growth, weibel_growth
 from examples.dark_profile import (build_design, cold_scattering, packet, profile,
                                    slab_basis, transmitted_fraction, make_simulation)
@@ -87,6 +87,8 @@ def test_stored_phase_positions_match_integer_time_not_half_step():
         velocity = np.asarray(base._velocity(state.u)[:, 0])
         delta = (half - last + base.domain.length / 2) % base.domain.length - base.domain.length / 2
         np.testing.assert_allclose(delta, base.domain.dt * velocity / 2,
+                                   rtol=2e-13, atol=1e-12)
+        np.testing.assert_allclose(integer_positions(base, state), output.x[-1],
                                    rtol=2e-13, atol=1e-12)
 
 

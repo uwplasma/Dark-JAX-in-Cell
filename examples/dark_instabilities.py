@@ -96,7 +96,7 @@ def weibel_run(cells, particles, steps, eta):
     ordinary = state.ordinary.replace(
         E=state.ordinary.E.at[:, 2].set(seed * jnp.cos(k * plasma.domain.faces)),
         B=state.ordinary.B.at[:, 1].set(-20 * seed / c * jnp.sin(k * plasma.domain.grid)))
-    state = state.replace(ordinary=ordinary)
+    state = sim.continue_with_parameters(state.replace(ordinary=ordinary))
     output = sim.run(steps, store_every=steps // 200, store_particles=False, state=state)
     t = np.asarray(output.ordinary.t) * wp
     amplitude = np.abs(np.fft.rfft(np.asarray(output.ordinary.B[:, :, 1]), axis=1)[:, 1]) / cells

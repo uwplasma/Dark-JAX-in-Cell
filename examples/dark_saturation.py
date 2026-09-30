@@ -17,6 +17,7 @@ from scipy.stats import linregress
 from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
                        energies, epsilon_0, mass_electron, quiet_start, save_run,
                        speed_of_light as c)
+from jaxincell._core import wrap_positions
 from darkjaxincell import DarkField, DarkSimulation, midnight
 if __package__:
     from .dark_instabilities import two_stream_growth
@@ -28,6 +29,15 @@ def trapping_frequency(ordinary_mode, dark_mode, eta, k):
     """Single-wave bounce estimate from the complex particle-force mode."""
     effective = np.asarray(ordinary_mode) + eta * np.asarray(dark_mode)
     return np.sqrt(2 * e * k * np.max(np.abs(effective)) / mass_electron)
+
+
+def integer_positions(plasma, state):
+    """Recover integer-time positions from the parent's half-step restart state."""
+    domain = plasma.domain
+    velocity = plasma._velocity(state.u)
+    return wrap_positions(state.x - domain.dt * velocity / 2, state.w,
+                          (domain.length, domain.length_y, domain.length_z),
+                          domain.particle_bc, domain.dx)
 
 
 def experiment(cells, particles, dtau, horizon, eta):
@@ -47,7 +57,8 @@ def experiment(cells, particles, dtau, horizon, eta):
     stride = max(1, round(0.5 / dtau)) if horizon > 30 else max(1, steps // 80)
     steps = stride * round(steps / stride)
     parent = plasma.run(steps, store_every=stride)
-    dark = DarkSimulation(plasma, DarkField(0.7 * wp, eta)).run(steps, store_every=stride)
+    dark = DarkSimulation(plasma, DarkField(0.7 * wp, eta)).run(
+        steps, store_every=stride, store_particles=False)
     time = np.asarray(parent.t) * wp
 
     def mode(field):
@@ -93,7 +104,7 @@ def experiment(cells, particles, dtau, horizon, eta):
             "dark_source_work": source_work, "dark_work_residual": dark_work_residual,
             "parent_x": np.asarray(parent.x[-1, :, 0]),
             "parent_v": np.asarray(plasma._velocity(parent.state.u)[:, 0]),
-            "mixed_x": np.asarray(dark.ordinary.x[-1, :, 0]),
+            "mixed_x": np.asarray(integer_positions(plasma, dark.state.ordinary)[:, 0]),
             "mixed_v": np.asarray(plasma._velocity(dark.state.ordinary.u)[:, 0]),
             "parent_E": np.asarray(parent.E[-1, :, 0]),
             "mixed_E": np.asarray(dark.ordinary.E[-1, :, 0]),

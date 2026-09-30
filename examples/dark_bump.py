@@ -85,7 +85,7 @@ def experiment(cells, bulk_count, beam_count, dt_wp, horizon, eta=0.3):
     steps = stride * round(horizon / (stride * dt_wp))
     parent = plasma.run(steps, store_every=stride, store_particles=True)
     dark = DarkSimulation(plasma, DarkField(0.7 * wp, eta)).run(
-        steps, store_every=stride, store_particles=True)
+        steps, store_every=stride, store_particles=False)
     t = np.asarray(parent.t) * wp
 
     def mode(history):
