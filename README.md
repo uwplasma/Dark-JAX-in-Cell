@@ -116,7 +116,7 @@ The fourth panel scans the selected beam pole over beam fraction. At a 0.1% beam
 
 ## Transverse anisotropy
 
-The [Weibel example](examples/dark_instabilities.py) seeds a transverse magnetic mode in a current-neutral bi-Maxwellian with $T_z/T_x=4$. Its independent Vlasov–Proca root gives $\gamma/\omega_p=0.05113$; the 30,000- and 60,000-particle PIC fits give $0.05123$ and $0.05117$. The smaller predicted dark-minus-parent shift is comparable to fit uncertainty, so this run validates the mixed rate but does not resolve that shift. [Equation, fits and uncertainty](docs/kinetic.md#transverse-anisotropy); [arrays](docs/_static/figures/mixed_weibel/run.json).
+The [Weibel example](examples/dark_instabilities.py) seeds a transverse magnetic mode in a current-neutral bi-Maxwellian with $T_z/T_x=4$. Its independent Vlasov–Proca root gives $\gamma/\omega_p=0.05113$; the 30,000- and 60,000-particle PIC fits give $0.05123$ and $0.05117$. The analytic transverse cutoff is $kc/\omega_p=1.79847$ at the PIC mass and mixing: the seeded $k_1$ grows, while a matched $k_2$ control stays oscillatory. The smaller predicted dark-minus-parent growth shift is comparable to fit uncertainty, so this run validates the mixed rate but does not resolve that shift. [Equation, fits and uncertainty](docs/kinetic.md#transverse-anisotropy); [arrays](docs/_static/figures/mixed_weibel/run.json).
 
 <img src="docs/_static/figures/mixed_weibel/figure.png" width="800" alt="Transverse anisotropy growth against the independent kinetic root">
 

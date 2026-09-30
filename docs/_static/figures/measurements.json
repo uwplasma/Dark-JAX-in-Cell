@@ -144,7 +144,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "f3e4980d29b3ef8ae01071bf1c306f7451bc3b1c",
+      "git": "31e66cbdddec35474e0f871c3a992c8b3f0cb348-dirty",
       "run": "mixed_weibel/run.json"
     },
     "warm_two_stream": {
@@ -314,6 +314,8 @@
   "weibel_pic": "0.05123",
   "weibel_refined": "0.05117",
   "weibel_zero_pic": "0.04993",
+  "weibel_cutoff_kc_over_wp": "1.79847",
+  "weibel_stable_late_over_early": "0.817",
   "saturation_short_coarse_drift_percent": "0.680",
   "saturation_short_refined_drift_percent": "0.190",
   "saturation_long_coarse_drift_percent": "0.677",

@@ -147,10 +147,10 @@ def two_stream_run(cells, particles, steps, eta):
     return t, amplitude, net_current, float(jnp.max(jnp.abs(output.dark_gauss())))
 
 
-def weibel_run(cells, particles, steps, eta):
+def weibel_run(cells, particles, steps, eta, mode=1):
     """Anisotropic quiet Maxwellian with a seeded transverse magnetic mode."""
-    length, k = 1.0, 2 * np.pi
-    wp = k * c
+    length, k = 1.0, 2 * np.pi * mode
+    wp = 2 * np.pi * c  # fixed plasma while the spatial mode changes
     density = wp**2 * epsilon_0 * mass_electron / e**2
     vth = np.sqrt(2) * 0.08 * c
     x, v = quiet_start(particles, length, vth=(vth, 0, 2 * vth))
@@ -167,10 +167,36 @@ def weibel_run(cells, particles, steps, eta):
     state = sim.continue_with_parameters(state.replace(ordinary=ordinary))
     output = sim.run(steps, store_every=steps // 200, store_particles=False, state=state)
     t = np.asarray(output.ordinary.t) * wp
-    amplitude = np.abs(np.fft.rfft(np.asarray(output.ordinary.B[:, :, 1]), axis=1)[:, 1]) / cells
+    amplitude = np.abs(np.fft.rfft(np.asarray(output.ordinary.B[:, :, 1]), axis=1)[:, mode]) / cells
     net_current = float(jnp.sum(plasma.per_particle[1] * state.ordinary.w
                                 * plasma._velocity(state.ordinary.u)[:, 0]) / length)
     return t, amplitude, net_current, float(jnp.max(jnp.abs(output.dark_gauss())))
+
+
+def weibel_cutoff_scan():
+    """Transverse marginal wavenumber at several dark masses and mixings."""
+    mixings = np.linspace(0, 0.6, 61)
+    masses = (0.1, 0.7, 2.0, 10.0)
+    curves = {f"cutoff_mu_{mass:g}": np.array([
+        np.sqrt(weibel_cutoff_squared(3, mass, eta)) for eta in mixings])
+        for mass in masses}
+    return {"mixings": mixings, **curves}
+
+
+def plot_weibel_cutoff(ax, scan):
+    """Mark the seeded unstable/stable spatial modes against the marginal curve."""
+    for key, values in scan.items():
+        if key.startswith("cutoff_"):
+            mass = key.removeprefix("cutoff_mu_")
+            ax.plot(scan["mixings"], values, label=mass)
+    ax.axhline(1, color="#30343B", ls=":", label="seeded $k_1$")
+    ax.axhline(2, color="#6B7280", ls="--", label="control $k_2$")
+    ax.axvline(0.3, color="#D55E00", ls=":")
+    ax.set(xlabel=r"mixing $\eta$", ylabel=r"marginal $kc/\omega_p$",
+           title="Transverse cutoff and dark mass")
+    ax.grid(alpha=0.4)
+    ax.legend(title=r"$\Omega_D/\omega_p$", facecolor="#FFFFFF",
+              edgecolor="#6B7280", fontsize=8)
 
 
 def warm_two_stream_reference(sigma_over_c, eta=0.6):
@@ -333,14 +359,24 @@ def legacy_main(args):
         selected = (t0 > window[0]) & (t0 < window[1])
         zero_control = float(linregress(t0[selected], np.log(amp0[selected])).slope)
 
-    screening = None
+    screening, K, b = None, None, None
     if args.mode == "two-stream":
         K = 2 * np.pi / (0.05 * 64)
         b = 0.25 * K
         screening = screening_references(K, b, 0.7, 0.3)
+    cutoff = weibel_cutoff_scan() if args.mode == "weibel" else None
+    stable = None
+    if cutoff is not None and args.full:
+        stable = weibel_run(*cases[0], 0.3, mode=2)
+    save_legacy_result(args, cases, histories, fits, reference, uncoupled,
+                       zero_control, screening, cutoff, stable, window, K, b)
 
+
+def save_legacy_result(args, cases, histories, fits, reference, uncoupled,
+                       zero_control, screening, cutoff, stable, window, K, b):
+    """Render the measured legacy branch with its applicable analytic control."""
     with midnight():
-        if screening is None:
+        if screening is None and cutoff is None:
             fig, ax = plt.subplots(figsize=(8, 4.5), layout="constrained")
         else:
             fig, (ax, screened_ax) = plt.subplots(1, 2, figsize=(11, 4.5),
@@ -354,6 +390,9 @@ def legacy_main(args):
                 linear = (t >= window[0]) & (t <= window[1])
                 label = f"cold/kinetic oracle: γ={reference[0]:.4f}" if index == 0 else "_nolegend_"
                 ax.semilogy(t[linear], curve[linear], "--", alpha=0.7, label=label)
+        if stable is not None:
+            ax.semilogy(stable[0], stable[1], ":", color="#30343B",
+                        label="stable $k_2$, 64 cells")
         ylabel = r"$|E_{x,k}|$ (V/m)" if args.mode == "two-stream" else r"$|B_{y,k}|$ (T)"
         ax.set(xlabel=r"$\omega_p t$", ylabel=ylabel,
                title=f"{args.mode}: a current-neutral haunting")
@@ -362,18 +401,38 @@ def legacy_main(args):
         curves = {}
         if screening is not None:
             curves = plot_screened_growth(screened_ax, screening, K, b)
+        if cutoff is not None:
+            plot_weibel_cutoff(screened_ax, cutoff)
         settings = {"preset": "full" if args.full else "quick", "mode": args.mode,
                     "cases_cells_particles_steps": cases, "eta": 0.3, "mu_over_wp": 0.7,
-                    "linear_window_wp_t": window, "background": "uniform fixed neutralizer"}
+                    "linear_window_wp_t": window, "background": "uniform fixed neutralizer",
+                    "stable_control_mode": 2 if cutoff is not None else None}
         results = {"reference_growth_over_wp": reference[0], "reference_residual": reference[1],
                    "uncoupled_reference_growth_over_wp": uncoupled[0],
                    "pic_fits": fits, "zero_coupling_pic_growth_over_wp": zero_control,
                    "initial_net_current_A_m2": [item[2] for item in histories],
                    "max_dark_gauss_V_m2": [item[3] for item in histories],
                    "screened_cold_references": screening}
+        if cutoff is not None:
+            results["weibel_marginal"] = {
+                "mixings": cutoff["mixings"].tolist(),
+                "cutoff_kc_over_wp": {key: values.tolist() for key, values in cutoff.items()
+                                      if key.startswith("cutoff_")}}
+        if stable is not None:
+            early = (stable[0] >= 0) & (stable[0] < 10)
+            late = (stable[0] > 40) & (stable[0] < 70)
+            results["stable_mode_2"] = {
+                "cells": cases[0][0], "particles": cases[0][1],
+                "late_over_early_magnetic_rms": float(np.sqrt(
+                    np.mean(stable[1][late]**2) / np.mean(stable[1][early]**2))),
+                "initial_net_current_A_m2": stable[2],
+                "max_dark_gauss_V_m2": stable[3]}
         save_run(args.output, f"dark_{args.mode.replace('-', '_')}", settings, results, fig,
                  t=histories[0][0], amplitude=histories[0][1],
-                 refined_t=histories[-1][0], refined_amplitude=histories[-1][1], **curves)
+                 refined_t=histories[-1][0], refined_amplitude=histories[-1][1],
+                 **curves, **(cutoff or {}),
+                 **({"stable_t": stable[0], "stable_amplitude": stable[1]}
+                    if stable is not None else {}))
         plt.close(fig)
     print(f"🦇 {args.mode.upper()}: root {reference[0]:.5f}; "
           f"PIC {fits[0]['growth_over_wp']:.5f}" if args.full

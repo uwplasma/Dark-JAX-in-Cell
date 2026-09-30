@@ -137,6 +137,10 @@ for name, result in (("two_stream", two), ("weibel", weibel)):
     measured[f"{name}_pic"] = f"{result['pic_fits'][0]['growth_over_wp']:.5f}"
     measured[f"{name}_refined"] = f"{result['pic_fits'][1]['growth_over_wp']:.5f}"
     measured[f"{name}_zero_pic"] = f"{result['zero_coupling_pic_growth_over_wp']:.5f}"
+measured["weibel_cutoff_kc_over_wp"] = (
+    f"{weibel['weibel_marginal']['cutoff_kc_over_wp']['cutoff_mu_0.7'][30]:.5f}")
+measured["weibel_stable_late_over_early"] = (
+    f"{weibel['stable_mode_2']['late_over_early_magnetic_rms']:.3f}")
 saturation = {}
 for preset, folder in (("--full", "two_stream_saturation"),
                        ("--extended", "two_stream_extended")):

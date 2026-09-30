@@ -24,8 +24,8 @@ from examples.dark_bump import (build_plasma, bump_reference_scan, kinetic_root,
                                 number_histogram)
 from examples.dark_saturation import integer_positions, trapping_frequency
 from examples.dark_instabilities import (cold_screened_growth, two_stream_growth,
-                                         warm_two_stream_reference, weibel_cutoff_squared,
-                                         weibel_growth)
+                                         warm_two_stream_reference, weibel_cutoff_scan,
+                                         weibel_cutoff_squared, weibel_growth)
 from examples.dark_profile import (build_design, cold_scattering, packet, profile,
                                    slab_basis, transmitted_fraction, make_simulation)
 from docs.scripts.benchmark_time_integrators import system as vacuum_system
@@ -182,6 +182,12 @@ def test_weibel_marginal_screening_limits():
     np.testing.assert_allclose(weibel_cutoff_squared(Q, 1e8, eta), Q, rtol=1e-14)
     np.testing.assert_allclose(weibel_cutoff_squared(Q, 0, eta),
                                (1 + eta**2) * Q, rtol=1e-14)
+    scan = weibel_cutoff_scan()
+    cutoff = np.interp(0.3, scan["mixings"], scan["cutoff_mu_0.7"])
+    np.testing.assert_allclose(cutoff, 1.79846552539, rtol=1e-10)
+    assert 1 < cutoff < 2
+    with pytest.raises(ValueError):
+        weibel_growth(2, 0.08, 4, 0.7, 0.3)
 
 
 def test_bump_histogram_represents_number_not_marker_count():
