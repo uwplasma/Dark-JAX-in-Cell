@@ -222,6 +222,9 @@ dark_pair_record = json.loads((dark_pair / "run.json").read_text())
 dark_pair_result = dark_pair_record["results"]
 dark_pair_gauss = max(dark_pair_result["max_ordinary_gauss_over_scale"],
                       dark_pair_result["max_dark_gauss_over_scale"])
+dark_pair_refinements = {
+    (item["cells"], item["particles_per_cell_per_species"], item["dt_omega0"]): item
+    for item in dark_pair_result["refinements"] if item["horizon_omega0"] > 100}
 measured.update({"dark_pair_ordinary_error": (
                      f"{dark_pair_result['ordinary_mode_early_relative_l2_error']:.3f}"),
                  "dark_pair_dark_error": (
@@ -231,6 +234,16 @@ measured.update({"dark_pair_ordinary_error": (
                  "dark_pair_gauss": f"{dark_pair_gauss:.3e}",
                  "dark_pair_coherent": f"{dark_pair_result['late_coherent_fraction']:.3f}",
                  "dark_pair_kinetic": f"{dark_pair_result['late_random_gain_over_initial_reservoir']:.3f}",
+                 "dark_pair_force_control": (
+                     f"{dark_pair_result['ordinary_matched_force']['late_coherent_fraction']:.3f}"),
+                 "dark_pair_energy_control": (
+                     f"{dark_pair_result['ordinary_matched_energy']['late_coherent_fraction']:.3f}"),
+                 "dark_pair_grid_control": (
+                     f"{dark_pair_refinements[(2048, 32, 0.00625)]['late_coherent_fraction']:.3f}"),
+                 "dark_pair_marker_control": (
+                     f"{dark_pair_refinements[(4096, 16, 0.00625)]['late_coherent_fraction']:.3f}"),
+                 "dark_pair_clock_control": (
+                     f"{dark_pair_refinements[(4096, 32, 0.0125)]['late_coherent_fraction']:.3f}"),
                  "dark_pair_final_speed": f"{dark_pair_result['max_final_speed_over_c']:.3f}",
                  "dark_pair_energy_drift": f"{dark_pair_result['max_closed_energy_drift']:.3e}"})
 design = EVIDENCE.parent / "profile_design"

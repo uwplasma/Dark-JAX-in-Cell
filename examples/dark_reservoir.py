@@ -267,6 +267,13 @@ def pair_dark_experiment(cells, particles_per_cell, dtau, horizon,
                 nonzero_dark=nonzero_dark, total=total), settings, result
 
 
+def pair_refinement(run):
+    """Keep the grid, marker and clock settings beside each measured result."""
+    _, settings, result = run
+    keys = ("cells", "particles_per_cell_per_species", "dt_omega0", "horizon_omega0")
+    return {key: settings[key] for key in keys} | result
+
+
 def pair_figure(folder, full=False):
     """Save the ordinary bridge and its independent finite-time comparison."""
     presets = ((1024, 16, 0.0125, 50), (2048, 32, 0.0125, 50),
@@ -310,7 +317,7 @@ def pair_figure(folder, full=False):
             ax.legend(facecolor="white")
         axes[1, 0].legend(facecolor="white", fontsize="small")
         save_run(folder, "oscillating_pair", {**settings, "preset": "full" if full else "quick"},
-                 {**result, "refinements": [run[2] for run in runs],
+                 {**result, "refinements": [pair_refinement(run) for run in runs],
                   "controls": {name: run[2] for name, run in controls.items()},
                   "claim": "ordinary relativistic pair benchmark"},
                  fig, **curves,
@@ -324,12 +331,17 @@ def pair_figure(folder, full=False):
 def pair_dark_figure(folder, full=False):
     """Compare a bare finite reservoir with its nonperiodic kinetic reference."""
     presets = ((1024, 16, 0.025, 50), (2048, 32, 0.0125, 50),
+               (2048, 32, 0.00625, 170), (4096, 16, 0.00625, 170),
+               (4096, 32, 0.0125, 170),
                (4096, 32, 0.00625, 170)) if full else ((2048, 32, 0.0125, 50),)
     runs = [pair_dark_experiment(*preset) for preset in presets]
     curves, settings, result = runs[-1]
     ordinary = (pair_experiment(4096, 32, 0.00625, 170,
                                 force_quiver=0.05, relativistic=True)
                 if full else None)
+    equal_energy = (pair_experiment(4096, 32, 0.00625, 170,
+                                    force_quiver=0.1, relativistic=True)
+                    if full else None)
     t = curves["t"]
     early = t <= 50
     with midnight():
@@ -355,6 +367,9 @@ def pair_dark_figure(folder, full=False):
         axes[1, 0].plot(t, curves["random_gain"], label="kinetic excess above cold flow")
         axes[1, 0].plot(t, curves["nonzero_ordinary"] + curves["nonzero_dark"],
                         label="finite-k fields and Proca potential")
+        if equal_energy is not None:
+            axes[1, 0].plot(equal_energy[0]["t"], equal_energy[0]["coherent"],
+                            "--", color="#D55E00", label="ordinary, same initial energy")
         axes[1, 1].plot(t, curves["total"] / curves["total"][0] - 1,
                         label="full Maxwell–Proca")
         if ordinary is not None:
@@ -369,13 +384,17 @@ def pair_dark_figure(folder, full=False):
             ax.grid(alpha=0.3)
             ax.legend(facecolor="white", fontsize="small")
         save_run(folder, "oscillating_dark_pair", {**settings, "preset": "full" if full else "quick"},
-                 {**result, "refinements": [run[2] for run in runs],
+                 {**result, "refinements": [pair_refinement(run) for run in runs],
                   "ordinary_matched_force": ordinary[2] if ordinary is not None else None,
+                  "ordinary_matched_energy": equal_energy[2] if equal_energy is not None else None,
                   "claim": "finite-time kinetic comparison; no new nonlinear mechanism claimed"},
                  fig, **curves,
                  **({f"matched_ordinary_{key}": ordinary[0][key] for key in (
                      "coherent", "random_gain", "mode", "total")}
-                    if ordinary is not None else {}))
+                    if ordinary is not None else {}),
+                 **({f"matched_energy_{key}": equal_energy[0][key] for key in (
+                     "coherent", "random_gain", "mode", "total")}
+                    if equal_energy is not None else {}))
         plt.close(fig)
     print("🦇 DARK PAIR:", result)
 
