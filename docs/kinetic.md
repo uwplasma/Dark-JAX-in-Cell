@@ -51,7 +51,7 @@ For a longitudinal plasma eigenmode away from the free dark pole, eliminating th
 
 $$
 \frac{E_{D,k}}{E_k}=\eta\frac{s}{s-\Omega_D^2},\qquad
-1+\left(1+\eta^2\frac{s}{s-\Omega_D^2}\right)\chi_L=0,qquad s=\omega^2-c^2k^2.
+1+\left(1+\eta^2\frac{s}{s-\Omega_D^2}\right)\chi_L=0,\qquad s=\omega^2-c^2k^2.
 $$
 
 At $|\omega|\ll kc$, the factor multiplying $\chi_L$ becomes $\alpha(k)=1+\eta^2c^2k^2/(c^2k^2+\Omega_D^2)$: ordinary Coulomb response plus a Yukawa contribution. The constant-charge limit instead uses $\alpha=1+\eta^2$. The [two-stream example](../examples/dark_instabilities.py) saves the full, quasistatic and constant-charge cold roots over dark mass. At its PIC setting, $kc/\omega_p=1.963495$, $ku/\omega_p=0.490874$, $\Omega_D/\omega_p=0.7$ and $\eta=0.3$:
@@ -156,6 +156,18 @@ At the same 64-cell, 30,000-particle loading, the $k_2$ magnetic mode remains os
 ![Current-neutral transverse anisotropy magnetic-mode growth](_static/figures/mixed_weibel/figure.png)
 
 These two-stream and Weibel cases involve **ordinary charged species responding to both fields**. A theory in which particles carry a separate dark charge and interact through a massive mediator alone is a different model and is not implemented here. All $\eta=0.3$ cases use a deliberately large coupling to resolve numerical effects, with no observational interpretation. The quick presets are smoke tests without fitted growth rates.
+
+## An oscillating pair plasma
+
+The [pair option](../examples/dark_reservoir.py) first runs an **ordinary** electron–positron waterbag, following the nonrelativistic case in [Cruz, Grismayer and Silva](https://arxiv.org/abs/2104.04490). Each species has $\omega_p^2=n_0e^2/(\epsilon_0m_e)$ and the homogeneous oscillation has $\omega_0=\sqrt2\omega_p$. The box is $70c/\omega_0$, the waterbag has full width $0.1c$, and $E_0/(m_ec\omega_p/e)=0.2$, giving a quiver speed $0.2c/\sqrt2$. Equal electron and positron loadings start charge neutral. Opposite $2\times10^{-4}c$ velocity nudges seed one mode at $kv_T/\omega_0=0.6014$. The homogeneous field is a finite-energy initial condition, not an imposed drive.
+
+An [independent four-edge Vlasov calculation](scripts/pair_reference.py) evolves the left and right waterbag boundaries of each species in their co-accelerating frames. It includes the time-dependent drifts $U_\pm(t)=\pm\delta v\sin(\omega_0t)$, reconstructs the finite-$k$ electric field from Gauss's law, and propagates one pump period to obtain a Floquet multiplier. Its zero-pump eigenvalues recover $\omega^2=\omega_0^2+k^2v_T^2$ and the two ballistic edge frequencies $\pm kv_T$. This directly time-dependent calculation is distinct from solving the paper's period-averaged Bessel dispersion relation. The same initial velocity nudge gives a complex finite-time electric response, checked against PIC before saturation.
+
+The full example reaches $\omega_0t=170$ with 4,096 cells, 32 markers per cell **per species**, and $\Delta t\omega_0=0.00625$. It is smaller in loading than the published OSIRIS run (5,000 cells, 500 markers per cell per species), though its step is comparable. The five pump-cycle peaks spanning cycles 2–6 fit $\gamma/\omega_0=$ **{{ pair_pic_growth }}** in PIC and **{{ pair_vlasov_growth }}** in the Vlasov initial-value calculation; the independent Floquet exponent is **{{ pair_floquet_growth }}**. The complex mode's relative $L^2$ difference over $0\leq\omega_0t\leq35$ falls from **{{ pair_coarse_error }}** at 1,024 cells to **{{ pair_fine_error }}** at 4,096 cells. The [run record](_static/figures/oscillating_pair/run.json) separates the grid, marker and timestep changes; the cycle-fit regression error is not a loading uncertainty.
+
+![Ordinary pair pump, kinetic growth and complete energy](_static/figures/oscillating_pair/figure.png)
+
+The coherent energy plotted below combines the mean electric field and the equal-and-opposite species bulk flow. It is normalized to the initial pump energy; the random kinetic increment subtracts that bulk motion from the complete kinetic ledger. In the last 20 plasma times, the coherent fraction is **{{ pair_late_coherent }}** and the random kinetic gain is **{{ pair_late_random }}** of the initial pump energy. The matched no-pump control changes random kinetic energy by **{{ pair_no_pump_random }}** on the same scale. A fivefold seed changes the first half-coherence time by **{{ pair_seed_shift }}** in $1/\omega_0$; an exponential onset shift would be $\ln 5/\gamma\simeq{{ pair_seed_expected_shift }}$. The largest sampled total particle-plus-field energy change is **{{ pair_energy_drift }}** of the initial total. This supports the known oscillating-pair instability and its nonlinear transfer at the tested resolution. It does not yet test the massive-field modification or establish a new mechanism.
 
 ## Mobile ions and a finite reservoir
 

@@ -1,6 +1,7 @@
 """Regenerate full-preset midnight evidence and measured MyST substitutions."""
 
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -193,6 +194,27 @@ measured.update({"mobile_external_oracle_error": f"{m['cases']['external']['mean
                  "mobile_large_depletion": (
                      f"{100 * m['finite_vs_external']['large_reservoir']['dark_depletion_fraction']:.1f}"),
                  "mobile_max_balance": f"{max(abs(v['balance_over_scale']) for v in m['cases'].values()):.3e}"})
+pair = EVIDENCE.parent / "oscillating_pair"
+run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--pair", "--full",
+             "--output", str(pair)], cwd=ROOT, check=True)
+pair_record = json.loads((pair / "run.json").read_text())
+pair_result = pair_record["results"]
+pair_refined = pair_result["refinements"]
+seed_shift = (pair_result["half_coherence_time_omega0"]
+              - pair_result["controls"]["fivefold_seed"]["half_coherence_time_omega0"])
+measured.update({"pair_pic_growth": f"{pair_result['pic_cycle_fit']['growth_over_omega0']:.6f}",
+                 "pair_vlasov_growth": f"{pair_result['vlasov_cycle_fit']['growth_over_omega0']:.6f}",
+                 "pair_floquet_growth": f"{pair_result['floquet_growth_over_omega0']:.6f}",
+                 "pair_coarse_error": f"{pair_refined[0]['linear_mode_relative_l2_error']:.3f}",
+                 "pair_fine_error": f"{pair_result['linear_mode_relative_l2_error']:.3f}",
+                 "pair_late_coherent": f"{pair_result['late_coherent_fraction']:.3f}",
+                 "pair_late_random": f"{pair_result['late_random_gain_over_initial_pump']:.3f}",
+                 "pair_no_pump_random": (
+                     f"{pair_result['controls']['no_pump']['late_random_gain_over_initial_pump']:.3f}"),
+                 "pair_seed_shift": f"{seed_shift:.1f}",
+                 "pair_seed_expected_shift": (
+                     f"{math.log(5) / pair_result['floquet_growth_over_omega0']:.1f}"),
+                 "pair_energy_drift": f"{pair_result['max_total_energy_drift']:.3e}"})
 design = EVIDENCE.parent / "profile_design"
 run_example([sys.executable, str(ROOT / "examples" / "dark_profile.py"), "--full",
              "--output", str(design)], cwd=ROOT, check=True)
@@ -244,6 +266,7 @@ measured["_provenance"] = {"cold_exchange": provenance(record, "cold_exchange"),
                            "warm_two_stream": provenance(warm_record, "warm_two_stream"),
                            "homogeneous_null": provenance(null_record, "homogeneous_null"),
                            "mobile_ions": provenance(mobile_record, "mobile_ions"),
+                           "oscillating_pair": provenance(pair_record, "oscillating_pair"),
                            "profile_design": provenance(design_record, "profile_design")}
 benchmark = EVIDENCE.parent / "recurrence_benchmark.json"
 if benchmark.exists():

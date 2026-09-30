@@ -146,6 +146,12 @@ The [mobile-ion example](examples/dark_reservoir.py) compares a zero-drive contr
 
 <img src="docs/_static/figures/paper_geometry_pilot/figure.png" width="800" alt="Early paper-geometry control and loading-sensitive higher-mode energy">
 
+## Oscillating pair plasma: a kinetic bridge
+
+The [pair example](examples/dark_reservoir.py) starts an **ordinary**, charge-neutral electron–positron waterbag with a finite homogeneous electric pump. It follows the nonrelativistic setup of [Cruz, Grismayer and Silva](https://arxiv.org/abs/2104.04490): $\omega_0=\sqrt2\omega_p$, a $0.1c$ full velocity width, and a $0.14c$ quiver. A separate time-dependent waterbag calculation predicts the seeded mode's growth at **$0.09776\,\omega_0$**; the 4,096-cell PIC fit gives **$0.09781\,\omega_0$** over five early pump cycles. By $\omega_0t=170$, the coherent pump has transferred most of its energy into finite-wavelength fields and particle spread while the complete particle-plus-field energy changes by at most **$2.84\times10^{-4}$** of its initial value. No-pump and seed-amplitude controls, grid/loading refinements, equations and limitations are in the [kinetic study](docs/kinetic.md#an-oscillating-pair-plasma). The massive-field extension remains a separate test.
+
+<img src="docs/_static/figures/oscillating_pair/figure.png" width="800" alt="Ordinary oscillating pair plasma pump depletion, seeded mode growth and energy transfer">
+
 ## Conservation and long-time clocks
 
 The [source-free Proca comparison](docs/scripts/benchmark_time_integrators.py) evolves longitudinal and transverse fields to $\Omega_Dt=200$ against a matrix exponential. The explicit split bounds field-energy error at **2.37%** for $\Delta t\Omega_D=0.2$ and **0.577%** at half that step. Implicit midpoint preserves this vacuum field energy to roundoff but has **1.53** final relative state error at the larger step; DOP853 reaches **$3.0\times10^{-8}$** state error with tight tolerances. Phase accuracy and total PIC energy require separate checks: exact field-only conservation does not close the particle–field work ledger. [Methods and timings](docs/performance.md#which-clock-to-trust) and the [full record](docs/_static/figures/time_integrators/run.json) give the comparison.
