@@ -83,7 +83,7 @@ def load_for_continuation(path, previous, following):
     state = load_state(path, previous)
     old, new = _model_metadata(previous), _model_metadata(following)
     allowed = {"dark.omega", "dark.eta", "dark.amplitude", "dark.phase"}
-    for key in old.keys() | new.keys():
+    for key in sorted(old.keys() | new.keys()):
         if key not in allowed and (key not in old or key not in new
                                    or not np.array_equal(old[key], new[key])):
             raise ValueError(f"continuation changes {key}; only dark parameters may change")
