@@ -20,7 +20,8 @@ from darkjaxincell import (DarkField, DarkSimulation, PrescribedDrive, gauss,
 from darkjaxincell._proca import divergence, drift, gradient, kick
 from examples.optimize_dark_photon import build_objective, cold_reference
 from examples.dark_kinetic import fixed_window_mode, longitudinal_root, mixed_root
-from examples.dark_bump import build_plasma, kinetic_root, number_histogram
+from examples.dark_bump import (build_plasma, bump_reference_scan, kinetic_root,
+                                number_histogram)
 from examples.dark_saturation import integer_positions, trapping_frequency
 from examples.dark_instabilities import (cold_screened_growth, two_stream_growth,
                                          warm_two_stream_reference, weibel_cutoff_squared,
@@ -50,6 +51,18 @@ def test_bump_loading_and_independent_kinetic_limit():
     np.testing.assert_allclose([parent.real, parent.imag], [0.848257, 0.151347], atol=2e-6)
     assert mixed.imag > parent.imag and mixed.real > parent.real
     assert max(residual0, residual) < 1e-7
+
+
+def test_bump_selected_pole_crosses_threshold_with_screening():
+    wp = 0.05 * c * 128
+    scan = bump_reference_scan(wp, wp / (5 * 2 * np.pi * 5))
+    ordinary = scan["roots"]["ordinary"][:, 1, 1]
+    full = scan["roots"]["full"][:, 1, 1]
+    screened = scan["roots"]["quasistatic"][:, 1, 1]
+    assert ordinary[0].imag > 0 > full[0].imag
+    assert ordinary[3].imag > 0 and full[3].imag > ordinary[3].imag
+    assert np.max(np.abs(full - screened)) < 1e-3
+    np.testing.assert_allclose(full[3].imag, 0.15392197436, rtol=1e-8)
 
 
 def test_shared_multispecies_longitudinal_reference_and_screening():
@@ -215,9 +228,10 @@ def test_stored_phase_positions_match_integer_time_not_half_step():
                                    rtol=2e-13, atol=1e-12)
 
 
-def plasma(density=0.0, n=16, cells=16, external_E=None):
+def plasma(density=0.0, n=16, cells=16, external_E=None, external_B=None):
     domain = Domain(length=2 * np.pi * c / OMEGA, cells=cells, dt_over_dx_c=0.2)
-    return Simulation(domain, (Species.electrons(n, density=density),), external_E=external_E)
+    return Simulation(domain, (Species.electrons(n, density=density),),
+                      external_E=external_E, external_B=external_B)
 
 
 def test_dark_toml_and_cli_save_complete_restart(tmp_path):
@@ -468,6 +482,27 @@ def test_prescribed_static_drive_equals_parent_external_field_and_work():
 def test_prescribed_drive_requires_vector_amplitude():
     with pytest.raises(ValueError, match="three-component E vector"):
         DarkSimulation(plasma(), PrescribedDrive(0.1, 1e-5, OMEGA))
+    with pytest.raises(ValueError, match="finite"):
+        DarkSimulation(plasma(), PrescribedDrive(
+            0.1, jnp.array([np.nan, 0.0, 0.0]), OMEGA))
+    base = plasma()
+    traced = jax.jit(lambda amplitude: DarkSimulation(
+        base, PrescribedDrive(0.1, amplitude, OMEGA)).dark.amplitude)
+    np.testing.assert_allclose(traced(jnp.array([1e-5, 0.0, 0.0])), [1e-5, 0, 0])
+
+
+def test_continuation_requires_matching_complete_field_state():
+    base = plasma()
+    field = DarkSimulation(base, DarkField(OMEGA, 0.1))
+    drive = DarkSimulation(base, PrescribedDrive(0.1, jnp.zeros(3), OMEGA))
+    state, _ = field.initial_state(jax.random.PRNGKey(0))
+    with pytest.raises(ValueError, match="complete Proca state"):
+        field.continue_with_parameters(state.replace(A=None))
+    with pytest.raises(ValueError, match="drive mode does not match"):
+        drive.continue_with_parameters(state)
+    driven, _ = drive.initial_state(jax.random.PRNGKey(0))
+    continued = drive.continue_with_parameters(driven)
+    assert continued.E is None and float(continued.work) == 0.0
 
 
 def test_output_without_particles_keeps_complete_energy_and_drive_has_no_dark_gauss():
@@ -488,6 +523,8 @@ def test_output_without_particles_keeps_complete_energy_and_drive_has_no_dark_ga
     (DarkField(OMEGA, 0.1, initial_E=jnp.zeros((15, 3))), "initial_E"),
     (DarkField(OMEGA, 0.1, initial_A=jnp.zeros((15, 3))), "initial_A"),
     (DarkField(OMEGA, 0.1, initial_phi=jnp.zeros(15)), "initial_phi"),
+    (DarkField(OMEGA, 0.1, initial_E=jnp.full((16, 3), jnp.nan)), "finite"),
+    (DarkField(OMEGA, 0.1, initial_phi=jnp.full(16, jnp.nan)), "finite"),
 ])
 def test_invalid_dark_configuration_fails_early(model, message):
     with pytest.raises((TypeError, ValueError), match=message):
@@ -514,6 +551,24 @@ def test_incomplete_dark_archive_is_rejected(tmp_path, missing, message):
     np.savez(path, **arrays)
     with pytest.raises(ValueError, match=message):
         load_state(path, sim)
+
+
+def test_archive_roundtrips_external_magnetic_field_and_checks_dark_shapes(tmp_path):
+    base = plasma(external_B=jnp.zeros((16, 3)))
+    sim = DarkSimulation(base, DarkField(OMEGA, 0.1))
+    state = sim.run(1).state
+    path = save_state(tmp_path / "magnetic", state, sim)
+    restored = load_state(path, sim)
+    np.testing.assert_allclose(restored.E, state.E)
+    with np.load(path, allow_pickle=False) as saved:
+        arrays = {name: saved[name] for name in saved.files}
+    assert "dark.external_B" in arrays
+    for key, invalid, message in (("dark.E", np.zeros((16, 2)), "dark.E"),
+                                  ("dark.work", np.zeros(1), "dark.work")):
+        broken = tmp_path / f"broken_{key}.npz"
+        np.savez(broken, **{**arrays, key: invalid})
+        with pytest.raises(ValueError, match=message):
+            load_state(broken, sim)
 
 
 def test_midnight_style_restores_matplotlib_settings():

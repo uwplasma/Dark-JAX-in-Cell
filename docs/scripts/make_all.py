@@ -97,6 +97,9 @@ bump = EVIDENCE.parent / "bump_on_tail"
 run_example([sys.executable, str(ROOT / "examples" / "dark_bump.py"), "--full",
              "--output", str(bump)], cwd=ROOT, check=True)
 bump_record = json.loads((bump / "run.json").read_text())
+selected = bump_record["results"]["reference_scan"]["selected_roots_over_wp"]
+for model in ("ordinary", "full", "quasistatic", "effective_charge"):
+    measured[f"bump_threshold_{model}_imag"] = f"{selected[model][0][1][1][1]:+.5f}"
 for i, name in enumerate(("base", "refined")):
     result = bump_record["results"]["cases"][i]
     for branch in ("parent", "mixed"):

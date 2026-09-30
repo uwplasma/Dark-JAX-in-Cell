@@ -108,9 +108,11 @@ $$
 
 The full replay uses 120,000 electrons on 128 cells and 240,000 on 256 cells, with a halved timestep. Its parent/dark growth fits are **0.15384/0.15280** and **0.15378/0.15256** $\omega_p$; independent roots give **0.15135/0.15392**. The predicted dark shift is below the fit uncertainty, so this run resolves the growing branch but not a mixing-induced rate change. Maximum sampled complete-energy drift falls from **0.093%** to **0.023%** on joint refinement. The final tail is broadened. The velocity distribution uses physical number weights: the 3% beam has one-third of the numerical markers, but 3% of the plotted number distribution. The [full record](docs/_static/figures/bump_on_tail/run.json) gives fit errors, Gauss residuals and settings. This extends [JAX-in-Cell's bump example](https://github.com/uwplasma/JAX-in-Cell/blob/83d327118163833f93e2588edcb5029241f6ba2a/examples/2_intermediate/bump_on_tail.py) with a finite field; the [movie](docs/_static/movies/bump_on_tail/run.json) shows both phase spaces, all longitudinal electric fields and energy on common axes. Its displayed dots sample represented number and are trajectories rather than density values.
 
+The fourth panel scans the selected beam pole over beam fraction. At a 0.1% beam, ordinary theory gives weak growth while the coupled pole is damped; a Yukawa-screened reference gives almost the same prediction. That near-threshold point is an analytic control awaiting a long, low-noise PIC replay and a search for other unstable poles ([scan and limits](docs/kinetic.md)).
+
 <img src="docs/_static/movies/bump_on_tail/figure.webp" width="900" alt="Matched 120,000-particle bump-on-tail phase spaces and electric fields">
 
-<img src="docs/_static/figures/bump_on_tail/figure.png" width="800" alt="Bump-on-tail growth, velocity distributions and complete-energy drift at two resolutions">
+<img src="docs/_static/figures/bump_on_tail/figure.png" width="800" alt="Bump-on-tail growth, weighted velocity distribution, complete energy and selected kinetic pole scan">
 
 ## Transverse anisotropy
 

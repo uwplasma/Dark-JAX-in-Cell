@@ -48,16 +48,36 @@ def build_plasma(cells, bulk_count, beam_count, dt_wp=0.025):
 
 def kinetic_root(wp, vth, eta, mu_over_wp=0.7):
     """Independent two-Maxwellian Vlasov–Proca growing root, in plasma units."""
-    k, fraction = 2 * np.pi * 5, 0.03
-    populations = ({"wp": wp * np.sqrt(1 - fraction),
-                    "u": -fraction * 5 * vth / (1 - fraction), "vth": vth},
-                   {"wp": wp * np.sqrt(fraction), "u": 5 * vth, "vth": 0.7 * vth})
-
-    answer, residual = longitudinal_root(k, populations, mu_over_wp * wp,
-                                         eta, 0.85 + 0.15j)
+    answer, residual = selected_bump_pole(wp, vth, 0.03, 5.0, mu_over_wp,
+                                          eta, "full")
     if answer.imag <= 0:
         raise RuntimeError("the bump's growing branch was not found")
     return answer, residual
+
+
+def selected_bump_pole(wp, vth, fraction, drift_over_vth, mu_over_wp,
+                       eta, model):
+    """Track the beam-like pole; a damped pole alone is not a stability census."""
+    k = 2 * np.pi * 5
+    populations = ({"wp": wp * np.sqrt(1 - fraction),
+                    "u": -fraction * drift_over_vth * vth / (1 - fraction),
+                    "vth": vth},
+                   {"wp": wp * np.sqrt(fraction), "u": drift_over_vth * vth,
+                    "vth": 0.7 * vth})
+    return longitudinal_root(k, populations, mu_over_wp * wp, eta,
+                             0.85 + 0.15j, model)
+
+
+def bump_reference_scan(wp, vth, eta=0.3):
+    """Small beam-fraction, drift and mass scan of the selected kinetic branch."""
+    fractions, drifts, masses = (0.001, 0.003, 0.01, 0.03, 0.05), (4.5, 5.0, 5.5), (0.1, 0.7, 2.0)
+    models = ("ordinary", "full", "quasistatic", "effective_charge")
+    roots = {model: np.asarray([[[selected_bump_pole(
+        wp, vth, fraction, drift, mass, eta, model)[0]
+        for mass in masses] for drift in drifts] for fraction in fractions])
+        for model in models}
+    return {"fractions": fractions, "drifts_over_vth": drifts,
+            "masses_over_wp": masses, "roots": roots}
 
 
 def number_histogram(velocity, weight, counts, edges, speed):
@@ -145,8 +165,10 @@ def main():
     cases = ((128, 80000, 40000, 0.025, 45), (256, 160000, 80000, 0.0125, 45)) if args.full else (
         (64, 4000, 2000, 0.025, 20),)
     runs = [experiment(*case) for case in cases]
+    scan = bump_reference_scan(0.05 * c * 128, (0.05 * c * 128) / (5 * 2 * np.pi * 5))
     with midnight():
-        fig, axes = plt.subplots(1, 3, figsize=(12, 3.8), layout="constrained")
+        fig, panels = plt.subplots(2, 2, figsize=(10, 7), layout="constrained")
+        axes = (panels[0, 0], panels[0, 1], panels[1, 0])
         for run in runs:
             suffix = f"{run['settings']['cells']} cells"
             axes[0].semilogy(run["t"], run["parent_mode"], color="#0072B2", alpha=0.7,
@@ -168,12 +190,27 @@ def main():
         axes[1].set(xlabel=r"$v_x/v_{th}$", ylabel=r"$v_{th}f(v_x)$", title="Velocity distribution")
         axes[2].set(xlabel=r"$\omega_p t$", ylabel="fractional closed-energy change",
                     title="Particles + both fields")
-        for ax in axes:
+        for model, label in (("ordinary", "ordinary"), ("full", "full Proca"),
+                             ("quasistatic", "Yukawa"),
+                             ("effective_charge", "constant charge")):
+            panels[1, 1].semilogx(scan["fractions"], scan["roots"][model][:, 1, 1].imag,
+                                  marker="o", label=label)
+        panels[1, 1].axhline(0, color="#30343B", ls=":")
+        panels[1, 1].set(
+            xlabel="beam number fraction", ylabel=r"selected pole $\Im\omega/\omega_p$",
+            title="Near-threshold kinetic reference")
+        for ax in panels.flat:
             ax.grid(alpha=0.25)
             ax.legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=7)
+        reference_scan = {"fractions": scan["fractions"],
+                          "drifts_over_vth": scan["drifts_over_vth"],
+                          "masses_over_wp": scan["masses_over_wp"],
+                          "selected_roots_over_wp": {
+                              model: np.stack((roots.real, roots.imag), axis=-1).tolist()
+                              for model, roots in scan["roots"].items()}}
         save_run(args.output, "dark_bump", {"preset": "full" if args.full else "quick",
                  "cases": [run["settings"] for run in runs]},
-                 {"cases": [run["results"] for run in runs]}, fig,
+                 {"cases": [run["results"] for run in runs], "reference_scan": reference_scan}, fig,
                  **{f"case_{i}_{key}": run[key] for i, run in enumerate(runs)
                     for key in ("t", "parent_mode", "mixed_mode", "dark_mode", "parent_total",
                                 "mixed_total", "initial_parent_total", "initial_mixed_total",

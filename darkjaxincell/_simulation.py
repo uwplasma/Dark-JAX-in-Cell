@@ -32,8 +32,6 @@ def _check_phi_mean(phi):
     if phi is None or isinstance(phi, jax.core.Tracer):
         return
     values = np.asarray(phi)
-    if not np.all(np.isfinite(values)):
-        raise ValueError("initial_phi must be finite")
     scale = np.max(np.abs(values))
     if scale and abs(np.mean(values)) > 1e-12 * scale:
         raise ValueError("periodic neutral Proca initial_phi must have zero mean")

@@ -100,7 +100,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "b250a36864eb6e609b3fb7048e1ccdb78fe18de5-dirty",
+      "git": "fd4bd7b741d35fa225b0ab619a4fb4f2edb0e2ec-dirty",
       "run": "bump_on_tail/run.json"
     },
     "mixed_two_stream": {
@@ -281,6 +281,10 @@
   "physical_reference_parent": "1.41566-0.15336i",
   "physical_reference_mixed": "1.43243-0.14580i",
   "physical_reference_screened": "1.43261-0.14576i",
+  "bump_threshold_ordinary_imag": "+0.00619",
+  "bump_threshold_full_imag": "-0.00968",
+  "bump_threshold_quasistatic_imag": "-0.00970",
+  "bump_threshold_effective_charge_imag": "-0.01011",
   "bump_base_parent_fit": "0.15384",
   "bump_base_parent_root": "0.15135",
   "bump_base_mixed_fit": "0.15280",
