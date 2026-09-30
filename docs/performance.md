@@ -35,6 +35,19 @@ The **dark-disabled route is the parent `Simulation` itself**, so its source and
 
 The same isolated script also has a [131,072-particle CPU run](_static/figures/field_cost_large.json) on 128 cells for 256 steps. Five warm runs in each fresh process give median times of **{{ large_parent_warm_s }} s** for the parent, **{{ large_eta_zero_warm_s }} s** for configured $\eta=0$, and **{{ large_active_warm_s }} s** for active Proca. First-call times are {{ large_parent_first_s }}, {{ large_eta_zero_first_s }} and {{ large_active_first_s }} s; process peaks are {{ large_parent_rss_mib }}, {{ large_eta_zero_rss_mib }} and {{ large_active_rss_mib }} MiB. System load rose from 11.9 to 32.3 across the cases, so these measurements establish that the larger loading executes within the recorded memory but **do not give a reliable fractional overhead**. The first call includes compilation or executable-cache loading. Reproduce with `python docs/scripts/benchmark_field_cost.py --all --particles 131072 --steps 256 --output docs/_static/figures/field_cost_large.json` on a quiet host. This is a timing workload; the kinetic runs above provide physics-resolution checks.
 
+(sparse-particle-histories)=
+
+## Sparse particle histories
+
+The reduced run keeps both field histories, per-species kinetic energy and all-step conservation maxima while omitting particle trajectories from the sampled output. A [fresh-process CPU comparison](_static/figures/storage_cost.json) used 120,000 electrons, 128 cells, 128 steps and 16 stored samples. Both cases consumed the final closed energy and all-step maximum; the full case also consumed every stored position, velocity and weight array.
+
+| History | Warm median (s) | First call incl. compile (s) | Process peak (MiB) |
+|---|---:|---:|---:|
+| Sparse particle history | {{ storage_sparse_warm_s }} | {{ storage_sparse_first_s }} | {{ storage_sparse_rss_mib }} |
+| Full particle history | {{ storage_full_warm_s }} | {{ storage_full_first_s }} | {{ storage_full_rss_mib }} |
+
+The final complete energy and all-step maximum balance agree exactly between these runs. The memory and timing figures include compilation and shared-host load, so they characterize this workload and machine, not a universal speedup. Reproduce with `python docs/scripts/benchmark_field_cost.py --storage-all --particles 120000 --steps 128 --stride 8`, then refresh substitutions with `python docs/scripts/make_all.py --records-only`.
+
 ## Which clock to trust
 
 The source-free [time-step experiment](scripts/benchmark_time_integrators.py) uses the same staggered 1D Proca difference operators as the package, in normalized units $c=\Omega_D=\epsilon_0=1$. Its initial field contains longitudinal and both transverse components, with $\phi_D=-D E_{D,x}$, $B_D=\operatorname{curl} A_D=0$. The matrix exponential of the **same spatially discrete generator** is the temporal oracle. The 16-cell run lasts $\Omega_Dt=200$; these are vacuum field tests, without particles or current deposition.

@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 import jax.numpy as jnp
@@ -18,6 +19,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from scipy.stats import linregress  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
+SOURCE_SHA = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
 sys.path.insert(0, str(ROOT))
 from examples.dark_profile import make_simulation, packet, slab_basis  # noqa: E402
 from examples.dark_bump import build_plasma  # noqa: E402
@@ -118,7 +120,7 @@ def _pair_history(plasma, dark_sim, frames, stride, chunk_frames, plot_indices, 
     dark_ledger = {key: np.concatenate(values) for key, values in dark_ledger.items()}
     initial_parent = float(dark_state.initial_ordinary)
     initial_mixed = float(dark_state.initial_ordinary + dark_state.initial_dark)
-    return kept, parent_ledger, dark_ledger, max_gauss, initial_parent, initial_mixed
+    return kept, parent_ledger, dark_ledger, max_gauss, initial_parent, initial_mixed, dark_state
 
 
 def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
@@ -131,7 +133,7 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
     chunk_frames = frames if chunk_frames is None else chunk_frames
     dark_sim = DarkSimulation(plasma, DarkField(0.7 * wp, eta))
     plot_indices = _marker_indices(plasma)
-    kept, parent_ledger, dark_ledger, max_gauss, initial_parent, initial_mixed = _pair_history(
+    kept, parent_ledger, dark_ledger, max_gauss, initial_parent, initial_mixed, final_state = _pair_history(
         plasma, dark_sim, frames, stride, chunk_frames, plot_indices, wp, scale_v)
     time = kept["time"]
     grid = np.asarray(plasma.domain.faces) / plasma.domain.length
@@ -176,7 +178,9 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
                "parent_energy_relative_drift": float(parent_total[-1] / initial_parent - 1),
                "max_closed_energy_relative_change": float(np.max(np.abs(ledger / initial_mixed - 1))),
                "max_parent_energy_relative_change": float(np.max(np.abs(parent_total / initial_parent - 1))),
-               "max_dark_gauss_V_m2": max_gauss}
+               "max_dark_gauss_V_m2": max_gauss,
+               "all_step_max_dark_gauss_V_m2": float(final_state.max_dark_gauss),
+               "all_step_max_balance_J_m2": float(final_state.max_balance_error)}
     if name == "two_stream":
         reference = np.load(ROOT / "docs/_static/figures/two_stream_extended/data.npz")
         check = {"reference": "two_stream_extended case_1: 128 cells, 8000 particles/beam, same step"}
@@ -195,7 +199,7 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
                              "mode_rms_difference_over_high": windows}
         results["particle_refinement"] = check
     save_run(folder, f"dark_movie_{name}",
-             {"preset": "illustration", "cells": cells,
+             {"preset": "illustration", "source_git": SOURCE_SHA, "cells": cells,
               "particles_per_species": [s.n for s in plasma.species],
               "steps": steps, "store_every": stride, "eta": eta, "mu_over_wp": 0.7,
               "mode": mode, "horizon_omega_p": float(time[-1]),
@@ -283,7 +287,8 @@ def transverse():
         size = _encode(fig, update, len(time), folder / "figure.webp")
     ledger = np.asarray(out.energy()["total_with_dark"])
     save_run(folder, "dark_movie_slab_packet",
-             {"preset": "illustration", "cells": cells, "particles_per_basis_per_species": particles_per_basis,
+             {"preset": "illustration", "source_git": SOURCE_SHA, "cells": cells,
+              "particles_per_basis_per_species": particles_per_basis,
               "steps": steps, "store_every": stride, "eta": eta, "mu_over_omega0": 0.6,
               "cells_across_slab": 4 * ell / domain.dx,
               "cells_per_carrier_wavelength": 2 * np.pi / (0.8 / ell * domain.dx),
@@ -292,7 +297,9 @@ def transverse():
               "incident_dark_energy_J_m2": incident},
              {"frames": len(time), "webp_bytes": size,
               "closed_energy_relative_drift": float(ledger[-1] / initial - 1),
-              "max_dark_gauss_V_m2": float(jnp.max(jnp.abs(out.dark_gauss())))})
+              "max_dark_gauss_V_m2": float(jnp.max(jnp.abs(out.dark_gauss()))),
+              "all_step_max_dark_gauss_V_m2": float(out.state.max_dark_gauss),
+              "all_step_max_balance_J_m2": float(out.state.max_balance_error)})
 
 
 if __name__ == "__main__":

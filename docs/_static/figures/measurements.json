@@ -1,7 +1,7 @@
 {
   "cold_mean_error": "2.922e-04",
   "cold_gauss_error": "1.157e-18",
-  "cold_energy_error": "8.705e-05",
+  "cold_energy_error": "8.709e-05",
   "cold_work_error": "8.907e-05",
   "_provenance": {
     "cold_exchange": {
@@ -12,7 +12,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+      "git": "c3f9bc77237a56b0afe09e0cb49207eaa8269816",
       "run": "cold_exchange/run.json"
     },
     "prescribed_drive": {
@@ -23,7 +23,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+      "git": "ffb213ef3cfca9df620631e4fd261a41fd3ed299",
       "run": "prescribed_drive/run.json"
     },
     "density_calibration": {
@@ -59,6 +59,17 @@
       "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
       "run": "mixed_kinetic/run.json"
     },
+    "bump_on_tail": {
+      "jaxincell": "0.1.2.dev211+g83d327118",
+      "jax": "0.10.2",
+      "numpy": "2.2.2",
+      "python": "3.11.14",
+      "platform": "Darwin arm64",
+      "jax_enable_x64": true,
+      "backend": "cpu",
+      "git": "7133295f4bb3d2528f188ddbdfce1e17594f7b7c",
+      "run": "bump_on_tail/run.json"
+    },
     "mixed_two_stream": {
       "jaxincell": "0.1.2.dev211+g83d327118",
       "jax": "0.10.2",
@@ -78,7 +89,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+      "git": "f128f3fd15a6e148e99a78c1614e1b1a4524aa2f",
       "run": "two_stream_saturation/run.json"
     },
     "two_stream_extended": {
@@ -89,7 +100,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+      "git": "0ef17a0ecfa14b7347afbcd33f407df54ea403ad",
       "run": "two_stream_extended/run.json"
     },
     "mixed_weibel": {
@@ -100,7 +111,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+      "git": "f3e4980d29b3ef8ae01071bf1c306f7451bc3b1c",
       "run": "mixed_weibel/run.json"
     },
     "homogeneous_null": {
@@ -158,17 +169,6 @@
       "samples_per_case": 5,
       "note": "fresh process per case; first call includes compile"
     },
-    "bump_on_tail": {
-      "jaxincell": "0.1.2.dev211+g83d327118",
-      "jax": "0.10.2",
-      "numpy": "2.2.2",
-      "python": "3.11.14",
-      "platform": "Darwin arm64",
-      "jax_enable_x64": true,
-      "backend": "cpu",
-      "git": "651a570bf64cb60bc88a242b53a3c89889e9c9fa-dirty",
-      "run": "bump_on_tail/run.json"
-    },
     "field_cost_large": {
       "cells": 128,
       "particles": 131072,
@@ -181,6 +181,20 @@
       "git": "651a570bf64cb60bc88a242b53a3c89889e9c9fa",
       "samples_per_case": 5,
       "note": "fresh process per case; first call includes compile"
+    },
+    "storage_cost": {
+      "cells": 128,
+      "particles": 120000,
+      "steps": 128,
+      "store_every": 8,
+      "precision": "float64",
+      "backend": "cpu",
+      "jax": "0.10.2",
+      "platform": "macOS-15.1.1-arm64-arm-64bit",
+      "python": "3.11.14",
+      "git": "8ae1fd5b5e482becd205b47a66b3618db9c4da6a",
+      "samples_per_case": 3,
+      "note": "fresh process per case; final total and all-step balance consumed"
     }
   },
   "drive_wave_error": "7.488e-05",
@@ -202,6 +216,16 @@
   "kinetic_frequency_error": "0.34",
   "kinetic_damping_error": "2.75",
   "kinetic_damping_stderr": "0.0043",
+  "bump_base_parent_fit": "0.15384",
+  "bump_base_parent_root": "0.15135",
+  "bump_base_mixed_fit": "0.15280",
+  "bump_base_mixed_root": "0.15392",
+  "bump_base_energy_percent": "0.0929",
+  "bump_refined_parent_fit": "0.15378",
+  "bump_refined_parent_root": "0.15135",
+  "bump_refined_mixed_fit": "0.15256",
+  "bump_refined_mixed_root": "0.15392",
+  "bump_refined_energy_percent": "0.0233",
   "two_stream_root": "0.34670",
   "two_stream_pic": "0.34155",
   "two_stream_refined": "0.34234",
@@ -294,16 +318,6 @@
   "field_active_warm_ms": "218.9",
   "field_active_first_s": "2.52",
   "field_active_rss_mib": "477.2",
-  "bump_base_parent_fit": "0.15384",
-  "bump_base_parent_root": "0.15135",
-  "bump_base_mixed_fit": "0.15280",
-  "bump_base_mixed_root": "0.15392",
-  "bump_base_energy_percent": "0.0929",
-  "bump_refined_parent_fit": "0.15378",
-  "bump_refined_parent_root": "0.15135",
-  "bump_refined_mixed_fit": "0.15256",
-  "bump_refined_mixed_root": "0.15392",
-  "bump_refined_energy_percent": "0.0233",
   "large_parent_warm_s": "5.30",
   "large_parent_first_s": "5.25",
   "large_parent_rss_mib": "563",
@@ -312,5 +326,11 @@
   "large_eta_zero_rss_mib": "619",
   "large_active_warm_s": "5.71",
   "large_active_first_s": "8.99",
-  "large_active_rss_mib": "597"
+  "large_active_rss_mib": "597",
+  "storage_sparse_warm_s": "0.956",
+  "storage_sparse_first_s": "3.95",
+  "storage_sparse_rss_mib": "558.7",
+  "storage_full_warm_s": "1.018",
+  "storage_full_first_s": "4.39",
+  "storage_full_rss_mib": "695.7"
 }
