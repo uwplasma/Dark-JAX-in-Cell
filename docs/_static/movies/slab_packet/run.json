@@ -6,10 +6,11 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "d07ed6b886c34146bf3e0c61aafbac5716dfb07e-dirty",
+ "git": "d044be09c2e00f4e95d800e81d4a35407b8d3d72-dirty",
  "example": "dark_movie_slab_packet",
  "settings": {
   "preset": "illustration",
+  "source_git": "d044be09c2e00f4e95d800e81d4a35407b8d3d72",
   "cells": 512,
   "particles_per_basis_per_species": 256,
   "steps": 960,
@@ -29,8 +30,10 @@
  },
  "results": {
   "frames": 80,
-  "webp_bytes": 967938,
-  "closed_energy_relative_drift": 1.2477660307208538e-06,
-  "max_dark_gauss_V_m2": 8.729440781340969e-13
+  "webp_bytes": 964128,
+  "closed_energy_relative_drift": 1.6393313140294907e-06,
+  "max_dark_gauss_V_m2": 8.729440781340969e-13,
+  "all_step_max_dark_gauss_V_m2": 1.2568629989832782e-12,
+  "all_step_max_balance_J_m2": 3.297942049795355e-11
  }
 }
