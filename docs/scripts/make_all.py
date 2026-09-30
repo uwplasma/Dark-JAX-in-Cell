@@ -64,6 +64,16 @@ measured.update({"kinetic_pic_real": f"{kin['measured_real_over_wp']:.5f}",
                  "kinetic_frequency_error": f"{100 * kin['frequency_relative_error']:.2f}",
                  "kinetic_damping_error": f"{100 * kin['damping_relative_error']:.2f}",
                  "kinetic_damping_stderr": f"{kin['damping_slope_stderr']:.4f}"})
+bump = EVIDENCE.parent / "bump_on_tail"
+subprocess.run([sys.executable, str(ROOT / "examples" / "dark_bump.py"), "--full",
+                "--output", str(bump)], cwd=ROOT, check=True)
+bump_record = json.loads((bump / "run.json").read_text())
+for i, name in enumerate(("base", "refined")):
+    result = bump_record["results"]["cases"][i]
+    for branch in ("parent", "mixed"):
+        measured[f"bump_{name}_{branch}_fit"] = f"{result['fits'][branch]['growth_over_wp']:.5f}"
+        measured[f"bump_{name}_{branch}_root"] = f"{result[f'{branch}_root_over_wp'][1]:.5f}"
+    measured[f"bump_{name}_energy_percent"] = f"{100 * result['mixed_max_energy_drift']:.4f}"
 instability_records = {}
 for mode, folder in (("two-stream", "mixed_two_stream"), ("weibel", "mixed_weibel")):
     path = EVIDENCE.parent / folder
@@ -170,6 +180,7 @@ measured["_provenance"] = {"cold_exchange": provenance(record, "cold_exchange"),
                            "density_calibration": provenance(calibration_record, "density_calibration"),
                            "oblique_3v": provenance(oblique_record, "oblique_3v"),
                            "mixed_kinetic": provenance(kinetic_record, "mixed_kinetic"),
+                           "bump_on_tail": provenance(bump_record, "bump_on_tail"),
                            "mixed_two_stream": provenance(two_record, "mixed_two_stream"),
                            "two_stream_saturation": provenance(saturation["two_stream_saturation"],
                                                                "two_stream_saturation"),
@@ -199,4 +210,13 @@ if field_cost.exists():
         measured[f"field_{name}_first_s"] = f"{row['first_call_s']:.2f}"
         measured[f"field_{name}_rss_mib"] = f"{row['peak_rss_bytes'] / 2**20:.1f}"
     measured["_provenance"]["field_cost"] = data["settings"]
+large_cost = EVIDENCE.parent / "field_cost_large.json"
+if large_cost.exists():
+    data = json.loads(large_cost.read_text())
+    for row in data["rows"]:
+        name = row["case"]
+        measured[f"large_{name}_warm_s"] = f"{row['warm_median_s']:.2f}"
+        measured[f"large_{name}_first_s"] = f"{row['first_call_s']:.2f}"
+        measured[f"large_{name}_rss_mib"] = f"{row['peak_rss_bytes'] / 2**20:.0f}"
+    measured["_provenance"]["field_cost_large"] = data["settings"]
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")

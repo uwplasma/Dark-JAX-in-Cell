@@ -1,0 +1,116 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "651a570bf64cb60bc88a242b53a3c89889e9c9fa-dirty",
+ "example": "dark_bump",
+ "settings": {
+  "preset": "full",
+  "cases": [
+   {
+    "cells": 128,
+    "bulk_particles": 80000,
+    "beam_particles": 40000,
+    "dt_omega_p": 0.025,
+    "steps": 1800,
+    "store_every": 20,
+    "horizon_omega_p": 45.0,
+    "mode": 5,
+    "beam_density_fraction": 0.03,
+    "beam_drift_over_vth": 5.0,
+    "beam_vth_over_bulk_vth": 0.7,
+    "bulk_current": "compensated by drift",
+    "eta": 0.3,
+    "mu_over_wp": 0.7
+   },
+   {
+    "cells": 256,
+    "bulk_particles": 160000,
+    "beam_particles": 80000,
+    "dt_omega_p": 0.0125,
+    "steps": 3600,
+    "store_every": 40,
+    "horizon_omega_p": 45.0,
+    "mode": 5,
+    "beam_density_fraction": 0.03,
+    "beam_drift_over_vth": 5.0,
+    "beam_vth_over_bulk_vth": 0.7,
+    "bulk_current": "compensated by drift",
+    "eta": 0.3,
+    "mu_over_wp": 0.7
+   }
+  ]
+ },
+ "results": {
+  "cases": [
+   {
+    "parent_root_over_wp": [
+     0.848257021714721,
+     0.15134680907469933
+    ],
+    "mixed_root_over_wp": [
+     0.8600409449490167,
+     0.15392197436231875
+    ],
+    "root_residuals": [
+     8.186280566438682e-10,
+     6.960172732004355e-12
+    ],
+    "fits": {
+     "parent": {
+      "growth_over_wp": 0.15384105309077742,
+      "stderr": 0.004264397498275936
+     },
+     "mixed": {
+      "growth_over_wp": 0.15279596844413582,
+      "stderr": 0.0038801677164355054
+     }
+    },
+    "fit_window_omega_p": [
+     18,
+     30
+    ],
+    "parent_max_energy_drift": 0.0010223411775915903,
+    "mixed_max_energy_drift": 0.0009293595429546997,
+    "dark_gauss_relative": 5.872420581312192e-16,
+    "matched_loading": "identical x, v, weights, ordinary E, grid and step"
+   },
+   {
+    "parent_root_over_wp": [
+     0.848257021714721,
+     0.15134680907469933
+    ],
+    "mixed_root_over_wp": [
+     0.8600409449490167,
+     0.15392197436231875
+    ],
+    "root_residuals": [
+     8.186280566438682e-10,
+     6.960172732004355e-12
+    ],
+    "fits": {
+     "parent": {
+      "growth_over_wp": 0.15377850376076518,
+      "stderr": 0.00416534367766023
+     },
+     "mixed": {
+      "growth_over_wp": 0.15255765753604122,
+      "stderr": 0.003900696257581347
+     }
+    },
+    "fit_window_omega_p": [
+     18,
+     30
+    ],
+    "parent_max_energy_drift": 0.0002518565390614569,
+    "mixed_max_energy_drift": 0.00023316240144954925,
+    "dark_gauss_relative": 1.1105492239104064e-15,
+    "matched_loading": "identical x, v, weights, ordinary E, grid and step"
+   }
+  ]
+ }
+}

@@ -22,10 +22,10 @@ ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / "docs" / "_static" / "figures" / "field_cost.json"
 
 
-def measure(case):
+def measure(case, particles, steps):
     """One fresh process, including JAX's first compilation and five warm runs."""
     jax.config.update("jax_enable_x64", True)
-    omega, cells, particles, steps = 1e9, 128, 8192, 256
+    omega, cells = 1e9, 128
     density = 0.8 * epsilon_0 * mass_electron * omega**2 / e**2
     domain = Domain(length=2 * 3.141592653589793 * c / omega,
                     cells=cells, dt_over_dx_c=0.2)
@@ -63,16 +63,20 @@ def main():
     parser = argparse.ArgumentParser(description="Count the ghost's matched field-step bill")
     parser.add_argument("--case", choices=("parent", "eta_zero", "active"))
     parser.add_argument("--all", action="store_true")
+    parser.add_argument("--particles", type=int, default=8192)
+    parser.add_argument("--steps", type=int, default=256)
+    parser.add_argument("--output", type=Path, default=OUTPUT)
     args = parser.parse_args()
     if args.case:
-        print(json.dumps(measure(args.case)))
+        print(json.dumps(measure(args.case, args.particles, args.steps)))
         return
     if not args.all:
         parser.error("choose --all or --case")
     rows = [json.loads(subprocess.check_output(
-        [sys.executable, str(Path(__file__).resolve()), "--case", case],
+        [sys.executable, str(Path(__file__).resolve()), "--case", case,
+         "--particles", str(args.particles), "--steps", str(args.steps)],
         cwd=ROOT, text=True)) for case in ("parent", "eta_zero", "active")]
-    record = {"settings": {"cells": 128, "particles": 8192, "steps": 256,
+    record = {"settings": {"cells": 128, "particles": args.particles, "steps": args.steps,
                            "precision": "float64", "backend": jax.default_backend(),
                            "jax": jax.__version__, "platform": platform.platform(),
                            "python": platform.python_version(),
@@ -81,8 +85,8 @@ def main():
                            "samples_per_case": 5,
                            "note": "fresh process per case; first call includes compile"},
               "rows": rows}
-    OUTPUT.write_text(json.dumps(record, indent=2) + "\n")
-    print(f"wrote {OUTPUT}")
+    args.output.write_text(json.dumps(record, indent=2) + "\n")
+    print(f"wrote {args.output}")
 
 
 if __name__ == "__main__":

@@ -157,6 +157,30 @@
       "git": "e0612766bc9f3385bcb5ad16307afe2da92deb8f",
       "samples_per_case": 5,
       "note": "fresh process per case; first call includes compile"
+    },
+    "bump_on_tail": {
+      "jaxincell": "0.1.2.dev211+g83d327118",
+      "jax": "0.10.2",
+      "numpy": "2.2.2",
+      "python": "3.11.14",
+      "platform": "Darwin arm64",
+      "jax_enable_x64": true,
+      "backend": "cpu",
+      "git": "651a570bf64cb60bc88a242b53a3c89889e9c9fa-dirty",
+      "run": "bump_on_tail/run.json"
+    },
+    "field_cost_large": {
+      "cells": 128,
+      "particles": 131072,
+      "steps": 256,
+      "precision": "float64",
+      "backend": "cpu",
+      "jax": "0.10.2",
+      "platform": "macOS-15.1.1-arm64-arm-64bit",
+      "python": "3.11.14",
+      "git": "651a570bf64cb60bc88a242b53a3c89889e9c9fa",
+      "samples_per_case": 5,
+      "note": "fresh process per case; first call includes compile"
     }
   },
   "drive_wave_error": "7.488e-05",
@@ -269,5 +293,24 @@
   "field_eta_zero_rss_mib": "479.1",
   "field_active_warm_ms": "218.9",
   "field_active_first_s": "2.52",
-  "field_active_rss_mib": "477.2"
+  "field_active_rss_mib": "477.2",
+  "bump_base_parent_fit": "0.15384",
+  "bump_base_parent_root": "0.15135",
+  "bump_base_mixed_fit": "0.15280",
+  "bump_base_mixed_root": "0.15392",
+  "bump_base_energy_percent": "0.0929",
+  "bump_refined_parent_fit": "0.15378",
+  "bump_refined_parent_root": "0.15135",
+  "bump_refined_mixed_fit": "0.15256",
+  "bump_refined_mixed_root": "0.15392",
+  "bump_refined_energy_percent": "0.0233",
+  "large_parent_warm_s": "5.30",
+  "large_parent_first_s": "5.25",
+  "large_parent_rss_mib": "563",
+  "large_eta_zero_warm_s": "5.69",
+  "large_eta_zero_first_s": "9.86",
+  "large_eta_zero_rss_mib": "619",
+  "large_active_warm_s": "5.71",
+  "large_active_first_s": "8.99",
+  "large_active_rss_mib": "597"
 }

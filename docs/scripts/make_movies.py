@@ -15,10 +15,12 @@ from darkjaxincell import DarkField, DarkSimulation, midnight
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+from scipy.stats import linregress  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from examples.dark_profile import make_simulation, packet, slab_basis  # noqa: E402
+from examples.dark_bump import build_plasma  # noqa: E402
 
 MOVIES = ROOT / "docs" / "_static" / "movies"
 VIOLET, BLUE, ORANGE = "#6A3D9A", "#0072B2", "#D55E00"
@@ -70,98 +72,107 @@ def _energy_lines(ax, time, ledger, parent=None):
     return show
 
 
-def _seeded_plasma(particles, cells, length, omega, thermal):
-    """Load the same quiet Maxwellian and mode at either particle count."""
-    density = omega**2 * epsilon_0 * mass_electron / e**2
-    k = 2 * np.pi / length
-    x, v = quiet_start(particles, length, vth=(thermal, 0.0, 0.0))
-    v = v.at[:, 0].add(-jnp.mean(v[:, 0]))
-    x = x.at[:, 0].add(0.06 * jnp.sin(k * x[:, 0]) / k)
-    species = Species.electrons(particles, density=density, vth=(thermal, 0.0, 0.0)).replace(x=x, v=v)
-    return Simulation(Domain(length=length, cells=cells, dt_over_dx_c=0.4), (species,))
-
-
-def longitudinal():
-    """One Maxwellian loading evolves in matched parent and mixed systems."""
-    cells, particles, steps, stride, length, eta = 128, 32768, 1536, 32, 1.0, 0.3
-    omega = 0.06 * c * 64 / length
-    thermal = 0.26 * c
-    plasma = _seeded_plasma(particles, cells, length, omega, thermal)
+def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle):
+    """Animate one loading in the two solvers, retaining all particles in both."""
+    eta, cells = 0.3, plasma.domain.cells
+    stride = max(1, round(frame_dt / (wp * plasma.domain.dt)))
+    steps = stride * round(horizon / (stride * wp * plasma.domain.dt))
     parent = plasma.run(steps, store_every=stride)
-    out = DarkSimulation(plasma, DarkField(omega, eta)).run(steps, store_every=stride)
-    coarse_plasma = _seeded_plasma(particles // 4, cells, length, omega, thermal)
-    coarse_parent = coarse_plasma.run(steps, store_every=stride, store_particles=False)
-    coarse_mixed = DarkSimulation(coarse_plasma, DarkField(omega, eta)).run(
-        steps, store_every=stride, store_particles=False)
-    time = np.asarray(out.ordinary.t) * omega
-    grid = np.asarray(out.ordinary.grid) / length
-    parent_field = np.asarray(parent.E[:, :, 0])
-    ordinary = np.asarray(out.ordinary.E[:, :, 0])
-    dark = np.asarray(out.E[:, :, 0])
-
-    def mode(fields):
-        return np.abs(np.fft.rfft(np.asarray(fields), axis=1)[:, 1]) / cells
-    parent_mode, mixed_mode = mode(parent_field), mode(ordinary)
-    coarse_parent_mode = mode(coarse_parent.E[:, :, 0])
-    coarse_mixed_mode = mode(coarse_mixed.ordinary.E[:, :, 0])
-    # Quiet-start velocity pairs have opposite signs: an even stride hides one half.
-    positions = (np.asarray(parent.x[:, ::9, 0]) / length,
-                 np.asarray(out.ordinary.x[:, ::9, 0]) / length)
-    speeds = (np.asarray(parent.v[:, ::9, 0]) / thermal,
-              np.asarray(out.ordinary.v[:, ::9, 0]) / thermal)
+    out = DarkSimulation(plasma, DarkField(0.7 * wp, eta)).run(steps, store_every=stride)
+    time = np.asarray(out.ordinary.t) * wp
+    grid = np.asarray(out.ordinary.grid) / plasma.domain.length
+    fields = [np.asarray(parent.E[:, :, 0]), np.asarray(out.ordinary.E[:, :, 0]),
+              np.asarray(out.E[:, :, 0])]
+    # Keep a representative, uniformly spaced subset on screen; every particle is pushed.
+    plot_stride = max(1, sum(s.n for s in plasma.species) // 8000)
+    positions = [np.asarray(history.x[:, ::plot_stride, 0]) / plasma.domain.length
+                 for history in (parent, out.ordinary)]
+    speeds = [np.asarray(history.v[:, ::plot_stride, 0]) / scale_v
+              for history in (parent, out.ordinary)]
+    limits = max(np.max(np.abs(speed)) for speed in speeds) * 1.04
+    field_limit = max(np.max(np.abs(field)) for field in fields) * 1.06
     with midnight():
         fig = plt.figure(figsize=(11.2, 6.6), dpi=105, layout="constrained")
         axes = fig.subplot_mosaic([["parent", "mixed"], ["fields", "energy"]])
         scatters = []
-        for name, color, title in (("parent", BLUE, "JAX-in-Cell"),
-                                   ("mixed", VIOLET, "Dark-JAX-in-Cell")):
-            scatters.append(axes[name].scatter([], [], s=0.9, color=color,
-                                               alpha=0.48, rasterized=True))
-            axes[name].set(xlim=(-0.5, 0.5), ylim=(-2.5, 2.5), xlabel="$x/L$",
-                           ylabel=r"$v_x/v_{\rm th}$", title=title)
-        line_p, = axes["fields"].plot(grid, parent_field[0], color=BLUE, label="parent $E_x$")
-        line_e, = axes["fields"].plot(grid, ordinary[0], color=VIOLET, label="mixed $E_x$")
-        line_d, = axes["fields"].plot(grid, dark[0], color=ORANGE, label="$E_{D,x}$")
-        scale = max(np.max(np.abs(parent_field)), np.max(np.abs(ordinary)),
-                    np.max(np.abs(dark))) * 1.1
-        axes["fields"].set(xlim=(grid[0], grid[-1]), ylim=(-scale, scale), xlabel="$x/L$",
-                           ylabel="V/m", title="Longitudinal electric fields")
+        for key, color, title in (("parent", BLUE, "JAX-in-Cell"),
+                                  ("mixed", VIOLET, "Dark-JAX-in-Cell")):
+            scatters.append(axes[key].scatter([], [], s=0.7, color=color,
+                                              alpha=0.45, rasterized=True))
+            axes[key].set(xlim=(-0.5, 0.5), ylim=(-limits, limits), xlabel="$x/L$",
+                          ylabel=r"$v_x/v_{\rm scale}$", title=title)
+        field_lines = [axes["fields"].plot(grid, field[0], color=color, label=label)[0]
+                       for field, color, label in zip(fields, (BLUE, VIOLET, ORANGE),
+                                                      ("parent $E_x$", "mixed $E_x$", "$E_{D,x}$"))]
+        axes["fields"].set(xlim=(grid[0], grid[-1]), ylim=(-field_limit, field_limit),
+                           xlabel="$x/L$", ylabel="V/m", title="Electric fields")
         axes["fields"].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=7)
         show_energy = _energy_lines(axes["energy"], time, out.energy(), energies(parent))
 
         def update(index):
             for scatter, x, v in zip(scatters, positions, speeds):
                 scatter.set_offsets(np.column_stack((x[index], v[index])))
-            line_p.set_ydata(parent_field[index])
-            line_e.set_ydata(ordinary[index])
-            line_d.set_ydata(dark[index])
+            for line, values in zip(field_lines, fields):
+                line.set_ydata(values[index])
             show_energy(index)
-            fig.suptitle(f"One loading, two plasma futures  ·  $\\omega_p t={time[index]:.1f}$", fontsize=12)
-        folder = MOVIES / "phase_space"
+            fig.suptitle(f"{subtitle}  ·  $\\omega_p t={time[index]:.1f}$", fontsize=12)
+        folder = MOVIES / name
         size = _encode(fig, update, len(time), folder / "figure.webp")
     ledger = np.asarray(out.energy()["total_with_dark"])
     parent_ledger = np.asarray(energies(parent)["total"])
-    save_run(folder, "dark_movie_phase_space",
-             {"preset": "illustration", "cells": cells, "particles": particles,
-              "particle_check_count": particles // 4,
-              "steps": steps, "store_every": stride, "eta": eta,
-              "omega_rad_s": omega, "thermal_m_s": thermal, "seed_displacement_over_1_k": 0.06,
-              "cells_per_Debye_length": thermal / (np.sqrt(2) * omega * plasma.domain.dx),
-              "stored_samples_per_plasma_period": 2 * np.pi / (omega * stride * plasma.domain.dt),
+    mode_amplitudes = [np.abs(np.fft.rfft(field, axis=1)[:, mode]) / cells for field in fields]
+    results = {"frames": len(time), "webp_bytes": size,
+               "closed_energy_relative_drift": float(ledger[-1] / ledger[0] - 1),
+               "parent_energy_relative_drift": float(parent_ledger[-1] / parent_ledger[0] - 1),
+               "max_dark_gauss_V_m2": float(jnp.max(jnp.abs(out.dark_gauss())))}
+    if name == "two_stream":
+        reference = np.load(ROOT / "docs/_static/figures/two_stream_extended/data.npz")
+        check = {"reference": "two_stream_extended case_1: 128 cells, 8000 particles/beam, same step"}
+        for i, branch in enumerate(("parent", "mixed")):
+            amplitude = mode_amplitudes[i]
+            linear = (time >= 10) & (time <= 20)
+            windows = {}
+            for start, stop in ((10, 20), (20, 40), (40, 55)):
+                window = (time >= start) & (time <= stop)
+                baseline = np.interp(time[window], reference["case_1_t"],
+                                     reference[f"case_1_{branch}_mode"])
+                difference = np.linalg.norm(amplitude[window] - baseline)
+                windows[f"{start}_{stop}"] = float(difference / np.linalg.norm(amplitude[window]))
+            check[branch] = {"high_particle_growth_over_wp": float(linregress(
+                             time[linear], np.log(amplitude[linear])).slope),
+                             "mode_rms_difference_over_high": windows}
+        results["particle_refinement"] = check
+    save_run(folder, f"dark_movie_{name}",
+             {"preset": "illustration", "cells": cells,
+              "particles_per_species": [s.n for s in plasma.species],
+              "steps": steps, "store_every": stride, "eta": eta, "mu_over_wp": 0.7,
+              "mode": mode, "horizon_omega_p": float(time[-1]),
+              "stored_samples_per_plasma_period": 2 * np.pi / (stride * wp * plasma.domain.dt),
               "particles_plotted_per_panel": positions[0].shape[1],
-              "matched_loading": "same species x, v, weights and ordinary initial field"},
-             {"frames": len(time), "webp_bytes": size,
-              "mode_rms_relative_particle_change": {
-                  "parent": float(np.linalg.norm(parent_mode - coarse_parent_mode)
-                                  / np.linalg.norm(parent_mode)),
-                  "mixed": float(np.linalg.norm(mixed_mode - coarse_mixed_mode)
-                                 / np.linalg.norm(mixed_mode))},
-              "closed_energy_relative_drift": float(ledger[-1] / ledger[0] - 1),
-              "parent_energy_relative_drift": float(parent_ledger[-1] / parent_ledger[0] - 1),
-              "max_dark_gauss_V_m2": float(jnp.max(jnp.abs(out.dark_gauss())))},
-             t=time, parent_mode=parent_mode, mixed_mode=mixed_mode,
-             coarse_parent_mode=coarse_parent_mode, coarse_mixed_mode=coarse_mixed_mode,
-             parent_total=parent_ledger, mixed_total=ledger)
+              "matched_loading": "same particle arrays, weights, ordinary field, grid and timestep"},
+             results,
+             t=time, parent_mode=mode_amplitudes[0], mixed_mode=mode_amplitudes[1],
+             dark_mode=mode_amplitudes[2], parent_total=parent_ledger, mixed_total=ledger)
+
+
+def two_stream():
+    """Resolved cold counterstreams roll up differently in the two solvers."""
+    cells, particles = 128, 65536
+    wp, length, drift = 0.05 * c * 64, 1.0, 0.25 * c
+    density = wp**2 * epsilon_0 * mass_electron / e**2
+    x1, v1 = quiet_start(particles, length, drift=(drift, 0, 0))
+    x2, v2 = quiet_start(particles, length, drift=(-drift, 0, 0))
+    x1 = x1.at[:, 0].add(0.001 * jnp.sin(2 * jnp.pi * x1[:, 0]) / (2 * jnp.pi))
+    species = (Species.electrons(particles, density / 2, name="moonward").replace(x=x1, v=v1),
+               Species.electrons(particles, density / 2, name="cryptward").replace(x=x2, v=v2))
+    plasma = Simulation(Domain(length, cells, time_step=0.0125 / wp), species)
+    _paired_movie(plasma, wp, 1, drift, "two_stream", 55, 0.75, "Two streams meet the dark")
+
+
+def bump_on_tail():
+    """A warm tail perturbs the same loaded bulk in both field systems."""
+    plasma, wp, vth = build_plasma(128, 80000, 40000)
+    _paired_movie(plasma, wp, 5, vth, "bump_on_tail", 45, 0.5, "A bump haunts the tail")
 
 
 def transverse():
@@ -222,7 +233,8 @@ def transverse():
 
 
 if __name__ == "__main__":
-    options = {"phase_space": longitudinal, "slab_packet": transverse}
+    options = {"two_stream": two_stream, "bump_on_tail": bump_on_tail,
+               "slab_packet": transverse}
     for name in sys.argv[1:] or options:
         if name not in options:
             raise SystemExit(f"choose from: {', '.join(options)}")

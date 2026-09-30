@@ -1,0 +1,35 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "651a570bf64cb60bc88a242b53a3c89889e9c9fa-dirty",
+ "example": "dark_movie_bump_on_tail",
+ "settings": {
+  "preset": "illustration",
+  "cells": 128,
+  "particles_per_species": [
+   80000,
+   40000
+  ],
+  "steps": 1800,
+  "store_every": 20,
+  "eta": 0.3,
+  "mu_over_wp": 0.7,
+  "mode": 5,
+  "horizon_omega_p": 44.999999999998245,
+  "stored_samples_per_plasma_period": 12.566370614359172,
+  "particles_plotted_per_panel": 8000,
+  "matched_loading": "same particle arrays, weights, ordinary field, grid and timestep"
+ },
+ "results": {
+  "frames": 90,
+  "webp_bytes": 2957798,
+  "closed_energy_relative_drift": 0.0007805086714425258,
+  "parent_energy_relative_drift": 0.0009101869838332721,
+  "max_dark_gauss_V_m2": 1.3969838619232178e-08
+ }
+}

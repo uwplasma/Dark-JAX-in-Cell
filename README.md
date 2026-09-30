@@ -8,9 +8,11 @@
 
 **Differentiable Maxwell–Proca particle-in-cell simulation on CPUs and GPUs.** Dark-JAX-in-Cell adds a massive vector field to [JAX-in-Cell](https://github.com/uwplasma/JAX-in-Cell)'s 1D3V electromagnetic PIC. Charged particles create both fields and feel their combined Lorentz force. The parent supplies loading, charge-conserving deposition, gathering, Boris pushing, ordinary Maxwell evolution, diagnostics and restart machinery; the extra physics stays in this small companion package.
 
-<img src="docs/_static/movies/phase_space/figure.webp" width="900" alt="Matched JAX-in-Cell and Dark-JAX-in-Cell electrons, fields and energy on a white background">
+<img src="docs/_static/movies/two_stream/figure.webp" width="900" alt="Matched two-stream phase-space roll-up, ordinary and dark electric fields, and energy">
 
-*The same loaded electrons evolve with and without a dynamical dark field. This [movie](docs/_static/movies/phase_space/run.json) uses 128 cells, 32,768 particles (3,641 plotted per panel) and about 16 stored frames per plasma cycle. An 8,192-particle replay changes the first-mode histories by 2.3–2.5% RMS; the fitted results below use their own full presets.*
+*Two cold electron streams start from identical particle arrays in both solvers. This 128-cell [movie](docs/_static/movies/two_stream/run.json) advances 131,072 particles (1,024 per cell), plots 8,192 per panel, and stores 8.4 frames per plasma period. Its WebP is about 1.2 MB. It illustrates trapping; the growth fit and long-time convergence limits use the separate runs below.*
+
+*The two-stream and bump movies are longitudinal, so their magnetic fields vanish by symmetry. The [slab movie](#a-finite-dark-packet-crosses-a-designed-slab) shows the evolving ordinary and dark electric **and** magnetic waves.*
 
 ## Features
 
@@ -56,7 +58,13 @@ $$
 U_{\rm fields}=\frac{\epsilon_0}{2}\int\left(|\mathbf E|^2+c^2|\mathbf B|^2+|\mathbf E_D|^2+c^2|\mathbf B_D|^2+\Omega_D^2\left[|\mathbf A_D|^2+\phi_D^2/c^2\right]\right)dx.
 $$
 
-A prescribed dark drive is a separate external-force control with a work ledger; it has no finite dark reservoir. The supported solver is periodic explicit 1D3V PIC without collisions or absorbing Proca boundaries. [Physics and staggering](docs/physics.md) give the full equations and units.
+A prescribed dark drive is a separate external-force control with a work ledger; it has no finite dark reservoir. [Physics and staggering](docs/physics.md) give the full equations and units.
+
+## Numerical method and constraints
+
+The supported solver is **periodic, explicit, electromagnetic 1D3V PIC**. It uses the parent's quadratic particle shape for charge, current and field gathering, a charge-conserving continuity current with its physical mean, a Boris particle push, and staggered Maxwell Ampère/Faraday updates. The dark $\mathbf E_D,\mathbf A_D$ live on faces; $\mathbf B_D,\phi_D$ live at cell centres. A symmetric Proca kick–drift–kick surrounds the same particle push. Runs here use no source filter or collisions. The explicit Proca step has a checked stability margin; [time-step tests](docs/performance.md#which-clock-to-trust) measure its accuracy.
+
+**There is no per-step divergence cleaning or Poisson projection.** At initialization, the parent solves ordinary Gauss and the dark longitudinal electric field is set to satisfy dark Gauss. Thereafter, the discrete continuity current and matching face-to-centre divergence preserve both constraints up to roundoff; the dark scalar potential evolves with $\partial_t\phi_D=-c^2\nabla\cdot\mathbf A_D$. The update also keeps $\mathbf B_D=\nabla\times\mathbf A_D$. We report the Gauss residual and the complete particle + Maxwell + Proca energy, including $\Omega_D^2(|\mathbf A_D|^2+\phi_D^2/c^2)$. Constraint preservation alone does not imply exact energy conservation. [Discrete operators, checks and restart state](docs/physics.md) give the details.
 
 ## Cold exchange: a known answer
 
@@ -74,7 +82,55 @@ A seeded Maxwellian tests a damped mode, using the same initial particles in the
 
 Two current-neutral cold electron beams grow at $0.33228\omega_p$ in JAX-in-Cell and $0.34069\omega_p$ with the dark field; independent cold roots give $0.33847$ and $0.34670$. After trapping, a [five-case grid/particle/timestep check](docs/_static/figures/two_stream_saturation/run.json) finds dark closed-energy drift of **0.680%** at 64 cells and **0.190%** at 128 cells at fixed timestep. At $120\leq\omega_pt\leq200$, a [four-case replay](docs/_static/figures/two_stream_extended/run.json) finds that the dark-minus-parent first-mode RMS changes from **−5.2%** on 128 cells to **+14.9%** on 256 cells at the *same* timestep. Thus the late difference has not converged, even in sign; a small energy drift alone does not settle it. The [full comparison](docs/kinetic.md) states the loading and windows.
 
+At 128 cells and the same timestep, the 131,072-particle movie loading can be compared with the full run's 16,000 particles. The parent/dark growth rates over $10\leq\omega_pt\leq20$ become **0.33391/0.34289** $\omega_p$, close to **0.33435/0.34302** with 16,000. The first-mode RMS differs by about **1.7%** over $40\leq\omega_pt\leq55$ after interpolating the smaller run to movie sample times. This is a particle-count check through 55; the $t=200$ spatial-convergence warning above still applies. [High-particle arrays and comparison](docs/_static/movies/two_stream/run.json).
+
 <img src="docs/_static/figures/two_stream_extended/figure.png" width="900" alt="Matched two-stream growth, energy and phase space through normalized time 200">
+
+## Bump on tail: a warm kinetic comparison
+
+The [bump example](examples/dark_bump.py) starts from the parent's two-Maxwellian beam setup, with a compensating bulk drift so the mean current vanishes. A 3% beam travels at $5v_{th}$; the seeded $k_5$ wave resonates with its tail. Both solvers advance the same loaded electrons. The reference evaluates the drifting-Maxwellian dielectric $\epsilon_L(\omega,k)$ independently of PIC and solves
+
+$$
+(s-\Omega_D^2)\epsilon_L+\eta^2s(\epsilon_L-1)=0,\qquad s=\omega^2-c^2k^2.
+$$
+
+The full replay uses 120,000 electrons on 128 cells and 240,000 on 256 cells, with a halved timestep. Its parent/dark growth fits are **0.15384/0.15280** and **0.15378/0.15256** $\omega_p$; independent roots give **0.15135/0.15392**. The predicted dark shift is below the fit uncertainty, so this run resolves the growing branch but not a mixing-induced rate change. Maximum sampled complete-energy drift falls from **0.093%** to **0.023%** on joint refinement. The final tail is broadened. The [full record](docs/_static/figures/bump_on_tail/run.json) gives fit errors, Gauss residuals and settings. This extends [JAX-in-Cell's bump example](https://github.com/uwplasma/JAX-in-Cell/blob/83d327118163833f93e2588edcb5029241f6ba2a/examples/2_intermediate/bump_on_tail.py) with a finite field; the [movie](docs/_static/movies/bump_on_tail/run.json) shows both phase spaces, all longitudinal electric fields and energy on common axes.
+
+<img src="docs/_static/movies/bump_on_tail/figure.webp" width="900" alt="Matched 120,000-particle bump-on-tail phase spaces and electric fields">
+
+<img src="docs/_static/figures/bump_on_tail/figure.png" width="800" alt="Bump-on-tail growth, velocity distributions and complete-energy drift at two resolutions">
+
+## Transverse anisotropy
+
+The [Weibel example](examples/dark_instabilities.py) seeds a transverse magnetic mode in a current-neutral bi-Maxwellian with $T_z/T_x=4$. Its independent Vlasov–Proca root gives $\gamma/\omega_p=0.05113$; the 30,000- and 60,000-particle PIC fits give $0.05123$ and $0.05117$. The smaller predicted dark-minus-parent shift is comparable to fit uncertainty, so this run validates the mixed rate but does not resolve that shift. [Equation, fits and uncertainty](docs/kinetic.md#transverse-anisotropy); [arrays](docs/_static/figures/mixed_weibel/run.json).
+
+<img src="docs/_static/figures/mixed_weibel/figure.png" width="800" alt="Transverse anisotropy growth against the independent kinetic root">
+
+## Prescribed drive: a control with external work
+
+The [drive example](examples/dark_drive.py) applies a homogeneous sinusoidal force at the cold plasma resonance. It follows the independently solved forced oscillator to **$7.49\times10^{-5}$** of the force scale; ordinary energy gained and accumulated external work differ by **$2.77\times10^{-4}$** of the transfer. This control has no evolving Proca reservoir. [Settings and data](docs/_static/figures/prescribed_drive/run.json).
+
+<img src="docs/_static/figures/prescribed_drive/figure.png" width="800" alt="Prescribed resonant drive and independent forced-oscillator response">
+
+## Homogeneous-drive null check
+
+For a nonrelativistic electron plasma with a fixed neutralizer, a uniform force can be removed from the nonzero spatial modes by moving to an accelerating frame. The [matched null example](examples/dark_null.py) measures the seeded mode with and without that force: its largest relative difference falls from **$2.78\times10^{-4}$** to **$3.94\times10^{-5}$** when the grid, loading and timestep are refined together. This restricted null is distinct from a mobile-ion heating test. [Record](docs/_static/figures/homogeneous_null/run.json).
+
+<img src="docs/_static/figures/homogeneous_null/figure.png" width="800" alt="Matched zero-drive and homogeneous-drive nonzero-mode histories">
+
+## Oblique magnetized 3V response
+
+The [cold oblique example](examples/dark_plasma.py) sets a magnetic field with three nonzero components, exciting all particle velocity and field polarizations. A 12-state cold-fluid matrix exponential gives an independent answer for the six mean electric fields; the largest full-run error is **$4.92\times10^{-4}$** of the initial dark amplitude. [Record](docs/_static/figures/oblique_3v/run.json).
+
+<img src="docs/_static/figures/oblique_3v/figure.png" width="800" alt="Six mean electric fields against an oblique cold-fluid matrix reference">
+
+## Mobile ions: finite versus imposed reservoirs
+
+The [mobile-ion example](examples/dark_reservoir.py) compares a zero-drive control, an imposed resonant force, and two finite Proca reservoirs with the same initial force. A two-fluid electron–ion solution checks the early mean response. By $\omega_pt=40$, the small dark reservoir loses about **52.8%** of its initial field energy; the large one loses about **14.8%**. A separate 1,000-cell [paper-geometry pilot](docs/_static/figures/paper_geometry_pilot/run.json) reaches only $\omega_pt=80$ and finds no loading-stable pump-induced higher-mode growth. It does not reproduce the late heating of [Hook, Huang and Shalaby](https://doi.org/10.1103/98cx-7t43). [Controls and limits](docs/kinetic.md#mobile-ions-and-a-finite-reservoir).
+
+<img src="docs/_static/figures/mobile_ions/figure.png" width="800" alt="Matched ion-electron prescribed drive and finite dark reservoirs">
+
+<img src="docs/_static/figures/paper_geometry_pilot/figure.png" width="800" alt="Early paper-geometry control and loading-sensitive higher-mode energy">
 
 ## Conservation and long-time clocks
 
@@ -111,9 +167,17 @@ The [profile example](examples/dark_profile.py) keeps the slab's total electron 
 
 *The [packet movie](docs/_static/movies/slab_packet/run.json) uses 512 cells, about 26 cells across the slab, 256 particles per basis per species and 80 stored frames. It shows propagation; the full optimization record carries the flux and convergence claims.*
 
-## Other checks and related codes
+## Vacuum polarizations and complete restart
 
-The [examples](examples/) also test all three vacuum polarizations, oblique magnetized 3V response, a transverse-anisotropy mode, a prescribed-drive control, mobile ions and complete restart. [Validation](docs/validation.md) separates each resolved result from open convergence work. In particular, the [Hook–Huang–Shalaby study](https://doi.org/10.1103/98cx-7t43) uses high-order PIC with mobile ions and a prescribed homogeneous dark drive; our short finite-reservoir control has not reproduced its long heating curve. [Corelli *et al.*](https://arxiv.org/abs/2410.16357) study cold-fluid wave conversion at multiple crossings, while [Caputo *et al.*](https://github.com/smsharma/dark-photons-perturbations) provide inhomogeneous-universe conversion notebooks.
+The [field tests](tests/test_proca.py) compare longitudinal and both transverse vacuum polarizations with discrete-symbol waves, check the ordinary and dark Gauss laws, and resume the complete particle/field state across a run boundary. The source-free [energy/phase experiment](docs/_static/figures/time_integrators/run.json) above includes all three polarizations. Native NPZ restart saves $\mathbf E_D,\mathbf B_D,\mathbf A_D,\phi_D$, the neutralizing background and accumulated work alongside the parent particle and Maxwell state. [Validation details](docs/validation.md).
+
+## Runtime and differentiation cost
+
+The [isolated field-step benchmark](docs/_static/figures/field_cost.json) uses 8,192 particles on 128 cells for 256 steps: median warm CPU times are **176 ms** for the parent and **219 ms** for active Proca. A [131,072-particle replay](docs/_static/figures/field_cost_large.json) gives **5.30 s** and **5.71 s**, with host load varying too much to infer a reliable overhead ratio. These are *timing workloads*; the physics examples above use up to 240,000 electrons. A separate [955-step gradient recurrence](docs/_static/figures/recurrence_benchmark.json) compares native JAX checkpointing with SOLVAX. SOLVAX agrees on value and derivative but offers no clear benefit over native segmented JAX, so it remains optional. [Compile, memory and device details](docs/performance.md) are reported with the measurements.
+
+## Related codes and scope
+
+[JAX-in-Cell](https://github.com/uwplasma/JAX-in-Cell) supplies the ordinary PIC engine and the original bump example. [Hook, Huang and Shalaby](https://doi.org/10.1103/98cx-7t43) use high-order PIC with mobile ions and an imposed homogeneous dark drive; our short finite-reservoir control has not reproduced their long heating curve. [Corelli *et al.*](https://arxiv.org/abs/2410.16357) study cold-fluid conversion at multiple crossings, while [Caputo *et al.*](https://github.com/smsharma/dark-photons-perturbations) provide inhomogeneous-universe conversion notebooks. [Methods and literature](docs/validation.md#other-numerical-approaches) explain the distinct models.
 
 | Documented feature | This code | [JAX-in-Cell](https://github.com/uwplasma/JAX-in-Cell/tree/83d327118163833f93e2588edcb5029241f6ba2a) | [PIConGPU](https://github.com/ComputationalRadiationPhysics/picongpu) | [Caputo *et al.* notebooks](https://github.com/smsharma/dark-photons-perturbations) |
 |---|:---:|:---:|:---:|:---:|
@@ -127,6 +191,6 @@ The [examples](examples/) also test all three vacuum polarizations, oblique magn
 
 ✅ means the linked implementation documents the feature; ❌ means it does not provide that feature in its reviewed scope. The codes solve different problems: PIConGPU is a large-scale multidimensional Maxwell PIC, while the Caputo notebooks calculate cosmological conversion without kinetic particles. The [literature and method comparison](docs/validation.md#other-numerical-approaches) gives more context.
 
-Regenerate full figures, records and measured documentation with `python docs/scripts/make_all.py`. Regenerate the two compressed README loops with `python docs/scripts/make_movies.py` after `python -m pip install -e '.[media]'`. Quick presets are smoke tests, not the full evidence quoted above.
+Regenerate full figures, records and measured documentation with `python docs/scripts/make_all.py`. Regenerate the three compressed README loops with `python docs/scripts/make_movies.py` after `python -m pip install -e '.[media]'`. Quick presets are smoke tests, not the full evidence quoted above.
 
 MIT licensed. JAX-in-Cell and its human contributors retain upstream authorship and licenses. The parent [draft PR #42](https://github.com/uwplasma/JAX-in-Cell/pull/42) remains separate.

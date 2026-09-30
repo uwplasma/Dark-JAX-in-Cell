@@ -1,0 +1,54 @@
+{
+ "jaxincell": "0.1.2.dev211+g83d327118",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "651a570bf64cb60bc88a242b53a3c89889e9c9fa-dirty",
+ "example": "dark_movie_two_stream",
+ "settings": {
+  "preset": "illustration",
+  "cells": 128,
+  "particles_per_species": [
+   65536,
+   65536
+  ],
+  "steps": 4380,
+  "store_every": 60,
+  "eta": 0.3,
+  "mu_over_wp": 0.7,
+  "mode": 1,
+  "horizon_omega_p": 54.750000000003865,
+  "stored_samples_per_plasma_period": 8.377580409572781,
+  "particles_plotted_per_panel": 8192,
+  "matched_loading": "same particle arrays, weights, ordinary field, grid and timestep"
+ },
+ "results": {
+  "frames": 73,
+  "webp_bytes": 1227264,
+  "closed_energy_relative_drift": 0.00021905288315959837,
+  "parent_energy_relative_drift": 0.00017842482422025796,
+  "max_dark_gauss_V_m2": 1.0128132998943329e-07,
+  "particle_refinement": {
+   "reference": "two_stream_extended case_1: 128 cells, 8000 particles/beam, same step",
+   "parent": {
+    "high_particle_growth_over_wp": 0.3339070773238084,
+    "mode_rms_difference_over_high": {
+     "10_20": 0.002116228725441729,
+     "20_40": 0.012678552101985964,
+     "40_55": 0.016838466019553425
+    }
+   },
+   "mixed": {
+    "high_particle_growth_over_wp": 0.34288870482341505,
+    "mode_rms_difference_over_high": {
+     "10_20": 0.002105865325616445,
+     "20_40": 0.013851998630144066,
+     "40_55": 0.01685000328710075
+    }
+   }
+  }
+ }
+}

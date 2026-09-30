@@ -17,6 +17,7 @@ from darkjaxincell import (DarkField, DarkSimulation, PrescribedDrive, gauss,
 from darkjaxincell._proca import divergence, drift, gradient, kick
 from examples.optimize_dark_photon import build_objective, cold_reference
 from examples.dark_kinetic import mixed_root
+from examples.dark_bump import build_plasma, kinetic_root
 from examples.dark_instabilities import two_stream_growth, weibel_growth
 from examples.dark_profile import (build_design, cold_scattering, packet, profile,
                                    slab_basis, transmitted_fraction, make_simulation)
@@ -25,6 +26,23 @@ from docs.scripts.benchmark_time_integrators import system as vacuum_system
 
 OMEGA = 1e9
 N_REF = epsilon_0 * mass_electron * OMEGA**2 / e**2
+
+
+def test_bump_loading_and_independent_kinetic_limit():
+    coarse, wp, vth = build_plasma(64, 512, 256)
+    fine, wp_fine, vth_fine = build_plasma(128, 1024, 512, 0.0125)
+    assert wp == wp_fine and vth == vth_fine
+    assert fine.domain.dx == coarse.domain.dx / 2
+    state, (_, charge) = coarse.initial_state(jax.random.PRNGKey(0))
+    velocity = coarse._velocity(state.u)[:, 0]
+    current = np.sum(np.asarray(charge * state.w * velocity))
+    scale = np.sum(np.abs(np.asarray(charge * state.w * velocity)))
+    assert abs(current) / scale < 1e-12
+    parent, residual0 = kinetic_root(wp, vth, 0)
+    mixed, residual = kinetic_root(wp, vth, 0.3)
+    np.testing.assert_allclose([parent.real, parent.imag], [0.848257, 0.151347], atol=2e-6)
+    assert mixed.imag > parent.imag and mixed.real > parent.real
+    assert max(residual0, residual) < 1e-7
 
 
 def plasma(density=0.0, n=16, cells=16, external_E=None):
