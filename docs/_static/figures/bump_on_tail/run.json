@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "7133295f4bb3d2528f188ddbdfce1e17594f7b7c",
+ "git": "b250a36864eb6e609b3fb7048e1ccdb78fe18de5-dirty",
  "example": "dark_bump",
  "settings": {
   "preset": "full",
