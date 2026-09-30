@@ -208,3 +208,35 @@ The [reported SHARP setup, Appendix B](https://arxiv.org/html/2510.13956v1) uses
 ![Early strong-drive response and loading-sensitive nonzero-mode energy](_static/figures/paper_geometry_pilot/figure.png)
 
 The [run record](_static/figures/paper_geometry_pilot/run.json) and [plotted arrays](_static/figures/paper_geometry_pilot/data.npz) retain both loadings. This is an early-time diagnostic with the parent's quadratic particle shape, $\leq80{,}000$ total particles and a horizon far short of the source's long runs. It neither reproduces nor rules out the reported nonlinear heating and saturation.
+
+### Replay of the attached Hook–Huang–Shalaby Figure 2
+
+`python examples/dark_reservoir.py --paper` uses the original [October 2025 preprint](https://arxiv.org/abs/2510.13956v1), Figure 2 and Appendix B. The target is a **prescribed spatially uniform electric force**, not an independently evolved dark reservoir. Electrons and mobile ions have $m_i/m_e=1836$, $T_e=T_i=10^{-3}m_ec^2$, $L=40c/\omega_p$, and 1,000 cells. Both species start at the same equally spaced positions, with independent Gaussian longitudinal velocities and no added spatial perturbation. Each draw is conditioned to zero mean and exactly the specified variance; the seed and this conditioning are recorded. The replay uses relativistic Boris, which gives the same electric-only momentum kick as Vay in this 1V setting. Its quadratic parent shapes differ from the paper's fifth-order shapes.
+
+The paper defines $\sigma_s^2=\langle(v_x-\langle v_x\rangle)^2\rangle=T_s/m_s$ in Eq. B2. This is $v_{th,s}/\sqrt2$ in the parent API. With $r=v_q^D/\sigma_e$,
+
+$$
+E_{\rm applied}(t)=\frac{m_ec\omega_p}{e}a_0\cos(\omega_pt),\qquad
+a_0=r\sqrt{10^{-3}},\qquad
+\mathcal E_{s,\rm spread}=\frac{m_s}{2}\sum_p w_p(v_{x,p}-\overline v_{x,s})^2.
+$$
+
+The default $r=0.03$ matches the upper panel of Figure 2. `--drive-ratio 0.001` selects the lower-panel force, and `--drive-ratio 0` supplies the matched no-drive control. The earlier seeded pilot above used $0.03$ times the **parent** thermal-speed convention, making its force $\sqrt2$ larger than the upper-panel force. It remains a separate short control and is not Figure 2 evidence.
+
+`--paper --full` selects 103,000 markers **per species** and $\omega_pt=5000$; `--particles`, `--cells`, `--dt`, `--horizon`, and `--seed` override the numerical controls. The total count follows the paper's Eq. B5 noise-onset estimate,
+
+$$
+\overline t_{\rm noise}=\frac{40}{a_0\sqrt{3N_pN_x/2}}.
+$$
+
+For $r=0.03$, $N_x=1000$ and $\overline t_{\rm noise}=2.4$, this gives $N_p\simeq2.06\times10^5$ **total** markers. It is an inference rather than a reported per-species count. The weak force requires about $1.85\times10^8$ total markers to retain the same estimate. A smaller weak-force replay therefore has a different noise budget and cannot be labeled a matched-loading reproduction.
+
+The saved scalar histories include exact relativistic particle kinetic energy, the Eq. B3 velocity-spread measure, species mean and RMS velocities, mean and nonzero-$k$ electric energy, grid-scale density contrast, source work, and total momentum. The spread measure removes only the species-global mean; it includes spatial flows and does not measure a rest-frame thermodynamic temperature. Every-step maxima retain energy-minus-work, particle/grid charge, continuity, ordinary Gauss, and dark Gauss residuals without storing particle histories. `--coupling ETA` replaces the prescribed source by a finite Proca field with the same initial force, and includes its full potential energy and momentum.
+
+Two independent controls accompany the PIC data. The finite-ion Newtonian solution generalizes Eq. A25: for $\tau=\omega_pt$, $b=1+1/1836$ and $E_* = m_ec\omega_p/e$,
+
+$$
+\frac{\overline E}{E_*}=\frac{ba_0}{b-1}\left[\cos(\sqrt b\,\tau)-\cos\tau\right].
+$$
+
+Its early, fixed-ion limit is $-a_0\tau\sin\tau/2$, with energy envelope $a_0^2\tau^2/8$. Independently integrated Gaussian momentum orbits retain relativistic thermal and amplitude detuning while suppressing spatial perturbations. This homogeneous reference can bound coherent field growth without exciting ion-density waves. A nonlinear spatial interpretation therefore requires a resolved increase in electron spread and density contrast relative to both this reference and the no-drive control, with separate grid, step, loading, and seed checks. The setup and linear-limit controls do not by themselves confirm the paper's late suppression curve, its proposed density mechanism, or its cosmological conclusion.

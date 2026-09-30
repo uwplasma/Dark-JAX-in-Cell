@@ -7,6 +7,8 @@ same force but different finite field energies.  All share one loading.
 
 import argparse
 from pathlib import Path
+import resource
+import time
 
 import jax.numpy as jnp
 from jax import random
@@ -28,6 +30,8 @@ from darkjaxincell._proca import energy as dark_energy
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "docs" / "scripts"))
 from pair_reference import (coupled_response, growth, relativistic_response,
                             seeded_response)  # noqa: E402
+from conservation import measured_run  # noqa: E402
+from drive_reference import forced_cold, homogeneous  # noqa: E402
 
 
 def pair_plasma(cells, particles_per_cell, dtau, seed, relativistic=False):
@@ -592,16 +596,180 @@ def paper_geometry_pilot(folder):
         plt.close(fig)
 
 
+def paper_plasma(cells, particles, dtau, seed):
+    """Appendix B plasma: RMS sigma, exact mass ratio, unseeded Gaussian velocities."""
+    if not isinstance(cells, (int, np.integer)) or cells < 4:
+        raise ValueError("paper cells must be an integer >= 4")
+    if not isinstance(particles, (int, np.integer)) or particles < 2:
+        raise ValueError("paper particles per species must be an integer >= 2")
+    if not np.isfinite(dtau) or dtau <= 0:
+        raise ValueError("paper dt must be finite and positive")
+    wp, ratio = 1e9, 1836.0
+    density = wp**2 * epsilon_0 * mass_electron / e**2
+    length = 40 * c / wp
+    x, _ = quiet_start(particles, length)
+    rng = np.random.default_rng(seed)
+    species = []
+    for name, charge, mass in (("electrons", -1, mass_electron),
+                               ("ions", 1, ratio * mass_electron)):
+        velocity = rng.normal(size=particles)
+        # Remove finite-sample bulk flow and match the specified initial variance.
+        velocity = (velocity - velocity.mean()) / velocity.std()
+        velocity *= c * np.sqrt(1e-3 * mass_electron / mass)
+        v = jnp.zeros((particles, 3)).at[:, 0].set(jnp.asarray(velocity))
+        species.append(Species(name, particles, charge, mass, density, x=x, v=v))
+    return Simulation(Domain(length=length, cells=cells, time_step=dtau / wp),
+                      tuple(species), Solver(relativistic=True)), wp
+
+
+def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None):
+    """Hook Fig. 2 drive with reduced moments, work and both constraint ledgers."""
+    if not np.isfinite(horizon) or horizon <= 0:
+        raise ValueError("paper horizon must be finite and positive")
+    if not np.isfinite(ratio) or ratio < 0:
+        raise ValueError("paper drive ratio must be finite and nonnegative")
+    if eta is not None and (not np.isfinite(eta) or eta <= 0):
+        raise ValueError("paper finite-reservoir coupling must be finite and positive")
+    plasma, wp = paper_plasma(cells, particles, dtau, seed)
+    amplitude = ratio * np.sqrt(1e-3)
+    field_scale = mass_electron * c * wp / e
+    force = amplitude * field_scale
+    model = (PrescribedDrive(1.0, jnp.array([force, 0., 0.]), wp) if eta is None
+             else DarkField(wp, eta, initial_E=jnp.tile(
+                 jnp.array([force / eta, 0., 0.]), (cells, 1))))
+    sim = DarkSimulation(plasma, model)
+    start, _ = sim.initial_state(random.PRNGKey(seed))
+    stride = max(1, round(0.5 / dtau))
+    steps = stride * max(1, round(horizon / (stride * dtau)))
+    before = time.perf_counter()
+    executable = measured_run.lower(sim, start, steps, stride).compile()
+    compile_seconds = time.perf_counter() - before
+    memory = executable.memory_analysis()
+    before = time.perf_counter()
+    final, history, maxima = executable(sim, start)
+    maxima.block_until_ready()
+    warm_seconds = time.perf_counter() - before
+    history = {key: np.array(value) for key, value in history.items()}
+    density = plasma.species[0].density
+    energy_scale = density * mass_electron * c**2 * plasma.domain.length
+    momentum_scale = energy_scale / c
+    t = history['t'] * wp
+    history['t'] = t
+    for key in ('electric', 'magnetic', 'dark', 'kinetic', 'spread', 'balance', 'work'):
+        history[key] /= energy_scale
+    for key in ('mean', 'rms', 'max_speed'):
+        history[key] /= c
+    history['momentum'] /= momentum_scale
+    history['mean_E'] /= field_scale
+    history['mode_E'] /= field_scale
+    history['nonzero_electric'] = history['electric'] - history['mean_E']**2 / 2
+    maxima = np.asarray(maxima)
+    # Spatially homogeneous kinetic orbits separate relativistic detuning from density waves.
+    cold = forced_cold(t, amplitude)
+    oracle = homogeneous(t, amplitude, eta=eta)
+    early = t <= min(40, t[-1])
+    scale = max(np.max(abs(oracle['mean_E'][early])), amplitude, 1e-30)
+    late = t >= max(0, t[-1] - min(200, t[-1] / 5))
+    results = dict(early_mean_error_over_homogeneous_peak=float(np.max(
+        abs(history['mean_E'][early] - oracle['mean_E'][early])) / scale) if ratio else None,
+        early_mean_error_over_cold_peak=float(np.max(
+            abs(history['mean_E'][early] - cold[early])) / scale) if eta is None and ratio else None,
+        max_energy_work_defect_over_initial_thermal=float(maxima[0] / (1e-3 * energy_scale)),
+        max_momentum_defect_over_nmecL=float(maxima[1] / momentum_scale),
+        max_particle_charge_change_over_enL=float(maxima[2] / (e * density * plasma.domain.length)),
+        max_grid_charge_change_over_enL=float(maxima[6] / (e * density * plasma.domain.length)),
+        max_continuity_over_enwp=float(maxima[3] / (e * density * wp)),
+        max_ordinary_gauss_over_en_eps0=float(maxima[4] * epsilon_0 / (e * density)),
+        max_dark_gauss_over_en_eps0=float(maxima[5] * epsilon_0 / (e * density)),
+        late_electron_spread_over_initial=float(np.mean(history['spread'][late, 0]) / 5e-4),
+        late_ion_spread_over_initial=float(np.mean(history['spread'][late, 1]) / 5e-4),
+        late_electric_energy_over_initial_electron_thermal=float(np.mean(history['electric'][late]) / 5e-4),
+        late_nonzero_electric_energy_over_initial_electron_thermal=float(
+            np.mean(history['nonzero_electric'][late]) / 5e-4),
+        final_particle_kinetic_increment=float(np.sum(history['kinetic'][-1] - history['kinetic'][0])),
+        final_homogeneous_particle_kinetic_increment=float(np.sum(oracle['kinetic'][-1] - oracle['kinetic'][0])),
+        max_energy_work_defect_over_peak_injected_work=float(maxima[0] / max(
+            np.max(abs(history['work'])) * energy_scale, 1e-30)) if eta is None and ratio else None,
+        max_speed_over_c=float(np.max(history['max_speed'])), compile_s=compile_seconds,
+        warm_primal_s=warm_seconds,
+        compiler_temporary_MiB=memory.temp_size_in_bytes / 2**20 if memory is not None else None,
+        compiler_arguments_MiB=memory.argument_size_in_bytes / 2**20 if memory is not None else None,
+        compiler_outputs_MiB=memory.output_size_in_bytes / 2**20 if memory is not None else None,
+        process_peak_MiB=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (
+            2**20 if sys.platform == 'darwin' else 1024),
+        claim='Fig. 2 parameter replay; late reproduction requires loading/grid/time/seed convergence')
+    settings = dict(source='Hook, Huang, Shalaby arXiv:2510.13956v1 Fig. 2 and Appendix B',
+                    cells=cells, particles_per_species=particles, dt_omega_p=dtau,
+                    horizon_omega_p=float(t[-1]), seed=seed, length_c_over_omega_p=40,
+                    mass_ratio=1836, T_each_over_mec2=1e-3, drive_quiver_over_sigma=ratio,
+                    force_quiver_over_c=amplitude, coupling=eta, output_dt_omega_p=stride * dtau,
+                    loading='co-located lattice; independent Gaussian velocities, zero mean and exact variance',
+                    pusher='relativistic Boris; electric 1V uses the same momentum kick as Vay',
+                    shape='quadratic parent spline; paper uses fifth-order',
+                    inferred_t_noise=(40 / (amplitude * np.sqrt(3 * particles * cells))
+                                      if amplitude else None),
+                    parent_revision='83d327118163833f93e2588edcb5029241f6ba2a')
+    with midnight():
+        fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout='constrained')
+        axes[0, 0].plot(t, history['electric'] - history['electric'][0], label='electric change')
+        for i, label in enumerate(('electron spread', 'ion spread')):
+            axes[0, 0].plot(t, history['spread'][:, i] - history['spread'][0, i], label=label)
+        if eta is None:
+            axes[0, 0].plot(t, amplitude**2 * t**2 / 8, '--', color='#6A3D9A', label='linear t² envelope')
+        axes[0, 0].plot(t, oracle['electric'], ':', color='#0072B2', label='homogeneous kinetic E')
+        axes[0, 0].axhline(5e-4, color='#6B7280', ls=':', label='initial electron thermal')
+        axes[0, 0].set_yscale('symlog', linthresh=1e-6)
+        axes[0, 0].set(ylabel='energy / n mₑ c² L')
+        for i, label in enumerate(('electrons', 'ions')):
+            axes[0, 1].plot(t, history['rms'][:, i], label=label + ' RMS spread')
+            axes[0, 1].plot(t, abs(history['mean'][:, i]), '--', label=label + ' |mean|')
+            axes[1, 1].plot(t, history['density_rms'][:, i], label=label)
+        sound_speed = np.sqrt((history['rms'][:, 0]**2 + 1836 * history['rms'][:, 1]**2) / 1836)
+        axes[0, 1].plot(t, sound_speed / np.sqrt(2), ':', color='#009E73', label='sound speed / √2')
+        axes[0, 1].set(yscale='log', ylabel='velocity / c', ylim=(np.sqrt(1e-3 / 1836) / 10, None))
+        axes[1, 0].plot(t, (history['balance'] - history['balance'][0]) / 1e-3, label='energy − work')
+        axes[1, 0].plot(t, history['momentum'][:, 0] - history['momentum'][0, 0], label='momentum / n mₑ c L')
+        axes[1, 0].set(ylabel='conservation defects')
+        axes[1, 1].set(ylabel='grid-scale density RMS / mean')
+        for ax in axes.flat:
+            ax.set(xlabel=r'$\omega_p t$')
+            ax.grid(alpha=0.25)
+            ax.legend(fontsize=8)
+        reference = {f'homogeneous_{key}': oracle[key] for key in (
+            'mean_E', 'mean_D', 'mean_A', 'mean', 'rms', 'kinetic', 'spread', 'electric', 'dark', 'work', 'balance')}
+        save_run(folder, 'paper_resonant_conversion', settings, results, fig,
+                 linear_mean_E=cold, **reference, **history)
+        # Scalar histories compress well; retain the native example/provenance path.
+        np.savez_compressed(Path(folder) / 'data.npz', linear_mean_E=cold, **reference, **history)
+        plt.close(fig)
+    print('🌘 PAPER REPLAY:', results, flush=True)
+    return history, settings, results
+
+
 def main():
     parser = argparse.ArgumentParser(description="Follow a mobile-ion ghost and its finite reservoir")
     preset = parser.add_mutually_exclusive_group()
-    preset.add_argument("--full", action="store_true", help="two physical resolutions")
+    parser.add_argument("--full", action="store_true", help="full validation preset")
     preset.add_argument("--paper-pilot", action="store_true", help="short paper-geometry loading check")
+    preset.add_argument("--paper", action="store_true", help="corrected unseeded Fig. 2 parameter replay")
+    parser.add_argument("--cells", type=int, default=1000)
+    parser.add_argument("--particles", type=int, help="markers per species for the paper replay")
+    parser.add_argument("--dt", type=float, default=0.02, help="paper timestep in 1/omega_p")
+    parser.add_argument("--horizon", type=float, help="paper horizon in 1/omega_p")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--drive-ratio", type=float, default=0.03, help="paper v_quiver / RMS sigma_e")
+    parser.add_argument("--coupling", type=float, help="replace prescribed drive with a finite Proca reservoir")
     pair_mode = parser.add_mutually_exclusive_group()
     pair_mode.add_argument("--pair", action="store_true", help="ordinary oscillating pair-plasma bridge")
     pair_mode.add_argument("--pair-dark", action="store_true", help="finite Proca pair-plasma bridge")
     parser.add_argument("--output", type=Path, default=Path("artifacts/dark_reservoir"))
     args = parser.parse_args()
+    if args.paper:
+        paper_case(args.output, args.cells,
+                   args.particles if args.particles is not None else (103000 if args.full else 20000),
+                   args.dt, args.horizon if args.horizon is not None else (5000 if args.full else 40),
+                   args.seed, args.drive_ratio, args.coupling)
+        return
     if args.pair:
         pair_figure(args.output, args.full)
         return
