@@ -188,7 +188,7 @@
       "platform": "Linux x86_64",
       "jax_enable_x64": true,
       "backend": "gpu",
-      "git": "a8184d3f9fb189e026749af31245ab9a035cab6c-dirty",
+      "git": "7fdacf7720b61854104bc7be6bf900121c3f3edc",
       "run": "oscillating_pair/run.json"
     },
     "oscillating_dark_pair": {
@@ -199,7 +199,7 @@
       "platform": "Linux x86_64",
       "jax_enable_x64": true,
       "backend": "gpu",
-      "git": "a8184d3f9fb189e026749af31245ab9a035cab6c-dirty",
+      "git": "7fdacf7720b61854104bc7be6bf900121c3f3edc",
       "run": "oscillating_dark_pair/run.json"
     },
     "profile_design": {
@@ -375,7 +375,7 @@
   "dark_pair_ordinary_error": "0.031",
   "dark_pair_dark_error": "0.031",
   "dark_pair_mean_error": "1.348e-03",
-  "dark_pair_gauss": "1.782e-13",
+  "dark_pair_gauss": "1.869e-13",
   "dark_pair_coherent": "0.525",
   "dark_pair_kinetic": "0.452",
   "dark_pair_final_speed": "0.571",
