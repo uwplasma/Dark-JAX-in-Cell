@@ -210,7 +210,7 @@ measured.update({"pair_pic_growth": f"{pair_result['pic_cycle_fit']['growth_over
                  "pair_late_coherent": f"{pair_result['late_coherent_fraction']:.3f}",
                  "pair_late_random": f"{pair_result['late_random_gain_over_initial_pump']:.3f}",
                  "pair_no_pump_random": (
-                     f"{pair_result['controls']['no_pump']['late_random_gain_over_initial_pump']:.3f}"),
+                     f"{pair_result['controls']['no_pump']['late_random_gain_over_initial_pump']:.2e}"),
                  "pair_seed_shift": f"{seed_shift:.1f}",
                  "pair_seed_expected_shift": (
                      f"{math.log(5) / pair_result['floquet_growth_over_omega0']:.1f}"),
@@ -240,14 +240,20 @@ measured.update({"dark_pair_ordinary_error": (
                      f"{dark_pair_result['ordinary_matched_energy']['late_coherent_fraction']:.3f}"),
                  "dark_pair_grid_control": (
                      f"{dark_pair_refinements[(2048, 32, 0.00625)]['late_coherent_fraction']:.3f}"),
+                 "dark_pair_grid_drift": (
+                     f"{dark_pair_refinements[(2048, 32, 0.00625)]['max_closed_energy_drift']:.3e}"),
                  "dark_pair_large_grid": (
                      f"{dark_pair_refinements[(8192, 32, 0.00625)]['late_coherent_fraction']:.3f}"),
+                 "dark_pair_large_grid_drift": (
+                     f"{dark_pair_refinements[(8192, 32, 0.00625)]['max_closed_energy_drift']:.3e}"),
                  "dark_pair_marker_control": (
                      f"{dark_pair_refinements[(4096, 16, 0.00625)]['late_coherent_fraction']:.3f}"),
                  "dark_pair_dense_markers": (
                      f"{dark_pair_refinements[(4096, 64, 0.00625)]['late_coherent_fraction']:.3f}"),
                  "dark_pair_clock_control": (
                      f"{dark_pair_refinements[(4096, 32, 0.0125)]['late_coherent_fraction']:.3f}"),
+                 "dark_pair_clock_drift": (
+                     f"{dark_pair_refinements[(4096, 32, 0.0125)]['max_closed_energy_drift']:.3e}"),
                  "dark_pair_final_speed": f"{dark_pair_result['max_final_speed_over_c']:.3f}",
                  "dark_pair_energy_drift": f"{dark_pair_result['max_closed_energy_drift']:.3e}"})
 design = EVIDENCE.parent / "profile_design"
