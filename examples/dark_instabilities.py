@@ -98,6 +98,10 @@ def plot_screened_growth(ax, screening, K, b):
     ax.axvline(0.7 / K, color="#30343B", ls=":", label="PIC setting")
     ax.set(xlabel=r"$\Omega_D/(kc)$", ylabel=r"$\Delta\gamma/\omega_p$",
            title="Cold screening explains the shift")
+    ax.text(0.04, 0.05,
+            f"{100 * screening['quasistatic_fraction_of_full_shift']:.3f}% screened\n"
+            "at dotted setting", transform=ax.transAxes, fontsize=9,
+            bbox={"facecolor": "white", "edgecolor": "#6B7280", "alpha": 0.9})
     ax.grid(alpha=0.4)
     ax.legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
     return curves
