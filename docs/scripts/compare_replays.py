@@ -296,7 +296,9 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
             axis.set(xlabel=r'$\omega_pt$', xlim=(0, time[-1]))
             axis.grid(alpha=.25)
             axis.legend(fontsize=8)
-        arrays = {f'{name}_{key}': value for name, source in zip(('first', 'second', 'refined', 'loading'), sources)
+        names = ['first', 'second'] + (['refined'] if refined is not None else [])
+        names += ['loading'] if loading_refined is not None else []
+        arrays = {f'{name}_{key}': value for name, source in zip(names, sources)
                   for key, value in source[1].items()}
         settings = dict(variant=comparison['variant'], parent_revision=sources[0][0]['settings']['parent_revision'],
                         figure_average_samples=width, figure_average_span_omega_p=width * np.median(np.diff(time)),
