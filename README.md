@@ -203,19 +203,29 @@ The [isolated field-step benchmark](docs/_static/figures/field_cost.json) uses 8
 
 ## Related codes and scope
 
-[JAX-in-Cell](https://github.com/uwplasma/JAX-in-Cell) supplies the ordinary PIC engine and the original bump example. [Hook, Huang and Shalaby](https://doi.org/10.1103/98cx-7t43) use high-order PIC with mobile ions and an imposed homogeneous dark drive; our short finite-reservoir control has not reproduced their long heating curve. [Corelli *et al.*](https://arxiv.org/abs/2410.16357) study cold-fluid conversion at multiple crossings, while [Caputo *et al.*](https://github.com/smsharma/dark-photons-perturbations) provide inhomogeneous-universe conversion notebooks. [Methods and literature](docs/validation.md#other-numerical-approaches) explain the distinct models.
+[JAX-in-Cell](https://github.com/uwplasma/JAX-in-Cell) supplies the PIC engine. The table compares documented models, including [Hook–Huang–Shalaby's imposed-drive PIC](https://arxiv.org/pdf/2510.13956v1), cold-fluid conversion, cosmological probability calculations, and ordinary plasma solvers. **Proca** means an evolved massive field with plasma backreaction; **AD** means documented gradients through the simulated dynamics.
 
-| Documented feature | This code | [JAX-in-Cell](https://github.com/uwplasma/JAX-in-Cell/tree/83d327118163833f93e2588edcb5029241f6ba2a) | [PIConGPU](https://github.com/ComputationalRadiationPhysics/picongpu) | [Caputo *et al.* notebooks](https://github.com/smsharma/dark-photons-perturbations) |
-|---|:---:|:---:|:---:|:---:|
-| Self-consistent charged-particle PIC | ✅ | ✅ | ✅ | ❌ |
-| Finite massive-vector field sourced by PIC current | ✅ | ❌ | ❌ | ❌ |
-| Inhomogeneous dark-photon conversion model | ✅ | ❌ | ❌ | ✅ |
-| Gradients through the PIC trajectory | ✅ | ✅ | ❌ | ❌ |
-| Constrained PIC-gradient profile design | ✅ | ❌ | ❌ | ❌ |
-| CPU and GPU execution | ✅ | ✅ | ✅ | ❌ |
-| Complete particle/field restart | ✅ | ✅ | ✅ | ❌ |
+| Code or model | Public source | PIC | Dark conversion | Proca | AD | CPU + GPU | 2D/3D |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Dark-JAX-in-Cell | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| [JAX-in-Cell](https://github.com/uwplasma/JAX-in-Cell/tree/83d327118163833f93e2588edcb5029241f6ba2a) | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| [SHARP + Hook drive](https://arxiv.org/pdf/2510.13956v1) | — | ✅ | ✅ | ❌ | — | — | ❌ |
+| [Corelli *et al.* cold fluid](https://arxiv.org/abs/2410.16357) | — | ❌ | ✅ | ✅ | — | — | ❌ |
+| [Caputo *et al.* notebooks](https://github.com/smsharma/dark-photons-perturbations) | ✅ | ❌ | ✅ | ❌ | — | — | ❌ |
+| [OSIRIS public](https://github.com/osiris-code/osiris) | ✅ | ✅ | ❌ | ❌ | — | — | ✅ |
+| [Smilei](https://github.com/SmileiPIC/Smilei) | ✅ | ✅ | ❌ | ❌ | — | ✅ | ✅ |
+| [WarpX](https://github.com/BLAST-WarpX/warpx) | ✅ | ✅ | ❌ | ❌ | — | ✅ | ✅ |
+| [PIConGPU](https://github.com/ComputationalRadiationPhysics/picongpu) | ✅ | ✅ | ❌ | ❌ | — | ✅ | ✅ |
+| [VPIC 2.0](https://github.com/lanl/vpic-kokkos) | ✅ | ✅ | ❌ | ❌ | — | ✅ | ✅ |
+| [ECSIM test code](https://github.com/petschge/ECSIM) | ✅ | ✅ | ❌ | ❌ | — | — | ❌ |
+| [Unstaggered_PIC](https://github.com/sgong11/Unstaggered_PIC) | ✅ | ✅ | ❌ | ❌ | — | ❌ | ✅ |
+| [GEMPICX](https://github.com/NMPPMaxPlanck/GEMPICX) | ✅ | ✅ | ❌ | ❌ | — | ✅ | ✅ |
+| [ADEPT](https://github.com/ergodicio/adept) | ✅ | ✅¹ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| [SPECTRAX](https://github.com/uwplasma/SPECTRAX) | ✅ | ❌ | ❌ | ❌ | — | ✅ | ✅ |
 
-✅ means the linked implementation documents the feature; ❌ means it does not provide that feature in its reviewed scope. The codes solve different problems: PIConGPU is a large-scale multidimensional Maxwell PIC, while the Caputo notebooks calculate cosmological conversion without kinetic particles. The [literature and method comparison](docs/validation.md#other-numerical-approaches) gives more context.
+✅ documents the feature; ❌ excludes it from the reviewed model; — leaves it unverified. Review: **30 September 2026**, pinned parent above, Smilei 5.1, WarpX 26.09, PIConGPU 0.9.0-dev and GEMPICX 0.5.648; [source snapshots and conservation methods](docs/validation.md#other-numerical-approaches) give the qualifications. ¹ ADEPT's PIC module is electrostatic; its multidimensional kinetic solvers evolve distributions. SPECTRAX uses Hermite–Fourier moments. Unstaggered_PIC is a serial CPU teaching implementation with 3D potential PIC. OSIRIS's general CUDA documentation does not establish GPU support in its public snapshot. Particle/field restart is supported here and by several large PIC codes; it does not imply the same dark-field archive format.
+
+The pair benchmark confirms a known kinetic instability; the current finite-reservoir runs extend the model but have unresolved late loading dependence. They neither contradict Hook *et al.* nor confirm that paper's nonlinear conversion curve. Differentiable kinetic optimization already exists in ADEPT and the parent. The tested contribution here is the coupled Maxwell–Proca trajectory and its complete energy/work and gradient diagnostics; a new physical mechanism still requires converged controls.
 
 Regenerate full figures, records and measured documentation with `python docs/scripts/make_all.py`. Regenerate the three compressed README loops with `python docs/scripts/make_movies.py` after `python -m pip install -e '.[media]'`. Quick presets are smoke tests, not the full evidence quoted above.
 

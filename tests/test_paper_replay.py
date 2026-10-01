@@ -3,9 +3,11 @@
 import numpy as np
 import pytest
 from jax import random
+import jax.numpy as jnp
 from jaxincell import elementary_charge as e, epsilon_0, mass_electron, speed_of_light as c
 
 from examples.dark_reservoir import paper_case, paper_plasma
+from darkjaxincell import DarkSimulation, PrescribedDrive, load_state
 
 
 def test_paper_thermal_normalization_and_shared_neutral_loading():
@@ -69,4 +71,16 @@ def test_paper_scalar_archive_retains_initial_values_and_independent_control(tmp
         np.testing.assert_array_equal(stored['kinetic'], history['kinetic'])
         assert stored['homogeneous_balance'].shape == stored['t'].shape
         assert stored['momentum'].shape == (len(stored['t']), 3)
+        assert stored['local_spread_initial'].shape == (2, 2)
+        assert stored['local_spread_final'].shape == (2, 2)
+        assert np.all(stored['local_spread_initial'] > 0)
+        assert np.all(stored['local_spread_final'] > 0)
     assert np.isfinite(results['max_energy_work_defect_over_initial_thermal'])
+    plasma, wp = paper_plasma(16, 64, .02, 0)
+    force = .03 * np.sqrt(.001) * mass_electron * c * wp / e
+    sim = DarkSimulation(plasma, PrescribedDrive(1., jnp.array([force, 0., 0.]), wp))
+    restored = load_state(tmp_path / 'final_state.npz', sim)
+    assert restored.ordinary.time * wp == pytest.approx(1)
+    assert len(restored.ordinary.w) == 128
+    energy_scale = float(plasma.species[0].density) * mass_electron * c**2 * plasma.domain.length
+    assert restored.work / energy_scale == pytest.approx(history['work'][-1])

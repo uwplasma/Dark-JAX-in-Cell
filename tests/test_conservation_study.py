@@ -68,6 +68,9 @@ def test_every_step_ledgers_and_true_initial_sample_ignore_output_stride(model):
         assert float(dense_max[5]) * epsilon_0 / (e * N) < 1e-13
         np.testing.assert_allclose(dense_max[0], dense.max_balance_error,
                                    atol=1e-14 * float(history["balance"][0]))
+        residual = history["dark"] - history["dark"][0] - history["work"]
+        np.testing.assert_allclose(dense_max[7], np.max(abs(residual)),
+                                   atol=1e-14 * float(history["balance"][0]))
     if model == "drive":
         np.testing.assert_allclose(history["balance"] + history["work"],
                                    history["electric"] + history["kinetic"].sum(axis=1), rtol=1e-14)

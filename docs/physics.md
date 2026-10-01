@@ -63,6 +63,22 @@ $$
 
 Native archives include the dark mass, coupling, drive controls, grid and physical species parameters. Ordinary `load_state` rejects a changed experiment. Older archives without this versioned metadata must be regenerated. `load_for_continuation` explicitly permits a dark-parameter jump from an old model to a new one, reprojects longitudinal dark E and starts a new energy/work ledger at the archived state; the clock and particle state remain continuous. An ordinary imposed electric field is rejected by the dark wrapper because its work is absent from this ledger.
 
+## Momentum and charge
+
+For a periodic box with all charged species mobile, the continuum total momentum per transverse area is
+
+$$
+\mathbf P=\sum_p w_p m_p\mathbf u_p+
+\epsilon_0\int dx\,[\mathbf E\times\mathbf B+\mathbf E_D\times\mathbf B_D
++\Omega_D^2\phi_D\mathbf A_D/c^2],\qquad \mathbf u_p=\gamma_p\mathbf v_p.
+$$
+
+The massive-field term follows from the symmetric Proca stress-energy tensor: its momentum density is the dark energy flux divided by $c^2$. The field momentum equation has force density $-\eta(\rho\mathbf E_D+\mathbf J\times\mathbf B_D)$, which cancels the particles' dark force; the ordinary terms cancel similarly. Periodic stress fluxes then integrate to zero. A purely longitudinal massive wave can carry momentum even though $\mathbf B_D=0$. With $\theta=kx-\omega t$, $\omega^2=c^2k^2+\Omega_D^2$, $A_{D,x}=a\cos\theta$, $\phi_D=c^2ka\cos\theta/\omega$ and $E_{D,x}=-\Omega_D^2a\sin\theta/\omega$, the spatially averaged quantities obey $P_x/U_D=k/\omega$. The independent travelling-wave test checks this ratio and second-order convergence of the face-to-centre quadrature.
+
+A fixed neutralizing background is a momentum reservoir. When it is present, the tracked particle-plus-field momentum obeys $\dot{\mathbf P}=-\int dx\,\rho_{\rm bg}(\mathbf E+\eta\mathbf E_D)$ rather than zero. A homogeneous prescribed electric drive has zero net impulse only when the *mobile* charges sum to zero; this is the electron-ion and pair control used here. A prescribed driver supplies work, so its energy invariant is $U_{\rm particles+EM}-W_{\rm external}$, without a simulated dark energy.
+
+The [reduced validation runner](scripts/conservation.py) calls the production transition and records particle and deposited-grid charge, continuity, both Gauss laws, total momentum and the two sector work balances. It keeps the actual initial sample and maxima from every time step; changing the output stride does not change these maxima. The momentum quadrature averages face fields onto magnetic/scalar centres. It approximates the continuum invariant and does not assert an exactly conserved discrete Proca momentum. Charge and Gauss residuals are scaled to a fixed initial charge density, not to an instantaneous field that can pass through zero. Longitudinal lab-frame velocity-variance energy is labeled **spread**, rather than relativistic temperature.
+
 For the homogeneous prescribed drive $E_D=D_0\cos\Omega t$ and an initially quiet cold plasma, the ordinary field obeys $\ddot E+\omega_p^2E=-\eta\omega_p^2D_0\cos\Omega t$. Its resonant limit is $E=-\eta\omega_pD_0t\sin(\omega_pt)/2$. The [drive example](../examples/dark_drive.py) evaluates the continuous, stable sinc form near resonance and checks the accumulated external-work balance. This is the same effective ordinary forcing; its linear-in-time amplitude is not exponential growth.
 
 ## Independent cold check

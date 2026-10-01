@@ -64,8 +64,85 @@ Eight isolated development-only fault injections—removing the dark force/sourc
 
 ## Other numerical approaches
 
-The [JAX-in-Cell parent](https://github.com/uwplasma/JAX-in-Cell) supplies the ordinary Maxwell PIC methods used here; its implicit integrator is deliberately outside this explicit Proca extension. The public [Caputo–Liu–Mishra-Sharma–Ruderman code](https://github.com/smsharma/dark-photons-perturbations) studies inhomogeneous cosmological conversion probabilities and constraints with notebooks and density statistics, rather than evolving kinetic plasma particles. [Corelli *et al.*](https://arxiv.org/abs/2410.16357) develop a one-dimensional time-domain photon/dark-photon evolution with a cold electron fluid and study Landau–Zener breakdown at multiple crossings. Their paper describes a numerical code, but we have not identified a public source repository for it; our slab result is not its reproduction.
+The feature table in the README refers to the reviewed implementation or physical model, not every possible extension of a code. Ordinary Maxwell solvers can supply an independent PIC comparison without already implementing massive-vector mixing. A paper that reports a numerical code does not establish a public source release. We did not identify a public repository for either the driven SHARP adaptation or Corelli's solver.
 
-[Hook, Huang and Shalaby](https://doi.org/10.1103/98cx-7t43) adapt the high-order [SHARP PIC method](https://arxiv.org/abs/1702.04732) for long, mobile-electron/ion nonlinear simulations. Their [preprint Appendix B](https://arxiv.org/html/2510.13956v1) represents the dark photon as a spatially uniform **external electric drive**, and the reported late conversion shutdown occurs around $\omega_pt\sim5000$. Our `PrescribedDrive` is the corresponding control; our dynamical `DarkField` tracks a finite Proca reservoir. The $\omega_pt=80$ [paper-geometry pilot](kinetic.md) remains much shorter and less resolved. [DeRocco and Giffin](https://arxiv.org/abs/2411.11958) instead simulate **dark-charged matter streams** and a dark gauge plasma; that is a different set of charged species from the ordinary electrons coupled to a massive vector here. General large-scale Maxwell PIC codes such as [VPIC](https://github.com/lanl/vpic) and [PIConGPU](https://github.com/ComputationalRadiationPhysics/picongpu) address multidimensional kinetic electromagnetic dynamics, with a different code scale and feature set. The [iVPIC method](https://arxiv.org/abs/1903.01565) changes the coupled particle/field algorithm to conserve energy and charge; it is a more pertinent numerical comparison than swapping this package's Proca-only clock.
+### Which published limits are tested?
 
-These sources suggest three concrete gates before extrapolating our long-time results: increase particle shape order and joint particles-per-cell/grid resolution for the Hook–Huang–Shalaby setup; resolve $\omega_pt\sim5000$ with mobile ions, a measured work/closed-energy balance and a seeded ensemble; and compare wave-packet conversion against Corelli *et al.* at single and multiple density crossings with the same boundary observable. The first two are not met by the present two-stream run, which tests a distinct, simpler instability.
+The reproduction target is the attached **[Hook–Huang–Shalaby arXiv v1 PDF](https://arxiv.org/pdf/2510.13956v1)**, especially Fig. 2 and Appendices B–C. The [journal article](https://doi.org/10.1103/98cx-7t43) and later online text are separate versions; their onset times and quantitative claims must not be substituted silently. Fig. 2 uses a homogeneous imposed electric drive, mobile ions with $m_i/m_e=1836$, $T_e=T_i=10^{-3}m_ec^2$, $L=40c/\omega_{pe}$, 1,000 cells and fifth-order particle shapes. Its thermal speed is $\sigma_e=\sqrt{T_e/m_e}$: the strong driver has $v_q^D/\sigma_e=0.03$. The zero-drive noise study in Appendix B is an additional control, not an explicit production particle count for every driven curve. Our [mobile-ion evidence](kinetic.md) states each differing setting and horizon.
+
+Independent digitization of Fig. 2's vector paths recovers the initial RMS speeds and the grey $5\times10^{-4}$ energy reference. In the strong panel, the late electron RMS speed $\sigma_e\simeq0.202c$ gives $\Delta K_{e,\mathrm{spread}}/(n_em_ec^2)\simeq0.020$ using Eq. B3, while the black solid curve is approximately $0.040$. The ion curves show the same factor of two, and the relation persists over the trajectory. Appendix B's 1+1D model and Eq. B2's variance definition exclude a transverse-component or RMS convention as the explanation. This remains an unresolved plot/diagnostic normalization inconsistency in the attached v1, not a contradiction of its physical mechanism. Comparisons retain Eq. B3 explicitly and treat the plotted RMS and solid curves as separate observables.
+
+| Repository figure or observable | Comparison actually made | Claim boundary |
+|---|---|---|
+| [Prescribed-drive mean E and work](_static/figures/prescribed_drive/figure.png) | Independent cold forced oscillator; secular resonant response is the early linear limit of Hook *et al.* Fig. 2 | Does not establish nonlinear saturation, ion heating or cosmological constraints |
+| [Ordinary oscillating pair](_static/figures/oscillating_pair/figure.png) | Cruz–Grismayer–Silva's [waterbag/box/pump setting](https://arxiv.org/abs/2104.04490); independent relativistic initial-value mode and nonrelativistic Floquet limit | Confirms the known oscillating-pair instability at the documented parameters; not a pixel-level reconstruction of all published curves |
+| [Finite-reservoir pair](_static/figures/oscillating_dark_pair/figure.png) | Independent relativistic Vlasov–Proca early response; same-loading ordinary force/energy controls | Evolved finite reservoir is an extension of the pair setting; the late coherent fraction remains loading/grid dependent |
+| [Mobile-ion pilot](_static/figures/paper_geometry_pilot/figure.png) | Homogeneous two-fluid response and same-loading no-drive noise control | Early mean/work agreement does not reproduce Hook *et al.* Fig. 2's late transition |
+| [Designed slab](_static/figures/profile_design/figure.png) | Independent cold scattering and held-out/refined outgoing flux; cold conversion is established [Corelli *et al.* context](https://arxiv.org/abs/2410.16357) | Tested kinetic design pipeline; not a reproduction of their multiple-crossing plot or a new conversion principle |
+
+An unresolved sign change under refinement is a numerical limitation, not a contradiction of published physics. The current records establish neither a contradiction of Hook *et al.* nor a new nonlinear mechanism. A finite-reservoir result would require an effect distinct from cold reversible exchange, known pair instability, ordinary trapping and reservoir exhaustion, with uncertainty smaller than the difference being interpreted.
+
+### What is heating in a collisionless run?
+
+Removing a species' spatially uniform velocity leaves the global spread energy
+
+$$
+K_{s,\mathrm{spread}}=\frac{m_s}{2}\sum_{p\in s}w_p|v_p-\bar v_s|^2.
+$$
+
+This includes coherent flows at every nonzero spatial wavenumber. It is the nonrelativistic analogue of the $k=0$-removed particle diagnostic in the paper; it need not be a thermodynamic temperature. For a separate local random-energy diagnostic, deposit physical-species moments at a declared fixed physical smoothing scale $\ell$:
+
+$$
+K_{s,\mathrm{random}}(\ell)=\frac{m_s}{2}\int
+\left[M_{2,s}(\ell)-\frac{|M_{1,s}(\ell)|^2}{M_{0,s}(\ell)}\right]dx.
+$$
+
+The difference contains spatially varying bulk-flow energy. Holding $\ell$ fixed prevents grid refinement from changing the diagnostic itself. Relativistic kinetic energy and mean-flow subtraction require their own stated convention. Collisionless phase mixing can retain recoverable fine velocity-space structure; energy retention alone does not establish irreversible heating. [Schekochihin's Oxford kinetic lectures](https://www-thphys.physics.ox.ac.uk/people/AlexanderSchekochihin/KT/KT24.html) cover energy, entropy, phase mixing and coarse graining.
+
+The coupling between a Langmuir envelope and slow density response is established in [Zakharov's original equations](https://www-thphys.physics.ox.ac.uk/people/AlexanderSchekochihin/notes/PlasmaClassics/zakharov72.pdf) and [Robinson's review](https://doi.org/10.1103/RevModPhys.69.507). The useful comparison is a measured density spectrum, local plasma-frequency shift and loss of coherent work at matched parameters. A density pattern alone does not identify that mechanism: mean relativistic detuning, numerical self-heating and loading noise must also be excluded.
+
+### Conservation methods and independent codes
+
+Energy, local charge and momentum are separate numerical properties. Conservation requires a compatible particle–field exchange, not merely an accurate source-free field clock. The following statements apply to the specified algorithms, boundary conditions and converged solves.
+
+| Method/reference | Conserved balance and cost | Relevant control here |
+|---|---|---|
+| [SHARP, v2](https://arxiv.org/abs/1702.04732v2) | Exact charge/momentum in 1D; higher-order shapes control energy error; energy is not exactly conserved | Joint shape/grid/loading study with an undriven thermal plasma |
+| [Chen–Chacón–Barnes implicit electrostatic PIC](https://arxiv.org/abs/1101.3701) | Orbit-averaged particle/field solve conserves energy and local charge; momentum is not exact | Nonlinear tolerance, orbit/cell-crossing and physical phase accuracy |
+| [Markidis–Lapenta midpoint PIC](https://arxiv.org/abs/1108.1959) | Simultaneous particle/Maxwell midpoint solve; exact energy up to nonlinear convergence | A whole particle–field comparison, including solver cost |
+| [ECSIM](https://arxiv.org/abs/1602.06326) | Mass-matrix coupling gives exact energy without nonlinear iteration; a linear field solve is required | Energy conservation alone is not a local-charge or exact-momentum guarantee; public [1D test implementation](https://github.com/petschge/ECSIM) supplies two-stream/Weibel checks |
+| [iVPIC](https://arxiv.org/abs/1903.01565v2) | Leapfrog Maxwell and Crank–Nicolson particles preserve a discrete energy balance and local charge while retaining light-wave dispersion | Compare the discrete conserved balance and physical energy; the original VPIC repository alone does not establish this algorithm is included |
+| [Geometric discrete-gradient PIC](https://arxiv.org/abs/1910.04000) | Antisymmetric discrete-gradient splitting conserves energy; a particular additional construction preserves Gauss | Select the actual charge-preserving scheme; not all GEMPIC time integrators have both properties |
+| [Potential-based Lorenz-gauge PIC, 2026 preprint](https://arxiv.org/abs/2606.15035v1) | Orbit-averaged discrete chain rule matches particle and field work, preserving energy/Gauss to nonlinear tolerance | Public [Unstaggered_PIC](https://github.com/sgong11/Unstaggered_PIC/tree/c9e20107624781af147d5497c5de10d004a35cd1/Project1) is a serial CPU 3D teaching implementation with embedded 1D1V Landau tests; a Proca mass/source-work extension needs a separate derivation |
+
+[WarpX 26.09](https://warpx.readthedocs.io/en/26.09/usage/parameters.html#overall-simulation-parameters) exposes a coupled implicit electromagnetic method with energy conservation at $\theta=1/2$ and matching gather/deposition. Its semi-implicit and spectral-split variants have different energy/charge qualifications. Neither its conservation options nor its momentum-conserving gather name establish exact total momentum for every configuration. These are useful independent implementations of ordinary plasma limits; their documented models do not include this package's dynamical Proca field.
+
+[Smilei 5.1](https://smileipic.github.io/Smilei/Understand/algorithms.html) and [PIConGPU](https://picongpu.readthedocs.io/en/latest/models/pic.html) document charge-conserving current deposition; [VPIC 2.0](https://github.com/lanl/vpic-kokkos) is a relativistic multidimensional CPU/GPU Maxwell PIC. [GEMPICX 0.5.648](https://gempic.pages.mpcdf.de/gempic/) documents compatible differential forms and Hamiltonian splitting, with public CPU/CUDA/HIP configurations. Its example name `HamiltonianSplittingExact` refers to subflow integration, not exact total energy at every finite timestep. Restart in several of these codes is an ordinary particle/Maxwell archive, not a Maxwell–Proca archive.
+
+[DeRocco–Giffin v2](https://arxiv.org/html/2411.11958v2) use Smilei for 2D3V dark-charged pair streams with a **massless** mediator and **zero** mixing to ordinary electromagnetism. Their nonlinear scattering and energy-loss checks are useful prior art, but their Fig. 2 and dark-sector constraint are not observables of the ordinary-charge/massive-vector model here. [Caputo *et al.*](https://github.com/smsharma/dark-photons-perturbations) supply cosmological conversion probabilities from density statistics. [Corelli *et al.*](https://arxiv.org/abs/2410.16357) evolve coupled fields with a cold electron fluid through density crossings. Neither is a nonlinear kinetic heating benchmark.
+
+[ADEPT](https://github.com/ergodicio/adept) already provides differentiable kinetic solvers and [nonlinear-drive optimization](https://doi.org/10.1017/S0022377822000939); differentiability or kinetic optimization alone is not a new claim. [SPECTRAX](https://github.com/uwplasma/SPECTRAX) offers a different Hermite–Fourier discretization for an independent longitudinal check. Its velocity truncation, recurrence/hypercollision and time tolerance need separate refinement; Dopri8 is not a conservation theorem. No end-to-end derivative evidence was identified for the reviewed SPECTRAX snapshot, so the README leaves that feature unverified.
+
+The particle/grid/time-error and noise distinctions follow the classical treatments in [Birdsall–Langdon](https://www.routledge.com/Plasma-Physics-via-Computer-Simulation/Birdsall-Langdon/p/book/9780750310253) and [Hockney–Eastwood](https://www.routledge.com/Computer-Simulation-Using-Particles/Hockney-Eastwood/p/book/9780367806934). For late conversion, the acceptance criterion is convergence of the physical observable and of the work error relative to the transferred energy, not just a small error relative to an arbitrarily large initial total.
+
+Performance decisions use [JAX's synchronized profiling](https://docs.jax.dev/en/latest/profiling.html), separating compilation, warm execution and output. A [persistent compilation cache](https://docs.jax.dev/en/latest/persistent_compilation_cache.html) can reduce repeated startup cost without changing the physics. [Buffer donation](https://docs.jax.dev/en/latest/buffer_donation.html) permits reuse of dead input storage; it is appropriate only when the caller relinquishes that state. Adopt these options after a representative profile and primal/gradient correctness check; the [performance evidence](performance.md) reports measured choices.
+
+### Reviewed public-source snapshots
+
+Reviewed **30 September 2026**. The parent remains pinned to `83d3271`; the public README/source snapshots below qualify the feature comparison. Documentation releases can include backend features absent from a particular public branch. For example, the [OSIRIS feature page](https://osiris-code.github.io/features/) advertises CUDA, but the reviewed public tree did not establish availability of that backend.
+
+| Code | Reviewed public tree |
+|---|---|
+| Smilei | [61aa917](https://github.com/SmileiPIC/Smilei/tree/61aa917e851e89c64a0a2c17ca869fa71128422d) |
+| WarpX | [a2119c7](https://github.com/BLAST-WarpX/warpx/tree/a2119c7d579f10f7ba2f39e36f52b0ebfb82149c) |
+| OSIRIS | [a858fe1](https://github.com/osiris-code/osiris/tree/a858fe1da3d6dbf3652b16556af87f7dad7881eb) |
+| PIConGPU | [5b41865](https://github.com/ComputationalRadiationPhysics/picongpu/tree/5b41865b0a32de4711d392615304bf03c6450c15) |
+| VPIC 2.0 | [b24fdf1](https://github.com/lanl/vpic-kokkos/tree/b24fdf16225c82857779d6f91130ea7ff2104616) |
+| ECSIM test code | [e7e5fa2](https://github.com/petschge/ECSIM/tree/e7e5fa285e6a0ba1fc7facd4fb6c80c25bf0c389) |
+| Unstaggered_PIC | [c9e2010](https://github.com/sgong11/Unstaggered_PIC/tree/c9e20107624781af147d5497c5de10d004a35cd1) |
+| GEMPICX | [6036e6c](https://github.com/NMPPMaxPlanck/GEMPICX/tree/6036e6c33e519631fee217643a1cf1ced981c02a) |
+| ADEPT | [ce5d3fe](https://github.com/ergodicio/adept/tree/ce5d3feed0c107fcba52cbf3ee8cce6fb293961d) |
+| SPECTRAX | [ab87385](https://github.com/uwplasma/SPECTRAX/tree/ab87385fc84871122666df66a0fabe21dfa50dbd) |
+| Caputo notebooks | [7b54172](https://github.com/smsharma/dark-photons-perturbations/tree/7b54172176da5629b200b0bc5f8e93e7407c5a8d) |
+
+The next research gates are a noise-controlled strong imposed-drive replay through the nonlinear interval, a matched coupled implicit/explicit work comparison, and a finite-reservoir ensemble with separate grid, loading and time refinement. A reservoir-retention result needs significant dark energy remaining while coherent transfer falls, plus a cold reversible and prescribed-drive control. At least one representative late longitudinal case also needs an independent discretization; sharing the parent's deposition does not supply that check.

@@ -24,13 +24,13 @@ import sys
 from jaxincell import (Domain, Simulation, Solver, Species, elementary_charge as e,
                        epsilon_0, mass_electron, mass_proton, quiet_start,
                        save_run, speed_of_light as c)
-from darkjaxincell import DarkField, DarkSimulation, PrescribedDrive, midnight
+from darkjaxincell import DarkField, DarkSimulation, PrescribedDrive, midnight, save_state
 from darkjaxincell._proca import energy as dark_energy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "docs" / "scripts"))
 from pair_reference import (coupled_response, growth, relativistic_response,
                             seeded_response)  # noqa: E402
-from conservation import measured_run  # noqa: E402
+from conservation import coarse_spread, measured_run  # noqa: E402
 from drive_reference import forced_cold, homogeneous  # noqa: E402
 
 
@@ -653,6 +653,9 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None):
     density = plasma.species[0].density
     energy_scale = density * mass_electron * c**2 * plasma.domain.length
     momentum_scale = energy_scale / c
+    scales = np.array([2., 4.]) * np.sqrt(1e-3) * c / wp
+    coarse_initial = np.asarray(coarse_spread(sim, start, scales)) / energy_scale
+    coarse_final = np.asarray(coarse_spread(sim, final, scales)) / energy_scale
     t = history['t'] * wp
     history['t'] = t
     for key in ('electric', 'magnetic', 'dark', 'kinetic', 'spread', 'balance', 'work'):
@@ -686,6 +689,7 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None):
         late_electric_energy_over_initial_electron_thermal=float(np.mean(history['electric'][late]) / 5e-4),
         late_nonzero_electric_energy_over_initial_electron_thermal=float(
             np.mean(history['nonzero_electric'][late]) / 5e-4),
+        local_spread_final_over_initial=(coarse_final / coarse_initial).tolist(),
         final_particle_kinetic_increment=float(np.sum(history['kinetic'][-1] - history['kinetic'][0])),
         final_homogeneous_particle_kinetic_increment=float(np.sum(oracle['kinetic'][-1] - oracle['kinetic'][0])),
         max_energy_work_defect_over_peak_injected_work=float(maxima[0] / max(
@@ -703,6 +707,7 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None):
                     horizon_omega_p=float(t[-1]), seed=seed, length_c_over_omega_p=40,
                     mass_ratio=1836, T_each_over_mec2=1e-3, drive_quiver_over_sigma=ratio,
                     force_quiver_over_c=amplitude, coupling=eta, output_dt_omega_p=stride * dtau,
+                    local_spread_lengths_c_over_wp=(scales * wp / c).tolist(),
                     loading='co-located lattice; independent Gaussian velocities, zero mean and exact variance',
                     pusher='relativistic Boris; electric 1V uses the same momentum kick as Vay',
                     shape='quadratic parent spline; paper uses fifth-order',
@@ -737,11 +742,16 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None):
             ax.legend(fontsize=8)
         reference = {f'homogeneous_{key}': oracle[key] for key in (
             'mean_E', 'mean_D', 'mean_A', 'mean', 'rms', 'kinetic', 'spread', 'electric', 'dark', 'work', 'balance')}
-        save_run(folder, 'paper_resonant_conversion', settings, results, fig,
-                 linear_mean_E=cold, **reference, **history)
+        arrays = dict(linear_mean_E=cold, local_spread_initial=coarse_initial,
+                      local_spread_final=coarse_final, **reference, **history)
+        save_run(folder, 'paper_resonant_conversion', settings, results, fig, **arrays)
         # Scalar histories compress well; retain the native example/provenance path.
-        np.savez_compressed(Path(folder) / 'data.npz', linear_mean_E=cold, **reference, **history)
+        np.savez_compressed(Path(folder) / 'data.npz', **arrays)
         plt.close(fig)
+    archive = save_state(Path(folder) / 'final_state.npz', final, sim)
+    with np.load(archive, allow_pickle=False) as stored:
+        restart = {key: stored[key] for key in stored.files}
+    np.savez_compressed(archive, **restart)
     print('🌘 PAPER REPLAY:', results, flush=True)
     return history, settings, results
 
