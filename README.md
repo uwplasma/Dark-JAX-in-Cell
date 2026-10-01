@@ -171,7 +171,7 @@ The [parameter replay](examples/dark_reservoir.py) advances **206,000 particles*
 
 <img src="docs/_static/figures/paper_replay/figure.png" width="800" alt="Strong resonant drive compared with published RMS curves, no-drive and homogeneous relativistic controls">
 
-Final electron/ion RMS speeds are **$0.1926c$/$0.000834c$**, about **4.6%/5.4% below** the visible PDF curves. Late electron variance grows **36.09×**, versus **1.0025×** without driving. The energy/work defect is at most **0.0241% of peak injected work**. Spatial broadening follows the published trend; grid, timestep, loading and seed checks remain necessary for quantitative late agreement. [Data, averaging, normalization and mechanism limits](docs/kinetic.md#long-strong-drive-replay-and-controls).
+Final electron/ion RMS speeds are **$0.1926c$/$0.000834c$**, about **4.6%/5.4% below** the visible PDF curves; their variance-energy increments differ by **9.2%/35.2%**. Late electron variance grows **36.09×**, versus **1.0025×** without driving. The energy/work defect is at most **0.0241% of peak injected work**. Spatial broadening follows the published trend; grid, timestep, loading and seed checks remain necessary for quantitative late agreement. [Data, averaging, normalization and mechanism limits](docs/kinetic.md#long-strong-drive-replay-and-controls).
 
 ## Oscillating pair plasma: a kinetic bridge
 

@@ -354,8 +354,12 @@ for name, ratio in (("drive", ".03"), ("zero", "0")):
     run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
                  "--drive-ratio", ratio, "--output", str(ROOT / "artifacts" / f"paper_full_{name}")],
                 cwd=ROOT, check=True)
+halfstep = ROOT / "artifacts" / "paper_dt_half"
+run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
+             "--dt", ".01", "--output", str(halfstep)], cwd=ROOT, check=True)
 run_example([sys.executable, str(ROOT / "docs" / "scripts" / "make_paper_replay.py"),
-             "--records", str(ROOT / "artifacts"), "--output", str(paper)], cwd=ROOT, check=True)
+             "--records", str(ROOT / "artifacts"), "--refined", str(halfstep), "--output", str(paper)],
+            cwd=ROOT, check=True)
 paper_record = json.loads((paper / "run.json").read_text())
 hook = paper_record["results"]
 budget = hook["all_step_conservation"]
@@ -365,6 +369,14 @@ measured.update({"hook_electron_rms": f"{hook['final_rms_over_c'][0]:.4f}",
                  "hook_target_ion_rms": f"{hook['digitized_final_rms_over_c'][1]:.6f}",
                  "hook_electron_difference_percent": f"{100 * hook['final_rms_relative_difference'][0]:.1f}",
                  "hook_ion_difference_percent": f"{100 * hook['final_rms_relative_difference'][1]:.1f}",
+                 "hook_electron_B3_increment": f"{hook['final_B3_spread_increment_over_nmec2L'][0]:.5f}",
+                 "hook_ion_B3_increment": f"{hook['final_B3_spread_increment_over_nmec2L'][1]:.7f}",
+                 "hook_target_electron_B3_increment": (
+                     f"{hook['digitized_B3_spread_increment_from_rms_over_nmec2L'][0]:.5f}"),
+                 "hook_target_ion_B3_increment": (
+                     f"{hook['digitized_B3_spread_increment_from_rms_over_nmec2L'][1]:.7f}"),
+                 "hook_electron_B3_difference_percent": f"{100 * hook['B3_increment_relative_difference'][0]:.1f}",
+                 "hook_ion_B3_difference_percent": f"{100 * hook['B3_increment_relative_difference'][1]:.1f}",
                  "hook_spread_gain": f"{hook['late_global_spread_over_initial'][0]:.2f}",
                  "hook_no_drive_spread": f"{hook['no_drive_late_global_spread_over_initial']:.4f}",
                  "hook_work_error_percent": f"{100 * budget['max_energy_work_defect_over_peak_injected_work']:.4f}",

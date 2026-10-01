@@ -27,7 +27,11 @@ zero_record = json.loads((paths['zero'].parent / 'run.json').read_text())
 reference_record = json.loads((args.reference / 'reference.json').read_text())
 if drive_record['settings']['drive_quiver_over_sigma'] != .03 or drive_record['settings']['coupling'] is not None:
     raise ValueError('this summary compares the strong prescribed-drive Figure 2 case')
+for key, value in (('length_c_over_omega_p', 40), ('mass_ratio', 1836), ('T_each_over_mec2', .001)):
+    if drive_record['settings'][key] != value:
+        raise ValueError(f'the published comparison requires {key}={value}')
 t = a['t']
+np.testing.assert_allclose(t[-1], 5000, rtol=0, atol=1e-5)
 np.testing.assert_array_equal(t, zero['t'])
 refinements = [(np.load(folder / 'data.npz'), json.loads((folder / 'run.json').read_text()))
                for folder in args.refined]
@@ -35,10 +39,14 @@ for record in [zero_record, *[row[1] for row in refinements]]:
     for key in ('length_c_over_omega_p', 'mass_ratio', 'T_each_over_mec2', 'coupling', 'parent_revision'):
         if record['settings'][key] != drive_record['settings'][key]:
             raise ValueError(f'replays must share physical {key}')
-for _, record in refinements:
+for data, record in refinements:
+    np.testing.assert_allclose(data['t'][-1], 5000, rtol=0, atol=1e-5)
+    np.testing.assert_allclose(record['settings']['output_dt_omega_p'], .5, rtol=0, atol=1e-9)
     if record['settings']['drive_quiver_over_sigma'] != .03:
         raise ValueError('refinements must retain the same prescribed drive')
 width = round(2 * np.pi / np.median(np.diff(t)))
+late = (t >= 4800 - 1e-5) & (t <= 5000 + 1e-5)
+refined_colors = ('#30343B', '#009E73', '#CC79A7')
 
 
 def averaged(values):
@@ -56,10 +64,10 @@ with midnight():
         ax.plot(t, a['homogeneous_rms'][:, i], color=colors['homogeneous'], label='homogeneous kinetic')
         ax.plot(paper[f'strong_{species}_rms_t'], paper[f'strong_{species}_rms'], '--',
                 color=colors['paper'], label='Fig. 2, PDF curve')
-        for data, record in refinements:
+        for j, (data, record) in enumerate(refinements):
             controls = record['settings']
             label = f"{controls['cells']} cells, Δtωₚ={controls['dt_omega_p']:g}"
-            ax.plot(data['t'], data['rms'][:, i], ':', label=label)
+            ax.plot(data['t'], data['rms'][:, i], ':', color=refined_colors[j % 3], label=label)
         ax.set(title=species.capitalize() + ' velocity spread', ylabel=rf'$\sigma_{{{species[0]}}}/c$')
     ax = axes[1, 0]
     trim = slice(width, -width)
@@ -72,6 +80,12 @@ with midnight():
         ax.plot(t[trim], averaged(raw)[trim], color=color, label=label)
     ax.plot(paper['strong_electric_t'], paper['strong_electric'] / .0005, '--',
             color=colors['paper'], label='Fig. 2, PDF curve')
+    for j, (data, record) in enumerate(refinements):
+        color = refined_colors[j % 3]
+        label = f"Δtωₚ={record['settings']['dt_omega_p']:g}"
+        for key, style, kind in (('electric', ':', 'total'), ('nonzero_electric', '-.', 'nonzero k')):
+            ax.plot(data['t'][trim], averaged(data[key] / .0005)[trim], style,
+                    color=color, label=f'{label}, {kind}')
     ax.set(title='Electric-field energy', yscale='log', ylim=(.003, 70),
            ylabel=r'$U_E/(nT_{e0}L/2)$')
     ax = axes[1, 1]
@@ -87,16 +101,33 @@ with midnight():
         ax.legend(fontsize=8)
     target = [np.interp(t[-1], paper[f'strong_{s}_rms_t'], paper[f'strong_{s}_rms'])
               for s in ('electron', 'ion')]
+    masses = np.array([1, drive_record['settings']['mass_ratio']])
+    b3_increment = .5 * masses * a['rms'][-1]**2 - .0005
+    target_increment = .5 * masses * np.asarray(target)**2 - .0005
     results = {'final_rms_over_c': a['rms'][-1].tolist(),
                'digitized_final_rms_over_c': target,
                'final_rms_relative_difference': (a['rms'][-1] / target - 1).tolist(),
+               'final_B3_spread_increment_over_nmec2L': b3_increment.tolist(),
+               'digitized_B3_spread_increment_from_rms_over_nmec2L': target_increment.tolist(),
+               'B3_increment_relative_difference': (b3_increment / target_increment - 1).tolist(),
                'all_step_conservation': {key: value for key, value in drive_record['results'].items()
                                          if key.startswith('max_') and key != 'max_speed_over_c'},
                'no_drive_late_global_spread_over_initial': zero_record['results'][
                    'late_electron_spread_over_initial'],
-               'late_global_spread_over_initial': (a['spread'][t >= 4800].mean(axis=0) / .0005).tolist(),
+               'late_global_spread_over_initial': (a['spread'][late].mean(axis=0) / .0005).tolist(),
                'refinements': [record for _, record in refinements],
                'claim': 'Figure 2 parameter replay; grid, timestep, loading and seed convergence pending'}
+    results['refinement_comparisons'] = []
+    for data, record in refinements:
+        mask = (data['t'] >= 4800 - 1e-5) & (data['t'] <= 5000 + 1e-5)
+        results['refinement_comparisons'].append(dict(
+            cells=record['settings']['cells'], dt_omega_p=record['settings']['dt_omega_p'],
+            particles_per_species=record['settings']['particles_per_species'],
+            late_samples=int(mask.sum()),
+            late_global_spread_relative_change=(data['spread'][mask].mean(axis=0)
+                                                / a['spread'][late].mean(axis=0) - 1).tolist(),
+            **{f'late_{key}_relative_change': float(data[key][mask].mean() / a[key][late].mean() - 1)
+               for key in ('electric', 'nonzero_electric')}))
     settings = {'raw_computation_git': drive_record['git'],
                 'computation': {name: {key: record[key] for key in (
                     'git', 'jaxincell', 'jax', 'numpy', 'python', 'platform', 'jax_enable_x64', 'backend')}
@@ -112,14 +143,17 @@ with midnight():
                     'x_pdf_zero', 'x_pdf_5000', 'strong_electric', 'strong_electron_rms', 'strong_ion_rms')},
                 'energy_density_plot_average_samples': width,
                 'average_width_omega_p': float(width * np.median(np.diff(t))),
+                'late_window_omega_p': [4800, 5000], 'window_endpoint_tolerance_omega_p': 1e-5,
                 'input_sha256': {key: hashlib.sha256(path.read_bytes()).hexdigest() for key, path in paths.items()},
                 'analysis_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+    settings['input_sha256'].update({f'refined{i}': hashlib.sha256((folder / 'data.npz').read_bytes()).hexdigest()
+                                     for i, folder in enumerate(args.refined)})
     keys = ('t', 'rms', 'electric', 'nonzero_electric', 'density_rms',
             'homogeneous_rms', 'homogeneous_electric')
     arrays = {key: a[key] for key in keys}
     arrays.update(no_drive_rms=zero['rms'], no_drive_density_rms=zero['density_rms'])
     arrays.update({f'refined{i}_{key}': data[key] for i, (data, _) in enumerate(refinements)
-                   for key in ('t', 'rms', 'balance', 'electric')})
+                   for key in ('t', 'rms', 'balance', 'electric', 'nonzero_electric')})
     arrays.update({key: paper[key] for key in paper.files if key.startswith('strong_')})
     save_run(args.output, 'hook_parameter_replay_summary', settings, results, fig, **arrays)
     np.savez_compressed(args.output / 'data.npz', **arrays)
