@@ -1,0 +1,1552 @@
+{
+ "jaxincell": "unknown",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "9831ac7fc0819c801cfa3c2156304080c2cc7ca0",
+ "example": "implicit_method_controls",
+ "settings": {
+  "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a"
+ },
+ "results": {
+  "native_runs": [
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "39a4a7c2a618ebd8ecc836013f937372ad4cc99c",
+    "example": "implicit_drive",
+    "settings": {
+     "cells": 1000,
+     "dt": 0.01,
+     "iterations": 4,
+     "substeps": 2,
+     "horizon": 40.0,
+     "amplitude": 0.0009486832980505137,
+     "temperature": 0.001,
+     "samples": 1,
+     "gradient_horizon": 0.0,
+     "newtonian": false,
+     "paper_loading": true,
+     "particles": 103000,
+     "audit_state": null,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+     "precision": "float64",
+     "initial_state_source": "complete zero-time archive",
+     "loading": "paper_plasma: co-located spatial lattice, Gaussian velocities; exact mean and variance, seed 0",
+     "wp_rad_s": 1000000000.0,
+     "mass_ratio": 1836.0,
+     "particles_per_species": 103000,
+     "length_over_c_wp": 40.0,
+     "steps": 4000,
+     "store_every": 10,
+     "actual_horizon": 39.99999999999993,
+     "native_archives": [
+      "initial_state.npz",
+      "final_state.npz"
+     ],
+     "archive_final_execution": 1,
+     "initial_fingerprints": {
+      "x": "18f8b26c79989ac0e60ac72c50376c8fd527f9d41d546e17a176883a71ae0a3e",
+      "u": "b0ad4a0faa655c90fcc2b0c5030b28e615205c68d27803d6120de47cef6e7969",
+      "w": "01879c5131ecfbb95740b9288894e085f98bb78259911f6f1229616f9bdfc9c6",
+      "E": "f057e335fdebb8609b7ec4e62ec6ca278ad0f73a4125bff701a69a82dafa9699",
+      "B": "d5142ec0b2b773e5e84e8d8d1f33519a9dbf0545f52c7f64b80fe036c688659c",
+      "rho": "fac27dec639dee8ff0620b506ef07d08396f4f0e1f9fa9064c04c330c5727f2d",
+      "time": "d1248b792eba25b9c46dd64b0c01fb8ca1e496438632797016046f536a8c6161",
+      "mass": "bbdc1cd26d089efd4bc31acb67a63d8c33cbaee6a040ad8078863079159d6dc9",
+      "charge": "23cf0918371807e46af439ad9a6da518054d09fc74bee3f1faf3f307ccd4fe46"
+     },
+     "position_time": "native implicit integer time",
+     "physical_loading_fingerprints": {
+      "electrons": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "12450b403d84d01d11717031fb7df08b4206ff31329ff5e47d9c626c8c7a8f18"
+      },
+      "ions": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "8125af708d909dfdc7ec5e315c21faec8b52648d511fd994abc8b390e0cbec7b"
+      }
+     },
+     "species_order": [
+      "electrons",
+      "ions"
+     ],
+     "trace_scales": "E: me c wp/e; J: epsilon0 Eref wp; nonzero/kinetic/spread energy: n me c\u00b2 L; momentum: n me c L; mean/rms: c",
+     "velocity_spread_energy_definition": "0.5 (ms/me) (sigma_s/c)\u00b2; lab frame, each species' global mean removed; not a relativistic temperature",
+     "thermal_parameter_definition": "Gaussian velocity sigma_e squared / c squared"
+    },
+    "results": {
+     "compile_s": 7.0942072049947456,
+     "first_primal_s": 67.83418680797331,
+     "warm_primal_s": [
+      68.37198374595027
+     ],
+     "compiler_temporary_bytes": 85123816,
+     "peak_rss_bytes": 1113825280,
+     "host_load": [
+      11.482421875,
+      9.0078125,
+      7.8388671875
+     ],
+     "device_kinds": [
+      "NVIDIA RTX A4000"
+     ],
+     "max_balance_over_nmc2L": 5.398504342986865e-19,
+     "max_particle_charge_change_over_enL": 0.0,
+     "max_grid_charge_change_over_enL": 7.33034460423012e-17,
+     "max_continuity_over_enwp": 1.2320190263391888e-14,
+     "max_gauss_over_en_eps0": 3.511524198663257e-15,
+     "max_mean_ampere_over_fieldwp": 6.472388209506016e-17,
+     "max_momentum_over_nmecL": 4.8572428980574616e-05,
+     "max_mean_E_error": 6.33964277759573e-05,
+     "max_current_error": 5.541208238468362e-05,
+     "max_phase_error_rad": 0.0007447549881494098,
+     "phase_definition": "unwrapped arg(E+iJ) against oracle; exclude near-zero radius and startup",
+     "phase_mask_samples": 338,
+     "phase_total_samples": 401,
+     "phase_radius_threshold_normalized": 0.00018723780703506818,
+     "phase_mask": "t>=2\u03c0 and both |E+iJ| exceed 1% of oracle peak radius",
+     "phase_unavailable_reason": null,
+     "max_sampled_nonzero_electric_over_nmc2L": 2.5211359632102895e-06,
+     "final_nonzero_electric_over_nmc2L": 2.0774957996126197e-06,
+     "nonzero_electric_convention": "epsilon0 dx sum|E-mean(E)|\u00b2/2, all components; no clamp",
+     "nonzero_threshold_crossings": [
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": null
+      },
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": null
+      }
+     ],
+     "oracle_windows": {
+      "mean_E": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.00034157708762596115,
+        "reference_l2": 0.15797506368522898,
+        "observed_l2": 0.15767580845076576,
+        "max_abs_difference": 6.33964277759573e-05,
+        "relative_l2": 0.0021622215535647186
+       }
+      },
+      "current": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.00031314559235117026,
+        "reference_l2": 0.15226621939050225,
+        "observed_l2": 0.15199440108813975,
+        "max_abs_difference": 5.541208238468362e-05,
+        "relative_l2": 0.002056566411149123
+       }
+      },
+      "phase": {
+       "40": {
+        "samples": 338,
+        "max_error_rad": 0.0007447549881494098,
+        "max_nonzero_electric_over_nmc2L": 2.5211359632102895e-06
+       }
+      }
+     },
+     "execution_variability": [
+      {
+       "mean_E": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.105697962535709e-12,
+         "reference_l2": 0.1576758084509935,
+         "observed_l2": 0.15767580845076576,
+         "max_abs_difference": 2.493092537969588e-13,
+         "relative_l2": 7.012476887850338e-12
+        }
+       },
+       "current": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.2724115071003565e-12,
+         "reference_l2": 0.15199440108818804,
+         "observed_l2": 0.15199440108813975,
+         "max_abs_difference": 2.9146563634840916e-13,
+         "relative_l2": 8.371436697606354e-12
+        }
+       },
+       "nonzero_electric": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.3669730162503428e-14,
+         "reference_l2": 3.8469577415590006e-05,
+         "observed_l2": 3.8469577415339765e-05,
+         "max_abs_difference": 2.7503460494043407e-15,
+         "relative_l2": 3.553387138836543e-10
+        }
+       },
+       "momentum": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          1.6340227278871807e-12,
+          0.0,
+          0.0
+         ],
+         "reference_l2": [
+          0.0004123175373191163,
+          0.0,
+          0.0
+         ],
+         "observed_l2": [
+          0.0004123175360338705,
+          0.0,
+          0.0
+         ],
+         "max_abs_difference": [
+          3.4122917436530537e-13,
+          0.0,
+          0.0
+         ],
+         "relative_l2": [
+          3.963020196791961e-09,
+          null,
+          null
+         ]
+        }
+       },
+       "mean": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          1.2712624173962456e-12,
+          1.380062356662794e-15
+         ],
+         "reference_l2": [
+          0.15191151059417737,
+          8.28907987008929e-05
+         ],
+         "observed_l2": [
+          0.15191151059412933,
+          8.289079870062543e-05
+         ],
+         "max_abs_difference": [
+          2.911488324736089e-13,
+          3.1744253764249414e-16
+         ],
+         "relative_l2": [
+          8.368440366525932e-12,
+          1.664916225071828e-11
+         ]
+        }
+       },
+       "rms": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          4.105073222321597e-13,
+          2.9180670541735643e-16
+         ],
+         "reference_l2": [
+          0.6322914171807609,
+          0.014774341196848687
+         ],
+         "observed_l2": [
+          0.6322914171808526,
+          0.014774341196848622
+         ],
+         "max_abs_difference": [
+          9.067746553625966e-14,
+          4.607859233063394e-17
+         ],
+         "relative_l2": [
+          6.492375368030703e-13,
+          1.97509114978066e-14
+         ]
+        }
+       }
+      }
+     ],
+     "execution_comparison": "execution 0 against each later call to the same compiled callable and input; norms use fixed physical scales; recorded arrays/results use the final call",
+     "oracle_scope": "homogeneous momentum-distribution reference; late differences mix time integration, spatial PIC dynamics and velocity loading once nonzero modes grow",
+     "max_work_error_over_nmc2L": 2.540626064253214e-07,
+     "oracle_nodes": 64,
+     "particle_substeps": 2,
+     "claim": "uniform prescribed-drive prototype; phase and work checks, no implicit Proca"
+    }
+   },
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "39a4a7c2a618ebd8ecc836013f937372ad4cc99c",
+    "example": "implicit_drive",
+    "settings": {
+     "cells": 1000,
+     "dt": 0.01,
+     "iterations": 4,
+     "substeps": 4,
+     "horizon": 40.0,
+     "amplitude": 0.0009486832980505137,
+     "temperature": 0.001,
+     "samples": 1,
+     "gradient_horizon": 0.0,
+     "newtonian": false,
+     "paper_loading": true,
+     "particles": 103000,
+     "audit_state": null,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+     "precision": "float64",
+     "initial_state_source": "complete zero-time archive",
+     "loading": "paper_plasma: co-located spatial lattice, Gaussian velocities; exact mean and variance, seed 0",
+     "wp_rad_s": 1000000000.0,
+     "mass_ratio": 1836.0,
+     "particles_per_species": 103000,
+     "length_over_c_wp": 40.0,
+     "steps": 4000,
+     "store_every": 10,
+     "actual_horizon": 39.99999999999993,
+     "native_archives": [
+      "initial_state.npz",
+      "final_state.npz"
+     ],
+     "archive_final_execution": 1,
+     "initial_fingerprints": {
+      "x": "18f8b26c79989ac0e60ac72c50376c8fd527f9d41d546e17a176883a71ae0a3e",
+      "u": "b0ad4a0faa655c90fcc2b0c5030b28e615205c68d27803d6120de47cef6e7969",
+      "w": "01879c5131ecfbb95740b9288894e085f98bb78259911f6f1229616f9bdfc9c6",
+      "E": "f057e335fdebb8609b7ec4e62ec6ca278ad0f73a4125bff701a69a82dafa9699",
+      "B": "d5142ec0b2b773e5e84e8d8d1f33519a9dbf0545f52c7f64b80fe036c688659c",
+      "rho": "fac27dec639dee8ff0620b506ef07d08396f4f0e1f9fa9064c04c330c5727f2d",
+      "time": "d1248b792eba25b9c46dd64b0c01fb8ca1e496438632797016046f536a8c6161",
+      "mass": "bbdc1cd26d089efd4bc31acb67a63d8c33cbaee6a040ad8078863079159d6dc9",
+      "charge": "23cf0918371807e46af439ad9a6da518054d09fc74bee3f1faf3f307ccd4fe46"
+     },
+     "position_time": "native implicit integer time",
+     "physical_loading_fingerprints": {
+      "electrons": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "12450b403d84d01d11717031fb7df08b4206ff31329ff5e47d9c626c8c7a8f18"
+      },
+      "ions": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "8125af708d909dfdc7ec5e315c21faec8b52648d511fd994abc8b390e0cbec7b"
+      }
+     },
+     "species_order": [
+      "electrons",
+      "ions"
+     ],
+     "trace_scales": "E: me c wp/e; J: epsilon0 Eref wp; nonzero/kinetic/spread energy: n me c\u00b2 L; momentum: n me c L; mean/rms: c",
+     "velocity_spread_energy_definition": "0.5 (ms/me) (sigma_s/c)\u00b2; lab frame, each species' global mean removed; not a relativistic temperature",
+     "thermal_parameter_definition": "Gaussian velocity sigma_e squared / c squared"
+    },
+    "results": {
+     "compile_s": 7.049113575951196,
+     "first_primal_s": 131.732886388083,
+     "warm_primal_s": [
+      134.23041489894968
+     ],
+     "compiler_temporary_bytes": 124675816,
+     "peak_rss_bytes": 1113460736,
+     "host_load": [
+      7.134765625,
+      8.5537109375,
+      8.02099609375
+     ],
+     "device_kinds": [
+      "NVIDIA RTX A4000"
+     ],
+     "max_balance_over_nmc2L": 5.398504342986865e-19,
+     "max_particle_charge_change_over_enL": 0.0,
+     "max_grid_charge_change_over_enL": 7.826240040729129e-17,
+     "max_continuity_over_enwp": 1.47060909165444e-14,
+     "max_gauss_over_en_eps0": 3.5959850576690055e-15,
+     "max_mean_ampere_over_fieldwp": 6.169496807552615e-17,
+     "max_momentum_over_nmecL": 4.857252877385459e-05,
+     "max_mean_E_error": 6.339650317977938e-05,
+     "max_current_error": 5.541205295471821e-05,
+     "max_phase_error_rad": 0.0007447161928109125,
+     "phase_definition": "unwrapped arg(E+iJ) against oracle; exclude near-zero radius and startup",
+     "phase_mask_samples": 338,
+     "phase_total_samples": 401,
+     "phase_radius_threshold_normalized": 0.00018723780703506818,
+     "phase_mask": "t>=2\u03c0 and both |E+iJ| exceed 1% of oracle peak radius",
+     "phase_unavailable_reason": null,
+     "max_sampled_nonzero_electric_over_nmc2L": 2.521138753665496e-06,
+     "final_nonzero_electric_over_nmc2L": 2.077497270368608e-06,
+     "nonzero_electric_convention": "epsilon0 dx sum|E-mean(E)|\u00b2/2, all components; no clamp",
+     "nonzero_threshold_crossings": [
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": null
+      },
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": null
+      }
+     ],
+     "oracle_windows": {
+      "mean_E": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.00034157793744989714,
+        "reference_l2": 0.15797506368522898,
+        "observed_l2": 0.15767580637418752,
+        "max_abs_difference": 6.339650317977938e-05,
+        "relative_l2": 0.0021622269330462403
+       }
+      },
+      "current": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.0003131450295564808,
+        "reference_l2": 0.15226621939050225,
+        "observed_l2": 0.15199439945882143,
+        "max_abs_difference": 5.541205295471821e-05,
+        "relative_l2": 0.0020565627150260324
+       }
+      },
+      "phase": {
+       "40": {
+        "samples": 338,
+        "max_error_rad": 0.0007447161928109125,
+        "max_nonzero_electric_over_nmc2L": 2.521138753665496e-06
+       }
+      }
+     },
+     "execution_variability": [
+      {
+       "mean_E": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.7745313066828409e-12,
+         "reference_l2": 0.1576758063728772,
+         "observed_l2": 0.15767580637418752,
+         "max_abs_difference": 4.720078494724333e-13,
+         "relative_l2": 1.1254303038009318e-11
+        }
+       },
+       "current": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.3801594677963162e-12,
+         "reference_l2": 0.15199439945785964,
+         "observed_l2": 0.15199439945882143,
+         "max_abs_difference": 2.891367700819103e-13,
+         "relative_l2": 9.080331069559999e-12
+        }
+       },
+       "nonzero_electric": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.990495375431158e-14,
+         "reference_l2": 3.8469596072127726e-05,
+         "observed_l2": 3.846959607839043e-05,
+         "max_abs_difference": 4.933631069192713e-15,
+         "relative_l2": 5.174203991378341e-10
+        }
+       },
+       "momentum": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          3.248313242352261e-12,
+          0.0,
+          0.0
+         ],
+         "reference_l2": [
+          0.00041231920603633184,
+          0.0,
+          0.0
+         ],
+         "observed_l2": [
+          0.0004123192029757171,
+          0.0,
+          0.0
+         ],
+         "max_abs_difference": [
+          6.117857549768971e-13,
+          0.0,
+          0.0
+         ],
+         "relative_l2": [
+          7.878151671804571e-09,
+          null,
+          null
+         ]
+        }
+       },
+       "mean": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          1.3802238543147952e-12,
+          1.5723281443978824e-15
+         ],
+         "reference_l2": [
+          0.15191150896433456,
+          8.28907982176526e-05
+         ],
+         "observed_l2": [
+          0.151911508965296,
+          8.289079821800756e-05
+         ],
+         "max_abs_difference": [
+          2.892096284679013e-13,
+          3.15886538118388e-16
+         ],
+         "relative_l2": [
+          9.085709593200349e-12,
+          1.8968669360250367e-11
+         ]
+        }
+       },
+       "rms": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          1.1543372626590042e-12,
+          8.78000977109922e-16
+         ],
+         "reference_l2": [
+          0.632291416989741,
+          0.014774341194945778
+         ],
+         "observed_l2": [
+          0.632291416989136,
+          0.014774341194945419
+         ],
+         "max_abs_difference": [
+          1.86912985089549e-13,
+          1.4246416546459528e-16
+         ],
+         "relative_l2": [
+          1.825641202208085e-12,
+          5.942741984395767e-14
+         ]
+        }
+       }
+      }
+     ],
+     "execution_comparison": "execution 0 against each later call to the same compiled callable and input; norms use fixed physical scales; recorded arrays/results use the final call",
+     "oracle_scope": "homogeneous momentum-distribution reference; late differences mix time integration, spatial PIC dynamics and velocity loading once nonzero modes grow",
+     "max_work_error_over_nmc2L": 2.540656419063405e-07,
+     "oracle_nodes": 64,
+     "particle_substeps": 4,
+     "claim": "uniform prescribed-drive prototype; phase and work checks, no implicit Proca"
+    }
+   },
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "39a4a7c2a618ebd8ecc836013f937372ad4cc99c",
+    "example": "implicit_drive",
+    "settings": {
+     "cells": 2000,
+     "dt": 0.01,
+     "iterations": 4,
+     "substeps": 2,
+     "horizon": 40.0,
+     "amplitude": 0.0009486832980505137,
+     "temperature": 0.001,
+     "samples": 1,
+     "gradient_horizon": 0.0,
+     "newtonian": false,
+     "paper_loading": true,
+     "particles": 103000,
+     "audit_state": null,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+     "precision": "float64",
+     "initial_state_source": "native initialization",
+     "loading": "paper_plasma: co-located spatial lattice, Gaussian velocities; exact mean and variance, seed 0",
+     "wp_rad_s": 1000000000.0,
+     "mass_ratio": 1836.0,
+     "particles_per_species": 103000,
+     "length_over_c_wp": 40.0,
+     "steps": 4000,
+     "store_every": 10,
+     "actual_horizon": 39.99999999999993,
+     "native_archives": [
+      "initial_state.npz",
+      "final_state.npz"
+     ],
+     "archive_final_execution": 1,
+     "initial_fingerprints": {
+      "x": "18f8b26c79989ac0e60ac72c50376c8fd527f9d41d546e17a176883a71ae0a3e",
+      "u": "b0ad4a0faa655c90fcc2b0c5030b28e615205c68d27803d6120de47cef6e7969",
+      "w": "01879c5131ecfbb95740b9288894e085f98bb78259911f6f1229616f9bdfc9c6",
+      "E": "a90073bbc7ff4bbd6c4f1edba6a0675ec9c7ac57573f450477f9be322322cf2d",
+      "B": "7654015f51651be5f3766feb0dedb2517d634705bc0e1200dc4f405afc164ae2",
+      "rho": "7af80876ef12f4464e80b3c5785f24cde42f9c58ab6af392087c4a2112407620",
+      "time": "d1248b792eba25b9c46dd64b0c01fb8ca1e496438632797016046f536a8c6161",
+      "mass": "bbdc1cd26d089efd4bc31acb67a63d8c33cbaee6a040ad8078863079159d6dc9",
+      "charge": "23cf0918371807e46af439ad9a6da518054d09fc74bee3f1faf3f307ccd4fe46"
+     },
+     "position_time": "native implicit integer time",
+     "physical_loading_fingerprints": {
+      "electrons": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "12450b403d84d01d11717031fb7df08b4206ff31329ff5e47d9c626c8c7a8f18"
+      },
+      "ions": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "8125af708d909dfdc7ec5e315c21faec8b52648d511fd994abc8b390e0cbec7b"
+      }
+     },
+     "species_order": [
+      "electrons",
+      "ions"
+     ],
+     "trace_scales": "E: me c wp/e; J: epsilon0 Eref wp; nonzero/kinetic/spread energy: n me c\u00b2 L; momentum: n me c L; mean/rms: c",
+     "velocity_spread_energy_definition": "0.5 (ms/me) (sigma_s/c)\u00b2; lab frame, each species' global mean removed; not a relativistic temperature",
+     "thermal_parameter_definition": "Gaussian velocity sigma_e squared / c squared"
+    },
+    "results": {
+     "compile_s": 6.963425994035788,
+     "first_primal_s": 66.18966831406578,
+     "warm_primal_s": [
+      67.09517685498577
+     ],
+     "compiler_temporary_bytes": 85326056,
+     "peak_rss_bytes": 1089417216,
+     "host_load": [
+      6.82080078125,
+      7.80712890625,
+      7.814453125
+     ],
+     "device_kinds": [
+      "NVIDIA RTX A4000"
+     ],
+     "max_balance_over_nmc2L": 7.198005790649154e-19,
+     "max_particle_charge_change_over_enL": 0.0,
+     "max_grid_charge_change_over_enL": 4.7863772523502405e-17,
+     "max_continuity_over_enwp": 1.9150437802871084e-14,
+     "max_gauss_over_en_eps0": 8.067291745033954e-15,
+     "max_mean_ampere_over_fieldwp": 6.348416436070158e-17,
+     "max_momentum_over_nmecL": 7.359787829603021e-06,
+     "max_mean_E_error": 0.00010637684312823914,
+     "max_current_error": 9.794150580360803e-05,
+     "max_phase_error_rad": 0.0007641009233552154,
+     "phase_definition": "unwrapped arg(E+iJ) against oracle; exclude near-zero radius and startup",
+     "phase_mask_samples": 338,
+     "phase_total_samples": 401,
+     "phase_radius_threshold_normalized": 0.00018723780703506818,
+     "phase_mask": "t>=2\u03c0 and both |E+iJ| exceed 1% of oracle peak radius",
+     "phase_unavailable_reason": null,
+     "max_sampled_nonzero_electric_over_nmc2L": 3.1371877230514202e-06,
+     "final_nonzero_electric_over_nmc2L": 2.700781135303824e-06,
+     "nonzero_electric_convention": "epsilon0 dx sum|E-mean(E)|\u00b2/2, all components; no clamp",
+     "nonzero_threshold_crossings": [
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": null
+      },
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": null
+      }
+     ],
+     "oracle_windows": {
+      "mean_E": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.0006876171566030534,
+        "reference_l2": 0.15797506368522898,
+        "observed_l2": 0.15734153154082606,
+        "max_abs_difference": 0.00010637684312823914,
+        "relative_l2": 0.004352694283277236
+       }
+      },
+      "current": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.0006325425153830353,
+        "reference_l2": 0.15226621939050225,
+        "observed_l2": 0.15168481857870086,
+        "max_abs_difference": 9.794150580360803e-05,
+        "relative_l2": 0.004154188091849943
+       }
+      },
+      "phase": {
+       "40": {
+        "samples": 338,
+        "max_error_rad": 0.0007641009233552154,
+        "max_nonzero_electric_over_nmc2L": 3.1371877230514202e-06
+       }
+      }
+     },
+     "execution_variability": [
+      {
+       "mean_E": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 3.4943896583165302e-12,
+         "reference_l2": 0.15734153154097372,
+         "observed_l2": 0.15734153154082606,
+         "max_abs_difference": 8.905307047335498e-13,
+         "relative_l2": 2.2208946513314874e-11
+        }
+       },
+       "current": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 3.0712850780174554e-12,
+         "reference_l2": 0.15168481857971136,
+         "observed_l2": 0.15168481857870086,
+         "max_abs_difference": 7.485487923952761e-13,
+         "relative_l2": 2.0247807966381786e-11
+        }
+       },
+       "nonzero_electric": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 7.764540843849328e-14,
+         "reference_l2": 5.034875158592343e-05,
+         "observed_l2": 5.03487515672886e-05,
+         "max_abs_difference": 2.6175706703069138e-14,
+         "relative_l2": 1.5421516123589744e-09
+        }
+       },
+       "momentum": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          6.820896590324509e-12,
+          0.0,
+          0.0
+         ],
+         "reference_l2": [
+          8.373607631155813e-05,
+          0.0,
+          0.0
+         ],
+         "observed_l2": [
+          8.373607299169237e-05,
+          0.0,
+          0.0
+         ],
+         "max_abs_difference": [
+          1.6293119138276733e-12,
+          0.0,
+          0.0
+         ],
+         "relative_l2": [
+          8.145708386127256e-08,
+          null,
+          null
+         ]
+        }
+       },
+       "mean": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          3.0713861941114476e-12,
+          3.2697729536102875e-15
+         ],
+         "reference_l2": [
+          0.15160211306204247,
+          8.270553086838833e-05
+         ],
+         "observed_l2": [
+          0.1516021130610334,
+          8.270553086699568e-05
+         ],
+         "max_abs_difference": [
+          7.489443093477988e-13,
+          7.295986053810696e-16
+         ],
+         "relative_l2": [
+          2.0259521005848362e-11,
+          3.953511838057808e-11
+         ]
+        }
+       },
+       "rms": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          2.4748964026802237e-12,
+          3.88280072520166e-15
+         ],
+         "reference_l2": [
+          0.6321643180423021,
+          0.014771345165728483
+         ],
+         "observed_l2": [
+          0.6321643180429645,
+          0.01477134516573001
+         ],
+         "max_abs_difference": [
+          5.70835045898832e-13,
+          1.1046935935454805e-15
+         ],
+         "relative_l2": [
+          3.914957443888209e-12,
+          2.628603340886166e-13
+         ]
+        }
+       }
+      }
+     ],
+     "execution_comparison": "execution 0 against each later call to the same compiled callable and input; norms use fixed physical scales; recorded arrays/results use the final call",
+     "oracle_scope": "homogeneous momentum-distribution reference; late differences mix time integration, spatial PIC dynamics and velocity loading once nonzero modes grow",
+     "max_work_error_over_nmc2L": 5.572548441413561e-07,
+     "oracle_nodes": 64,
+     "particle_substeps": 2,
+     "claim": "uniform prescribed-drive prototype; phase and work checks, no implicit Proca"
+    }
+   },
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "39a4a7c2a618ebd8ecc836013f937372ad4cc99c",
+    "example": "implicit_drive",
+    "settings": {
+     "cells": 4000,
+     "dt": 0.01,
+     "iterations": 4,
+     "substeps": 2,
+     "horizon": 40.0,
+     "amplitude": 0.0009486832980505137,
+     "temperature": 0.001,
+     "samples": 1,
+     "gradient_horizon": 0.0,
+     "newtonian": false,
+     "paper_loading": true,
+     "particles": 103000,
+     "audit_state": null,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+     "precision": "float64",
+     "initial_state_source": "native initialization",
+     "loading": "paper_plasma: co-located spatial lattice, Gaussian velocities; exact mean and variance, seed 0",
+     "wp_rad_s": 1000000000.0,
+     "mass_ratio": 1836.0,
+     "particles_per_species": 103000,
+     "length_over_c_wp": 40.0,
+     "steps": 4000,
+     "store_every": 10,
+     "actual_horizon": 39.99999999999993,
+     "native_archives": [
+      "initial_state.npz",
+      "final_state.npz"
+     ],
+     "archive_final_execution": 1,
+     "initial_fingerprints": {
+      "x": "18f8b26c79989ac0e60ac72c50376c8fd527f9d41d546e17a176883a71ae0a3e",
+      "u": "b0ad4a0faa655c90fcc2b0c5030b28e615205c68d27803d6120de47cef6e7969",
+      "w": "01879c5131ecfbb95740b9288894e085f98bb78259911f6f1229616f9bdfc9c6",
+      "E": "87a9a3fc923f5e8078e2bf8295a1af1830bcf32305915afdba035da178df7bfb",
+      "B": "e1decc84d52db6fe5c29784aef27b2f2cb8d3bd81187693b839e4237a7ec8889",
+      "rho": "0481d051840e7307d9de698e527820ef78889a28a9127e179363f1db67e66aa8",
+      "time": "d1248b792eba25b9c46dd64b0c01fb8ca1e496438632797016046f536a8c6161",
+      "mass": "bbdc1cd26d089efd4bc31acb67a63d8c33cbaee6a040ad8078863079159d6dc9",
+      "charge": "23cf0918371807e46af439ad9a6da518054d09fc74bee3f1faf3f307ccd4fe46"
+     },
+     "position_time": "native implicit integer time",
+     "physical_loading_fingerprints": {
+      "electrons": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "12450b403d84d01d11717031fb7df08b4206ff31329ff5e47d9c626c8c7a8f18"
+      },
+      "ions": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "8125af708d909dfdc7ec5e315c21faec8b52648d511fd994abc8b390e0cbec7b"
+      }
+     },
+     "species_order": [
+      "electrons",
+      "ions"
+     ],
+     "trace_scales": "E: me c wp/e; J: epsilon0 Eref wp; nonzero/kinetic/spread energy: n me c\u00b2 L; momentum: n me c L; mean/rms: c",
+     "velocity_spread_energy_definition": "0.5 (ms/me) (sigma_s/c)\u00b2; lab frame, each species' global mean removed; not a relativistic temperature",
+     "thermal_parameter_definition": "Gaussian velocity sigma_e squared / c squared"
+    },
+    "results": {
+     "compile_s": 6.775950388982892,
+     "first_primal_s": 63.837821798049845,
+     "warm_primal_s": [
+      64.7848370600259
+     ],
+     "compiler_temporary_bytes": 85811432,
+     "peak_rss_bytes": 1105104896,
+     "host_load": [
+      7.9775390625,
+      7.7412109375,
+      7.76025390625
+     ],
+     "device_kinds": [
+      "NVIDIA RTX A4000"
+     ],
+     "max_balance_over_nmc2L": 1.079700868597373e-18,
+     "max_particle_charge_change_over_enL": 0.0,
+     "max_grid_charge_change_over_enL": 2.6033587091937238e-17,
+     "max_continuity_over_enwp": 9.380101233255346e-14,
+     "max_gauss_over_en_eps0": 1.9164936734395388e-14,
+     "max_mean_ampere_over_fieldwp": 5.777020528903947e-17,
+     "max_momentum_over_nmecL": 3.83149441021094e-06,
+     "max_mean_E_error": 0.00013145938862839726,
+     "max_current_error": 0.00011397858464671021,
+     "max_phase_error_rad": 0.0016093438397106752,
+     "phase_definition": "unwrapped arg(E+iJ) against oracle; exclude near-zero radius and startup",
+     "phase_mask_samples": 338,
+     "phase_total_samples": 401,
+     "phase_radius_threshold_normalized": 0.00018723780703506818,
+     "phase_mask": "t>=2\u03c0 and both |E+iJ| exceed 1% of oracle peak radius",
+     "phase_unavailable_reason": null,
+     "max_sampled_nonzero_electric_over_nmc2L": 3.6225036576784176e-06,
+     "final_nonzero_electric_over_nmc2L": 3.183208857131351e-06,
+     "nonzero_electric_convention": "epsilon0 dx sum|E-mean(E)|\u00b2/2, all components; no clamp",
+     "nonzero_threshold_crossings": [
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": null
+      },
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": null
+      }
+     ],
+     "oracle_windows": {
+      "mean_E": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.0008259048967262294,
+        "reference_l2": 0.15797506368522898,
+        "observed_l2": 0.15720598031560268,
+        "max_abs_difference": 0.00013145938862839726,
+        "relative_l2": 0.005228071300998965
+       }
+      },
+      "current": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.0007586258300180809,
+        "reference_l2": 0.15226621939050225,
+        "observed_l2": 0.1515645928496293,
+        "max_abs_difference": 0.00011397858464671021,
+        "relative_l2": 0.004982233308574554
+       }
+      },
+      "phase": {
+       "40": {
+        "samples": 338,
+        "max_error_rad": 0.0016093438397106752,
+        "max_nonzero_electric_over_nmc2L": 3.6225036576784176e-06
+       }
+      }
+     },
+     "execution_variability": [
+      {
+       "mean_E": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 5.330624023591306e-11,
+         "reference_l2": 0.15720598032557803,
+         "observed_l2": 0.15720598031560268,
+         "max_abs_difference": 1.1125792995225758e-11,
+         "relative_l2": 3.3908532058077137e-10
+        }
+       },
+       "current": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 3.107591112236491e-11,
+         "reference_l2": 0.15156459286140656,
+         "observed_l2": 0.1515645928496293,
+         "max_abs_difference": 6.671991084616913e-12,
+         "relative_l2": 2.0503410813620098e-10
+        }
+       },
+       "nonzero_electric": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 6.726038955947277e-13,
+         "reference_l2": 5.978123182090783e-05,
+         "observed_l2": 5.9781231980236225e-05,
+         "max_abs_difference": 2.4364546465712334e-13,
+         "relative_l2": 1.1251087926888316e-08
+        }
+       },
+       "momentum": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          2.4229544207423964e-11,
+          0.0,
+          0.0
+         ],
+         "reference_l2": [
+          3.86753241219667e-05,
+          0.0,
+          0.0
+         ],
+         "observed_l2": [
+          3.867532795497392e-05,
+          0.0,
+          0.0
+         ],
+         "max_abs_difference": [
+          8.493749939040299e-12,
+          0.0,
+          0.0
+         ],
+         "relative_l2": [
+          6.264858732925819e-07,
+          null,
+          null
+         ]
+        }
+       },
+       "mean": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          3.106009705512859e-11,
+          2.0538074375724894e-14
+         ],
+         "reference_l2": [
+          0.1514819572137006,
+          8.263565047763822e-05
+         ],
+         "observed_l2": [
+          0.1514819572019311,
+          8.263565046992214e-05
+         ],
+         "max_abs_difference": [
+          6.668235408291423e-12,
+          4.229703067827606e-15
+         ],
+         "relative_l2": [
+          2.0504156155911745e-10,
+          2.4853769840273284e-10
+         ]
+        }
+       },
+       "rms": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          2.9913305885880436e-11,
+          6.426529295598913e-14
+         ],
+         "reference_l2": [
+          0.6320331761092853,
+          0.014768448798823832
+         ],
+         "observed_l2": [
+          0.6320331761088464,
+          0.014768448798835225
+         ],
+         "max_abs_difference": [
+          9.665060418662108e-12,
+          1.836746900407693e-14
+         ],
+         "relative_l2": [
+          4.7328695734016503e-11,
+          4.351526272759754e-12
+         ]
+        }
+       }
+      }
+     ],
+     "execution_comparison": "execution 0 against each later call to the same compiled callable and input; norms use fixed physical scales; recorded arrays/results use the final call",
+     "oracle_scope": "homogeneous momentum-distribution reference; late differences mix time integration, spatial PIC dynamics and velocity loading once nonzero modes grow",
+     "max_work_error_over_nmc2L": 6.828027215344029e-07,
+     "oracle_nodes": 64,
+     "particle_substeps": 2,
+     "claim": "uniform prescribed-drive prototype; phase and work checks, no implicit Proca"
+    }
+   }
+  ],
+  "substep_observables": {
+   "electric": {
+    "l2_difference": 1.0706810084849251e-08,
+    "reference_l2_norm": 0.15767580845076576,
+    "relative_l2_difference": 6.790394918566376e-08,
+    "max_absolute_difference": 1.570224364595696e-09,
+    "reference_mean": -0.00033673266738716047,
+    "comparison_mean": -0.00033673262969196406
+   },
+   "current": {
+    "l2_difference": 1.1406938393469475e-08,
+    "reference_l2_norm": 0.15199440108813975,
+    "relative_l2_difference": 7.504841172968422e-08,
+    "max_absolute_difference": 1.7393583812835844e-09,
+    "reference_mean": 0.000338816117954606,
+    "comparison_mean": 0.0003388161439352298
+   },
+   "nonzero_electric": {
+    "l2_difference": 2.1336854729895617e-11,
+    "reference_l2_norm": 3.8469577415339765e-05,
+    "relative_l2_difference": 5.546422956387229e-07,
+    "max_absolute_difference": 3.3055639325379517e-12,
+    "reference_mean": 1.895645658612564e-06,
+    "comparison_mean": 1.8956465615355441e-06
+   },
+   "momentum": {
+    "l2_difference": [
+     1.8017685988872339e-09,
+     0.0,
+     0.0
+    ],
+    "reference_l2_norm": [
+     0.00041322068437597256,
+     0.0,
+     0.0
+    ],
+    "relative_l2_difference": [
+     4.3603059261377116e-06,
+     null,
+     null
+    ],
+    "max_absolute_difference": [
+     2.348456718738348e-10,
+     0.0,
+     0.0
+    ],
+    "reference_mean": [
+     1.4099932358214563e-05,
+     0.0,
+     0.0
+    ],
+    "comparison_mean": [
+     1.4099985133372637e-05,
+     0.0,
+     0.0
+    ]
+   },
+   "mean": {
+    "l2_difference": [
+     1.1400715169262874e-08,
+     6.300124448259313e-12
+    ],
+    "reference_l2_norm": [
+     0.15191151059412933,
+     8.289079870062543e-05
+    ],
+    "relative_l2_difference": [
+     7.504839577115928e-08,
+     7.60051121115784e-08
+    ],
+    "max_absolute_difference": [
+     1.738340717899467e-09,
+     1.0176644640844698e-12
+    ],
+    "reference_mean": [
+     -0.0003386236981836027,
+     1.9241977100284644e-07
+    ],
+    "comparison_mean": [
+     -0.00033862372412132706,
+     1.924198139027988e-07
+    ]
+   },
+   "rms": {
+    "l2_difference": [
+     4.971470465706319e-10,
+     2.3378959894153857e-12
+    ],
+    "reference_l2_norm": [
+     0.6322914171808526,
+     0.014774341196848622
+    ],
+    "relative_l2_difference": [
+     7.862625255728156e-10,
+     1.5824028687749952e-10
+    ],
+    "max_absolute_difference": [
+     6.278614433918861e-11,
+     1.8726058030604786e-13
+    ],
+    "reference_mean": [
+     0.03157512502404989,
+     0.0007377953746437835
+    ],
+    "comparison_mean": [
+     0.03157512501447236,
+     0.0007377953745487278
+    ]
+   },
+   "kinetic": {
+    "l2_difference": [
+     9.084857865942091e-11,
+     3.1718047662322234e-12
+    ],
+    "reference_l2_norm": [
+     0.01061025535743333,
+     0.010006932704706671
+    ],
+    "relative_l2_difference": [
+     8.562336682667513e-09,
+     3.1696073710382736e-10
+    ],
+    "max_absolute_difference": [
+     1.769851051738186e-11,
+     2.586222251979575e-13
+    ],
+    "reference_mean": [
+     0.0005285276032624956,
+     0.0004997223322827255
+    ],
+    "comparison_mean": [
+     0.0005285276023406437,
+     0.0004997223321537999
+    ]
+   }
+  },
+  "mesh_observables": {
+   "electric": {
+    "l2_difference": 0.000370536078972955,
+    "reference_l2_norm": 0.15767580845076576,
+    "relative_l2_difference": 0.002349986866175827,
+    "max_absolute_difference": 4.6449518880853705e-05,
+    "reference_mean": -0.00033673266738716047,
+    "comparison_mean": -0.00033576385348724235
+   },
+   "current": {
+    "l2_difference": 0.00034126067288584277,
+    "reference_l2_norm": 0.15199440108813975,
+    "relative_l2_difference": 0.002245218708338801,
+    "max_absolute_difference": 4.561939669518039e-05,
+    "reference_mean": 0.000338816117954606,
+    "comparison_mean": 0.0003378572805539344
+   },
+   "nonzero_electric": {
+    "l2_difference": 1.2055618107996754e-05,
+    "reference_l2_norm": 3.8469577415339765e-05,
+    "relative_l2_difference": 0.31338057025782584,
+    "max_absolute_difference": 8.920074622948766e-07,
+    "reference_mean": 1.895645658612564e-06,
+    "comparison_mean": 2.482540944730886e-06
+   },
+   "momentum": {
+    "l2_difference": [
+     0.00033623899261974875,
+     0.0,
+     0.0
+    ],
+    "reference_l2_norm": [
+     0.00041322068437597256,
+     0.0,
+     0.0
+    ],
+    "relative_l2_difference": [
+     0.8137031986371202,
+     null,
+     null
+    ],
+    "max_absolute_difference": [
+     4.2110695955376684e-05,
+     0.0,
+     0.0
+    ],
+    "reference_mean": [
+     1.4099932358214563e-05,
+     0.0,
+     0.0
+    ],
+    "comparison_mean": [
+     2.580543177812297e-06,
+     0.0,
+     0.0
+    ]
+   },
+   "mean": {
+    "l2_difference": [
+     0.00034105145117695033,
+     2.7690014173563587e-07
+    ],
+    "reference_l2_norm": [
+     0.15191151059412933,
+     8.289079870062543e-05
+    ],
+    "relative_l2_difference": [
+     0.002245066551198724,
+     0.0033405413637731854
+    ],
+    "max_absolute_difference": [
+     4.561046100253971e-05,
+     4.338349129102254e-08
+    ],
+    "reference_mean": [
+     -0.0003386236981836027,
+     1.9241977100284644e-07
+    ],
+    "comparison_mean": [
+     -0.00033767164655012117,
+     1.85634003812929e-07
+    ]
+   },
+   "rms": {
+    "l2_difference": [
+     0.00020362398584277422,
+     3.4217416170903474e-06
+    ],
+    "reference_l2_norm": [
+     0.6322914171808526,
+     0.014774341196848622
+    ],
+    "relative_l2_difference": [
+     0.00032204135673809443,
+     0.00023160028399914085
+    ],
+    "max_absolute_difference": [
+     1.59248936362974e-05,
+     2.389567898435953e-07
+    ],
+    "reference_mean": [
+     0.03157512502404989,
+     0.0007377953746437835
+    ],
+    "comparison_mean": [
+     0.031568775711641794,
+     0.0007376457386481783
+    ]
+   },
+   "kinetic": {
+    "l2_difference": [
+     7.696802696654148e-06,
+     4.635577343344675e-06
+    ],
+    "reference_l2_norm": [
+     0.01061025535743333,
+     0.010006932704706671
+    ],
+    "relative_l2_difference": [
+     0.0007254116359472841,
+     0.00046323658608839977
+    ],
+    "max_absolute_difference": [
+     7.695612863911367e-07,
+     3.236866694976198e-07
+    ],
+    "reference_mean": [
+     0.0005285276032624956,
+     0.0004997223322827255
+    ],
+    "comparison_mean": [
+     0.0005282079269302514,
+     0.0004995196152979445
+    ]
+   }
+  },
+  "native_data_sha256": [
+   "0140febf18954cf687b0da2e28f4a1e00cd9ecb9db217f2dc99b2821b354a9a7",
+   "54dfb4f75760375ea45883603666816d97f142c66879ec49859c5d5bc3c7c139",
+   "ab7e802e8242f44779fc19d1679fa6322e59a5a1b6fa17d43f0323ae3420e6f2",
+   "489dcc9b24449d482a5908b3dd9b279dc16be86bf0a3c49b8185dee2775b97d3"
+  ],
+  "native_run_sha256": [
+   "6f9a7ed065f1b3b6eb5234ceb351b2240a50d59f0abd2370fcc57ab04a24d474",
+   "70ed1ad28281780d55e1f74080335de46cdf30683691e3fa2e9982892252dfe6",
+   "5abcc93f523a22ea3f7d484db02f1ee7086286814f60d6475064cf14706e8179",
+   "71842dcbf9e0385867d08f4fab59de650f32d421045abd0aa03f267c4f66c58a"
+  ],
+  "norm_note": "Momentum norms subtract each initial value; RMS/kinetic norms include the initial thermal baseline. Histories are final timed calls; native records retain first/warm execution variability. No interpolation or phase alignment.",
+  "claim": "Separate mesh/substep sensitivities at fixed physical particles; no late-convergence or error-cause claim",
+  "refined_mesh_observables": {
+   "electric": {
+    "l2_difference": 0.00016397816081322304,
+    "reference_l2_norm": 0.15734153154082606,
+    "relative_l2_difference": 0.001042179767842637,
+    "max_absolute_difference": 2.7651123993067614e-05,
+    "reference_mean": -0.00033576385348724235,
+    "comparison_mean": -0.00033551902595568297
+   },
+   "current": {
+    "l2_difference": 0.00014817140098266233,
+    "reference_l2_norm": 0.15168481857870086,
+    "relative_l2_difference": 0.0009768373814270964,
+    "max_absolute_difference": 2.1123640429237048e-05,
+    "reference_mean": 0.0003378572805539344,
+    "comparison_mean": 0.0003371764619458515
+   },
+   "nonzero_electric": {
+    "l2_difference": 9.521587722255865e-06,
+    "reference_l2_norm": 5.03487515672886e-05,
+    "relative_l2_difference": 0.18911268752176977,
+    "max_absolute_difference": 6.84463144474214e-07,
+    "reference_mean": 2.482540944730886e-06,
+    "comparison_mean": 2.948944873365616e-06
+   },
+   "momentum": {
+    "l2_difference": [
+     6.193450077819923e-05,
+     0.0,
+     0.0
+    ],
+    "reference_l2_norm": [
+     8.453847836997727e-05,
+     0.0,
+     0.0
+    ],
+    "relative_l2_difference": [
+     0.7326190626136755,
+     null,
+     null
+    ],
+    "max_absolute_difference": [
+     7.845799416789654e-06,
+     0.0,
+     0.0
+    ],
+    "reference_mean": [
+     2.580543177812297e-06,
+     0.0,
+     0.0
+    ],
+    "comparison_mean": [
+     3.659672377361108e-07,
+     0.0,
+     0.0
+    ]
+   },
+   "mean": {
+    "l2_difference": [
+     0.0001480840209521484,
+     9.34991437983522e-08
+    ],
+    "reference_l2_norm": [
+     0.1516021130610334,
+     8.270553086699568e-05
+    ],
+    "relative_l2_difference": [
+     0.0009767939111279492,
+     0.0011305065431320967
+    ],
+    "max_absolute_difference": [
+     2.1108454234218532e-05,
+     1.518619502142261e-08
+    ],
+    "reference_mean": [
+     -0.00033767164655012117,
+     1.85634003812929e-07
+    ],
+    "comparison_mean": [
+     -0.00033699241094037807,
+     1.8405100547297616e-07
+    ]
+   },
+   "rms": {
+    "l2_difference": [
+     0.00014540515106084082,
+     3.1462418800231858e-06
+    ],
+    "reference_l2_norm": [
+     0.6321643180429645,
+     0.01477134516573001
+    ],
+    "relative_l2_difference": [
+     0.00023001163923800977,
+     0.00021299630092745832
+    ],
+    "max_absolute_difference": [
+     1.0615935593275005e-05,
+     1.9946731719697273e-07
+    ],
+    "reference_mean": [
+     0.031568775711641794,
+     0.0007376457386481783
+    ],
+    "comparison_mean": [
+     0.03156222558835018,
+     0.0007375010805354341
+    ]
+   },
+   "kinetic": {
+    "l2_difference": [
+     5.455394655773833e-06,
+     4.260412797253157e-06
+    ],
+    "reference_l2_norm": [
+     0.010603792542028838,
+     0.0100028744046049
+    ],
+    "relative_l2_difference": [
+     0.0005144758004413056,
+     0.000425918853413959
+    ],
+    "max_absolute_difference": [
+     4.648396768815611e-07,
+     2.701179836875128e-07
+    ],
+    "reference_mean": [
+     0.0005282079269302514,
+     0.0004995196152979445
+    ],
+    "comparison_mean": [
+     0.0005279545287673669,
+     0.0004993237223622224
+    ]
+   }
+  }
+ }
+}
