@@ -19,6 +19,104 @@ def forced_cold(times, amplitude, mass_ratio=1836.):
         difference * t / (2 * np.pi)) / (frequency + 1)
 
 
+def orbit_average(electric, x, displacement, length):
+    """Exact periodic linear-face-field average over an unwrapped 1V orbit.
+
+    Face i is at -L/2+(i+1)dx. At most one face may be crossed; zero-length
+    orbits return the local field. Splitting the trapezoid avoids subtracting
+    two nearly equal potentials when a particle hardly moves.
+    """
+    electric, x = np.asarray(electric, dtype=float), np.asarray(x, dtype=float)
+    displacement = np.broadcast_to(np.asarray(displacement, dtype=float), x.shape)
+    if (electric.ndim != 1 or len(electric) < 2 or not np.isfinite(length) or length <= 0
+            or not all(np.all(np.isfinite(a)) for a in (electric, x, displacement))):
+        raise ValueError('finite periodic face fields and positive length are required')
+    dx = length / len(electric)
+    faces = -length / 2 + dx * np.arange(1, len(electric) + 1)
+    first = np.floor((x + length / 2) / dx)
+    last = np.floor((x + displacement + length / 2) / dx)
+    if np.any(abs(last - first) > 1):
+        raise ValueError('reference orbit crosses more than one face in a substep')
+    edge = -length / 2 + (first + (displacement > 0)) * dx
+    crossed = first != last
+    fraction = np.divide(edge - x, displacement, out=np.zeros_like(displacement), where=crossed)
+    start, stop, middle = (np.interp(a, faces, electric, period=length) for a in (x, x + displacement, edge))
+    return np.where(crossed, .5 * ((start + middle) * fraction + (middle + stop) * (1 - fraction)),
+                    .5 * (start + stop))
+
+
+def _quadratic_charge(x, amounts, length, cells):
+    """Independent piecewise quadratic spline; amounts are qw/(enL)."""
+    coordinate = (x + length / 2) * cells / length - .5
+    nearest = np.floor(coordinate + .5).astype(int)
+    indices = nearest[:, None] + np.array([-1, 0, 1])
+    distance = abs(coordinate[:, None] - indices)
+    shape = np.where(distance <= .5, .75 - distance**2,
+                     np.where(distance <= 1.5, .5 * (1.5 - distance)**2, 0.))
+    density = np.zeros(cells)
+    np.add.at(density, indices % cells, cells * amounts[:, None] * shape)
+    return density
+
+
+def midpoint_orbits(electric, x, u, charge, mass, length, dt, *, drive=0., weights=None,
+                    tolerance=2e-13, iterations=64):
+    """Independently solve two relativistic 1V substeps in a frozen midpoint field.
+
+    Units are x:c/wp, u:c, E:me*c*wp/e, q:e and mass:me. ``drive`` is the
+    uniform force already evaluated at the whole field-step midpoint. Optional
+    weights w/(nL) give endpoint charge/(en) and mean current/(en*c).
+    No magnetic/transverse motion is supported. Residuals describe this frozen
+    field reference, not the parent's inaccessible internal Picard residual.
+    """
+    electric, x, u = (np.asarray(a, dtype=float) for a in (electric, x, u))
+    charge, mass = (np.broadcast_to(np.asarray(a, dtype=float), x.shape) for a in (charge, mass))
+    if (x.ndim != 1 or not x.size or u.shape != x.shape or electric.ndim != 1 or electric.size < 2
+            or not isinstance(iterations, (int, np.integer)) or iterations < 1
+            or not np.all(np.isfinite([length, dt, drive, tolerance])) or min(length, dt, tolerance) <= 0
+            or not all(np.all(np.isfinite(a)) for a in (electric, x, u, charge, mass)) or np.any(mass <= 0)):
+        raise ValueError('finite 1V arrays, positive mass/length/dt/tolerance and iteration count are required')
+    if np.any((x < -length / 2) | (x >= length / 2)):
+        raise ValueError('initial integer-time positions must lie in the periodic box')
+    initial_x, total = x.copy(), np.zeros_like(x)
+    counts, residual_u, residual_x, fields, equation_u = [], [], [], [], []
+    h, dx, qm = dt / 2, length / electric.size, charge / mass
+    for _ in range(2):
+        old_u, old_x = u.copy(), x.copy()
+        shift = h * old_u / np.hypot(1., old_u)
+        for count in range(1, iterations + 1):
+            average = orbit_average(electric, old_x, shift, length) + drive
+            new_u = old_u + qm * h * average
+            new_shift = h * (old_u + new_u) / (np.hypot(1., old_u) + np.hypot(1., new_u))
+            if not np.all(np.isfinite(new_u)) or not np.all(np.isfinite(new_shift)):
+                raise ValueError('reference orbit overflow')
+            error = max(float(np.max(abs(new_u - u))), float(np.max(abs(new_shift - shift))) / dx)
+            u, shift = new_u, new_shift
+            if error <= tolerance:
+                break
+        average = orbit_average(electric, old_x, shift, length) + drive
+        equation_u.append(u - old_u - qm * h * average)
+        residual_u.append(float(np.max(abs(equation_u[-1]))))
+        closed_shift = h * (old_u + u) / (np.hypot(1., old_u) + np.hypot(1., u))
+        residual_x.append(float(np.max(abs(shift - closed_shift))) / dx)
+        counts.append(count)
+        fields.append(average)
+        total += shift
+        x = (old_x + shift + length / 2) % length - length / 2
+    result = dict(x=x, u=u, displacement=total, orbit_E=np.stack(fields), iterations=counts,
+                  equation_u_residual=np.stack(equation_u),
+                  residual_u=residual_u, residual_x_over_dx=residual_x,
+                  converged=max(*residual_u, *residual_x) <= tolerance)
+    if weights is not None:
+        weights = np.broadcast_to(np.asarray(weights, dtype=float), x.shape)
+        if not np.all(np.isfinite(weights)) or np.any(weights < 0):
+            raise ValueError('reference marker weights must be finite and nonnegative')
+        amounts = charge * weights
+        result.update(rho_initial=_quadratic_charge(initial_x, amounts, length, electric.size),
+                      rho=_quadratic_charge(x, amounts, length, electric.size),
+                      mean_current=float(np.sum(amounts * total) / dt))
+    return result
+
+
 def homogeneous(times, amplitude, *, mass_ratio=1836., temperature=1e-3,
                 relativistic=True, nodes=64, eta=None, omega=1., rtol=2e-10):
     """Unseeded prescribed drive or finite Proca reservoir without spatial dynamics.

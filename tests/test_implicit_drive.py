@@ -13,11 +13,11 @@ from jaxincell._core import deposit, E_x_from_rho
 from darkjaxincell import PrescribedDrive, load_state
 from darkjaxincell._proca import divergence
 from docs.scripts.conservation import snapshot
-from docs.scripts.drive_reference import forced_cold, homogeneous
+from docs.scripts.drive_reference import forced_cold, homogeneous, midpoint_orbits, orbit_average
 from examples.dark_reservoir import save_compressed_state
 from docs.scripts.benchmark_implicit_drive import (
     FIELD, N, WP, c, m, e, drive_state, homogeneous_box, implicit_drive_step,
-    objective, run_drive, sample, tangent_reference, load_plasma, norm_errors, crossings,
+    objective, run_drive, sample, tangent_reference, load_plasma, norm_errors, crossings, archived_initial,
 )
 
 
@@ -252,3 +252,77 @@ def test_execution_comparisons_keep_zero_norms_and_native_sample_endpoints():
     assert metrics['relative_l2'] == [None, 2.]
     assert metrics['max_abs_difference'] == [1., 2.]
     json.dumps(metrics, allow_nan=False)
+
+
+def test_orbit_average_splits_linear_pieces_in_both_directions_and_at_the_wrap():
+    field = np.array([2., 4., -2., 0.])  # faces -1, 0, 1, 2
+    np.testing.assert_allclose(orbit_average(field, [-.75, -.25, .25, 1.75, -.25],
+                                             [.5, .5, -.5, .5, 0.], 4.),
+                               [3., 3.5, 3.5, 0., 3.5], rtol=0, atol=2e-15)
+    with pytest.raises(ValueError, match='more than one face'):
+        orbit_average(field, [-.25], [1.5], 4.)
+
+
+def test_reference_constant_force_has_exact_relativistic_momentum_and_displacement():
+    x, u = np.array([-.9, -.1, .99]), np.array([.05, -.1, .7])
+    charge, mass = np.array([-1., 1., -1.]), np.array([1., 1836., 2.])
+    result = midpoint_orbits(np.full(32, .2), x, u, charge, mass, 2., .1, drive=.03)
+    exact_u = u + charge / mass * .1 * .23
+    exact_shift = .1 * (u + exact_u) / (np.hypot(1., u) + np.hypot(1., exact_u))
+    assert result['converged'] and max(result['residual_u']) < 2e-15
+    np.testing.assert_allclose(result['u'], exact_u, rtol=0, atol=2e-15)
+    np.testing.assert_allclose(result['displacement'], exact_shift, rtol=0, atol=2e-15)
+    np.testing.assert_allclose(result['x'], (x + exact_shift + 1) % 2 - 1, rtol=0, atol=2e-15)
+
+
+def test_reference_quadratic_endpoint_charge_and_unconverged_status():
+    result = midpoint_orbits(np.zeros(4), [-.75], [0.], 1., 1., 2., .1, weights=[1.])
+    np.testing.assert_array_equal(result['rho'], [3., .5, 0., .5])
+    np.testing.assert_array_equal(result['rho_initial'], result['rho'])
+    assert result['mean_current'] == 0. and result['converged']
+    unresolved = midpoint_orbits([2., 4., -2., 0.], [.25], [.1], 1., 1., 4., .2,
+                                 iterations=1, tolerance=1e-14)
+    assert not unresolved['converged'] and max(unresolved['residual_u']) > 1e-6
+    with pytest.raises(ValueError, match='1V arrays'):
+        midpoint_orbits(np.zeros(4), [0.], [[0., 0., 0.]], 1., 1., 2., .1)
+    with pytest.raises(ValueError, match='1V arrays'):
+        midpoint_orbits(np.zeros(4), [0.], [0.], 1., 0., 2., .1)
+
+
+def test_two_substep_parent_endpoint_matches_independent_frozen_midpoint_orbits():
+    p, state = load_plasma(SimpleNamespace(paper_loading=True, cells=8, particles=32, dt=.02, iterations=8))
+    model = cosine()
+    accepted, current = implicit_drive_step(p, state, model)
+    before, after, d = state.ordinary, accepted.ordinary, p.domain
+    force = float(model.eta * model.amplitude[0] / FIELD) * np.cos(
+        float(model.omega) * (float(before.time) + d.dt / 2) + float(model.phase))
+    reference = midpoint_orbits((np.asarray(before.E[:, 0]) + np.asarray(after.E[:, 0])) / (2 * FIELD),
+                                before.x[:, 0] * WP / c, before.u[:, 0] / c,
+                                p.per_particle[1] / e, p.per_particle[0] / m, d.length * WP / c, d.dt * WP,
+                                drive=force, weights=before.w / (N * d.length))
+    assert reference['converged']
+    np.testing.assert_allclose(after.u[:, 0] / c, reference['u'], rtol=0, atol=2e-12)
+    np.testing.assert_allclose(after.x[:, 0] * WP / c, reference['x'], rtol=0, atol=2e-12)
+    np.testing.assert_allclose(after.rho / (e * N), reference['rho'], rtol=0, atol=2e-12)
+    np.testing.assert_allclose(np.mean(current[:, 0]) / (e * N * c), reference['mean_current'],
+                               rtol=0, atol=2e-12)
+
+
+def test_archived_initial_keeps_native_arrays_and_rejects_nonzero_or_mismatched_start(tmp_path):
+    p, initial = homogeneous_box(cells=4, nodes=1, temperature=0.)
+    model = SimpleNamespace(plasma=p, dark=cosine())
+    stored = drive_state(p, initial.ordinary.replace(E=initial.ordinary.E.at[:, 0].set(1e-15 * FIELD)))
+    path = tmp_path / 'initial.npz'
+    save_compressed_state(path, stored, model)
+    restored = archived_initial(path, initial, model)
+    jax.tree.map(np.testing.assert_array_equal, stored, restored)
+    assert archived_initial(None, initial, model) is initial
+    for invalid in (stored.replace(ordinary=stored.ordinary.replace(time=jnp.asarray(p.domain.dt))),
+                    stored.replace(work=jnp.asarray(1.))):
+        save_compressed_state(path, invalid, model)
+        with pytest.raises(ValueError, match='zero-time, zero-work'):
+            archived_initial(path, initial, model)
+    save_compressed_state(path, stored, model)
+    mismatched = initial.replace(ordinary=initial.ordinary.replace(u=initial.ordinary.u.at[0, 0].add(.01 * c)))
+    with pytest.raises(AssertionError):
+        archived_initial(path, mismatched, model)

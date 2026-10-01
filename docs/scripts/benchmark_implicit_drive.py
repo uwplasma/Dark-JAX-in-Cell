@@ -10,6 +10,7 @@ external force, with work supplied externally, not implicit Proca evolution.
 
 import argparse
 from functools import partial
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -258,6 +259,55 @@ def archived_initial(path, initial, model):
     return restored
 
 
+def audit_orbits(args):
+    """Probe one archived pure-electric step against independent NumPy orbits."""
+    from docs.scripts.drive_reference import midpoint_orbits
+    plasma, _ = load_plasma(args)
+    drive = PrescribedDrive(1., jnp.array([args.amplitude * FIELD, 0., 0.]), WP)
+    state = load_state(args.audit_state, SimpleNamespace(plasma=plasma, dark=drive))
+    before, d = state.ordinary, plasma.domain
+    if (np.any(before.B) or np.any(before.E[:, 1:]) or np.any(before.u[:, 1:])
+            or plasma.solver.substeps != 2):
+        raise ValueError('orbit audit requires pure-electric 1V motion and two particle substeps')
+    accepted, current = jax.jit(implicit_drive_step)(plasma, state, drive)
+    after, current = accepted.ordinary, np.asarray(current[:, 0]) / (e * N * c)
+    length, dt = d.length * WP / c, d.dt * WP
+    mass, charge = np.asarray(plasma.per_particle[0]) / m, np.asarray(plasma.per_particle[1]) / e
+    weights = np.asarray(before.w) / (N * d.length)
+    force = args.amplitude * np.cos(float(before.time) * WP + dt / 2)
+    reference = midpoint_orbits((np.asarray(before.E[:, 0]) + np.asarray(after.E[:, 0])) / (2 * FIELD),
+                                np.asarray(before.x[:, 0]) * WP / c, np.asarray(before.u[:, 0]) / c,
+                                charge, mass, length, dt, drive=force, weights=weights)
+    reference_current = -length / d.cells * np.cumsum((reference['rho'] - reference['rho_initial']) / dt)
+    reference_current += reference['mean_current'] - np.mean(reference_current)
+    position_error = (np.asarray(after.x[:, 0]) * WP / c - reference['x'] + length / 2) % length - length / 2
+    momentum = np.sum(mass * weights * np.asarray(after.u[:, 0] - before.u[:, 0]) / c)
+    reference_momentum = np.sum(mass * weights * (reference['u'] - np.asarray(before.u[:, 0]) / c))
+    result = dict(checkpoint_time_omega_p=float(before.time) * WP,
+                  checkpoint_sha256=hashlib.sha256(args.audit_state.read_bytes()).hexdigest(),
+                  reference_converged=reference['converged'], reference_iterations=reference['iterations'],
+                  reference_residual_u=reference['residual_u'],
+                  reference_residual_x_over_dx=reference['residual_x_over_dx'],
+                  max_position_difference_over_c_wp=float(np.max(abs(position_error))),
+                  max_momentum_per_mass_difference_over_c=float(np.max(abs(
+                      np.asarray(after.u[:, 0]) / c - reference['u']))),
+                  max_charge_difference_over_en=float(np.max(abs(
+                      np.asarray(after.rho) / (e * N) - reference['rho']))),
+                  max_current_difference_over_enc=float(np.max(abs(current - reference_current))),
+                  reference_ampere_residual_over_fieldwp=float(np.max(abs(
+                      (np.asarray(after.E[:, 0] - before.E[:, 0]) / FIELD) / dt + reference_current))),
+                  momentum_increment_over_nmecL=float(momentum),
+                  uniform_drive_impulse_over_nmecL=float(dt * np.sum(charge * weights) * force),
+                  reference_momentum_increment_over_nmecL=float(reference_momentum),
+                  momentum_disagreement_over_nmecL=float(momentum - reference_momentum),
+                  scope='Frozen accepted-midpoint 1V orbit/deposit reference; differences include finite iteration '
+                        'and native force evaluation roundoff. Not an internal parent Picard residual.')
+    settings = dict(dt=args.dt, iterations=args.iterations, particles_per_species=plasma.species[0].n,
+                    cells=args.cells, parent_revision='83d327118163833f93e2588edcb5029241f6ba2a')
+    save_run(args.output, 'implicit_orbit_audit', settings, result)
+    print(json.dumps(result, indent=2))
+
+
 def benchmark(args):
     from examples.dark_reservoir import array_fingerprint, save_compressed_state
     plasma, initial = load_plasma(args)
@@ -462,6 +512,7 @@ def main():
     parser.add_argument("--paper-loading", action="store_true", help="reuse the paper example's Gaussian plasma")
     parser.add_argument("--particles", type=int, default=103000, help="markers per species with --paper-loading")
     parser.add_argument("--initial-state", type=Path, help="reuse a complete zero-time, zero-work native archive")
+    parser.add_argument("--audit-state", type=Path, help="probe one archived 1V step against independent orbits")
     parser.add_argument("--output", type=Path, default=Path("artifacts/implicit_drive"))
     args = parser.parse_args()
     args.cells = args.cells if args.cells is not None else (1000 if args.paper_loading else 32)
@@ -479,7 +530,12 @@ def main():
         parser.error("quadrature velocities exceed the parent's relativistic input margin")
     if args.newtonian and args.gradient_horizon:
         parser.error("gradient prototype uses the relativistic solver")
-    benchmark(args)
+    if args.audit_state is not None:
+        if args.newtonian or args.gradient_horizon:
+            parser.error('orbit audit requires relativistic dynamics without a gradient study')
+        audit_orbits(args)
+    else:
+        benchmark(args)
 
 
 if __name__ == "__main__":
