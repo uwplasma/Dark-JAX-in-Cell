@@ -1,0 +1,120 @@
+{
+  "strong_electric": {
+    "pdf_path_index": 287,
+    "log10_y_at_pdf_y0": -1,
+    "pdf_y0": 121.9530258178711,
+    "pdf_y_per_decade": 22.14783554077148,
+    "at_5000_approx": 0.00033188907850716413,
+    "max_approx": 0.0032476800286099627,
+    "visible_pdf_y_bounds": [
+      111.38581085205078,
+      222.125
+    ]
+  },
+  "strong_electron_spread_curve": {
+    "pdf_path_index": 288,
+    "log10_y_at_pdf_y0": -1,
+    "pdf_y0": 121.9530258178711,
+    "pdf_y_per_decade": 22.14783554077148,
+    "at_5000_approx": 0.040110758074882485,
+    "max_approx": 0.040110758074882485,
+    "visible_pdf_y_bounds": [
+      111.38581085205078,
+      222.125
+    ]
+  },
+  "strong_ion_spread_curve": {
+    "pdf_path_index": 289,
+    "log10_y_at_pdf_y0": -1,
+    "pdf_y0": 121.9530258178711,
+    "pdf_y_per_decade": 22.14783554077148,
+    "at_5000_approx": 0.0004265418936384631,
+    "max_approx": 0.0004335067794228329,
+    "visible_pdf_y_bounds": [
+      111.38581085205078,
+      222.125
+    ]
+  },
+  "strong_electron_rms": {
+    "pdf_path_index": 302,
+    "log10_y_at_pdf_y0": -1,
+    "pdf_y0": 131.38253784179688,
+    "pdf_y_per_decade": 40.188568115234375,
+    "at_5000_approx": 0.2018463610208144,
+    "max_approx": 0.20289922999159948,
+    "visible_pdf_y_bounds": [
+      111.38581085205078,
+      222.125
+    ]
+  },
+  "strong_ion_rms": {
+    "pdf_path_index": 303,
+    "log10_y_at_pdf_y0": -1,
+    "pdf_y0": 131.38253784179688,
+    "pdf_y_per_decade": 40.188568115234375,
+    "at_5000_approx": 0.0008819327586121184,
+    "max_approx": 0.0008837093987770679,
+    "visible_pdf_y_bounds": [
+      111.38581085205078,
+      222.125
+    ]
+  },
+  "strong_electron_mean_abs": {
+    "pdf_path_index": 305,
+    "log10_y_at_pdf_y0": -1,
+    "pdf_y0": 131.38253784179688,
+    "pdf_y_per_decade": 40.188568115234375,
+    "at_5000_approx": 0.011618366899473657,
+    "max_approx": 0.05668500450491266,
+    "visible_pdf_y_bounds": [
+      111.38581085205078,
+      222.125
+    ]
+  },
+  "weak_electric": {
+    "pdf_path_index": 348,
+    "log10_y_at_pdf_y0": -1,
+    "pdf_y0": 234.18411254882812,
+    "pdf_y_per_decade": 20.218499755859376,
+    "at_5000_approx": 2.5942965988018186e-05,
+    "max_approx": 0.00017700135407986326,
+    "visible_pdf_y_bounds": [
+      224.5374298095703,
+      335.276611328125
+    ]
+  },
+  "weak_electron_spread_curve": {
+    "pdf_path_index": 349,
+    "log10_y_at_pdf_y0": -1,
+    "pdf_y0": 234.18411254882812,
+    "pdf_y_per_decade": 20.218499755859376,
+    "at_5000_approx": 0.0007731649704870958,
+    "max_approx": 0.0007805099821569492,
+    "visible_pdf_y_bounds": [
+      224.5374298095703,
+      335.276611328125
+    ]
+  },
+  "weak_ion_spread_curve": {
+    "pdf_path_index": 350,
+    "log10_y_at_pdf_y0": -1,
+    "pdf_y0": 234.18411254882812,
+    "pdf_y_per_decade": 20.218499755859376,
+    "at_5000_approx": 1.6364038017468742e-05,
+    "max_approx": 1.6364038017468742e-05,
+    "visible_pdf_y_bounds": [
+      224.5374298095703,
+      335.276611328125
+    ]
+  },
+  "source": "arXiv:2510.13956v1",
+  "source_sha256": "475e9b8f8856d8f5abd68ef98fabe2c52e33990889e079d5653ffe31d1f02af8",
+  "figure": 2,
+  "page_one_based": 3,
+  "method": "PDF vector line paths; affine x and log-y axis calibration from gridline positions; plotted curves, not author simulation data",
+  "x_pdf_zero": 346.6741943359375,
+  "x_pdf_5000": 532.43798828125,
+  "normalization_note": "Solid species energy curves differ about factor2 from B3 computed using dashedRMS; preserve explicit B3 definition in PIC and describe normalization ambiguity.",
+  "source_filename": "2510.13956v1.pdf",
+  "visibility_filter": "Only vertices inside panel clipping rectangle; final x-boundary interpolation retained when visible. No early extrapolation from clipped lines."
+}

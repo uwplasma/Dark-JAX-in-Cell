@@ -348,4 +348,27 @@ if storage_cost.exists():
         measured[f"storage_{name}_first_s"] = f"{row['first_call_s']:.2f}"
         measured[f"storage_{name}_rss_mib"] = f"{row['peak_rss_bytes'] / 2**20:.1f}"
     measured["_provenance"]["storage_cost"] = data["settings"]
+paper = EVIDENCE.parent / "paper_replay"
+for name, ratio in (("drive", ".03"), ("zero", "0")):
+    run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
+                 "--drive-ratio", ratio, "--output", str(ROOT / "artifacts" / f"paper_full_{name}")],
+                cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "docs" / "scripts" / "make_paper_replay.py"),
+             "--records", str(ROOT / "artifacts"), "--output", str(paper)], cwd=ROOT, check=True)
+paper_record = json.loads((paper / "run.json").read_text())
+hook = paper_record["results"]
+budget = hook["all_step_conservation"]
+measured.update({"hook_electron_rms": f"{hook['final_rms_over_c'][0]:.4f}",
+                 "hook_ion_rms": f"{hook['final_rms_over_c'][1]:.6f}",
+                 "hook_target_electron_rms": f"{hook['digitized_final_rms_over_c'][0]:.4f}",
+                 "hook_target_ion_rms": f"{hook['digitized_final_rms_over_c'][1]:.6f}",
+                 "hook_electron_difference_percent": f"{100 * hook['final_rms_relative_difference'][0]:.1f}",
+                 "hook_ion_difference_percent": f"{100 * hook['final_rms_relative_difference'][1]:.1f}",
+                 "hook_spread_gain": f"{hook['late_global_spread_over_initial'][0]:.2f}",
+                 "hook_no_drive_spread": f"{hook['no_drive_late_global_spread_over_initial']:.4f}",
+                 "hook_work_error_percent": f"{100 * budget['max_energy_work_defect_over_peak_injected_work']:.4f}",
+                 "hook_momentum": f"{budget['max_momentum_defect_over_nmecL']:.2e}",
+                 "hook_gauss": f"{budget['max_ordinary_gauss_over_en_eps0']:.2e}",
+                 "hook_continuity": f"{budget['max_continuity_over_enwp']:.2e}"})
+measured["_provenance"]["paper_replay"] = provenance(paper_record, "paper_replay")
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")
