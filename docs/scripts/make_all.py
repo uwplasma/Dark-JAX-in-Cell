@@ -559,5 +559,35 @@ for suffix, key in (("mean_E", "mean_E"), ("nonzero", "nonzero_electric")):
     for window in method_record["results"]["comparison"]["windows"]:
         value = window["observables"][key]["relative_l2_difference"]
         measured[f"implicit_paper_vs_explicit_{suffix}_{window['end_omega_p']}"] = f"{100 * value:.3f}"
+iterations_folder = EVIDENCE.parent / "implicit_iteration_control"
+iteration_runs = [ROOT / "artifacts" / f"implicit_picard{count}_exact_40" for count in (4, 8)]
+for count, folder in zip((4, 8), iteration_runs):
+    run_example([sys.executable, str(ROOT / "docs/scripts/benchmark_implicit_drive.py"), "--paper-loading",
+                 "--dt", ".01", "--iterations", str(count), "--horizon", "40", "--samples", "1",
+                 "--initial-state", str(implicit_paper / "initial_state.npz"), "--output", str(folder)],
+                cwd=ROOT, check=True)
+orbit_folders = []
+for stage in ("initial", "final"):
+    for count in (4, 8):
+        folder = ROOT / "artifacts" / f"orbit_{stage}_{count}"
+        orbit_folders.append(folder)
+        run_example([sys.executable, str(ROOT / "docs/scripts/benchmark_implicit_drive.py"), "--paper-loading",
+                     "--dt", ".01", "--iterations", str(count), "--audit-state",
+                     str(iteration_runs[0] / f"{stage}_state.npz"), "--output", str(folder)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "docs/scripts/compare_replays.py"), *map(str, iteration_runs), "--picard",
+             "--orbit-audits", *map(str, orbit_folders), "--publish", str(iterations_folder)], cwd=ROOT, check=True)
+iteration_record = json.loads((iterations_folder / "run.json").read_text())
+for count, native in zip((4, 8), iteration_record["results"]["native_runs"]):
+    values = native["results"]
+    for suffix, key in (("balance", "max_balance_over_nmc2L"), ("momentum", "max_momentum_over_nmecL")):
+        measured[f"implicit_iterations_{count}_{suffix}"] = f"{values[key]:.3e}"
+    measured[f"implicit_iterations_{count}_warm"] = f"{values['warm_primal_s'][0]:.2f}"
+for suffix, key in (("mean_E", "electric"), ("nonzero", "nonzero_electric")):
+    measured[f"implicit_iterations_{suffix}_l2"] = (
+        f"{iteration_record['results']['observables'][key]['relative_l2_difference']:.3e}")
+orbit_error = max(abs(r["results"]["momentum_disagreement_over_nmecL"])
+                  for r in iteration_record["results"]["orbit_audits"])
+measured["implicit_orbit_momentum_disagreement"] = f"{orbit_error:.3e}"
+measured["_provenance"]["implicit_iteration_control"] = provenance(iteration_record, iterations_folder.name)
 measured["_provenance"]["paper_implicit_comparison"] = provenance(method_record, method.name)
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")
