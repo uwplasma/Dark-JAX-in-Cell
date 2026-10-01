@@ -371,4 +371,27 @@ measured.update({"hook_electron_rms": f"{hook['final_rms_over_c'][0]:.4f}",
                  "hook_gauss": f"{budget['max_ordinary_gauss_over_en_eps0']:.2e}",
                  "hook_continuity": f"{budget['max_continuity_over_enwp']:.2e}"})
 measured["_provenance"]["paper_replay"] = provenance(paper_record, "paper_replay")
+pic = EVIDENCE.parent / "pic_conservation"
+run_example([sys.executable, str(ROOT / "docs" / "scripts" / "benchmark_pic_conservation.py"),
+             "--full", "--samples", "1", "--output", str(pic)], cwd=ROOT, check=True)
+pic_record = json.loads((pic / "run.json").read_text())
+rows = pic_record["results"]["rows"]
+for label, case, cells, dt in (("explicit", "explicit", 128, .002),
+                               ("implicit4", "implicit4", 128, .002),
+                               ("implicit8", "implicit8", 128, .002),
+                               ("implicit_large", "implicit8", 128, .02),
+                               ("proca", "proca", 128, .002),
+                               ("proca_halfstep", "proca", 128, .001),
+                               ("proca_fine", "proca", 256, .002)):
+    row = next(r for r in rows if (r["case"], r["cells"], r["dt_omega_p"]) == (case, cells, dt))
+    for suffix, key, fmt in (("energy", "max_energy_error_over_initial", ".2e"),
+                             ("momentum", "max_momentum_error_over_nmecL", ".2e"),
+                             ("growth", "fitted_growth_over_wp", ".7f"),
+                             ("frequency", "fitted_frequency_over_wp", ".2e"),
+                             ("dark_work", "max_dark_work_error_over_initial", ".2e"),
+                             ("compile", "compile_s", ".3f"), ("warm", "warm_median_s", ".3f")):
+        measured[f"pic_{label}_{suffix}"] = format(row[key], fmt)
+    measured[f"pic_{label}_temp_mib"] = f"{row['compiler_temporary_bytes'] / 2**20:.2f}"
+    measured[f"pic_{label}_rss_mib"] = f"{row['peak_rss_bytes'] / 2**20:.0f}"
+measured["_provenance"]["pic_conservation"] = provenance(pic_record, "pic_conservation")
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")

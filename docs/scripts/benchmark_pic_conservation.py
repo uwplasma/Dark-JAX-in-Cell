@@ -5,6 +5,7 @@ The Proca row is explicit; a vacuum midpoint clock is not an implicit dark PIC.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -33,6 +34,22 @@ from examples.dark_kinetic import longitudinal_root  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 WP = 1e9
+
+
+def fit_mode(t, mode, window=(8., 16.)):
+    """Fit a shared inclusive window despite floating accumulation of the clock."""
+    t, mode = np.asarray(t), np.asarray(mode)
+    selected = (t >= window[0] - 1e-9) & (t <= window[1] + 1e-9)
+    if selected.sum() < 3:
+        raise ValueError("mode fit needs at least three samples in its physical window")
+    growth = linregress(t[selected], np.log(np.maximum(abs(mode[selected]), np.finfo(float).tiny)))
+    angles = np.unwrap(np.angle(mode[selected]))
+    phase = linregress(t[selected], angles)
+    return dict(fitted_growth_over_wp=float(growth.slope), regression_standard_error=float(growth.stderr),
+                fitted_frequency_over_wp=float(-phase.slope), fit_samples=int(selected.sum()),
+                phase_regression_standard_error=float(phase.stderr),
+                phase_excursion_radians=float(np.max(abs(angles - angles[0]))),
+                fit_window_omega_p=list(window))
 
 
 def plasma(cells, particles, dtau, iterations=0):
@@ -85,9 +102,6 @@ def measure(case, cells, particles, dtau, horizon, samples):
     scale = p.species[0].density * 2 * m * c**2 * p.domain.length
     charge_scale = 2 * e * p.species[0].density * p.domain.length
     t, mode = history["t"] * WP, history["mode_E"]
-    window = (t >= 8) & (t <= min(16, horizon))
-    fit = linregress(t[window], np.log(np.maximum(abs(mode[window]), np.finfo(float).tiny)))
-    phase = linregress(t[window], np.unwrap(np.angle(mode[window])))
     root, residual = longitudinal_root(2 * np.pi / p.domain.length, populations, .7 * WP,
                                        .3 if case == "proca" else 0, .34j,
                                        model="full" if case == "proca" else "ordinary")
@@ -111,13 +125,13 @@ def measure(case, cells, particles, dtau, horizon, samples):
                max_ordinary_work_error_over_initial=float(maxima[8] / history["balance"][0]),
                max_grid_particle_charge_disagreement_over_enL=float(np.max(abs(
                    history["grid_charge"] - history["charge"])) / charge_scale),
-               fitted_growth_over_wp=float(fit.slope), regression_standard_error=float(fit.stderr),
-               fitted_frequency_over_wp=float(-phase.slope),
+               **fit_mode(t, mode),
                theory_growth_over_wp=float(root.imag * root_scale),
                theory_frequency_over_wp=float(root.real * root_scale), theory_residual=residual,
                reference_frequency_over_electron_wp=float(root_scale),
-               fit_window_omega_p=[8, min(16, horizon)], backend=jax.default_backend(),
-               devices=[str(d) for d in jax.devices()], jax=jax.__version__)
+               backend=jax.default_backend(),
+               devices=[str(d) for d in jax.devices()], device_kinds=[d.device_kind for d in jax.devices()],
+               jax=jax.__version__)
     energy_error = (history["balance"] - history["balance"][0]) / history["balance"][0]
     arrays = dict(t=t.tolist(), energy_error=energy_error.tolist(),
                   momentum_error=((history["momentum"][:, 0] - history["momentum"][0, 0]) * c / scale).tolist(),
@@ -126,27 +140,77 @@ def measure(case, cells, particles, dtau, horizon, samples):
     return row, arrays
 
 
-def render(folder, settings, rows, histories):
-    """One readable white-background figure, backed by compressed scalar records."""
+def figure_rows(rows, histories):
+    """Show selected method/refinement rows; retain every row in the evidence."""
     with midnight():
-        figure, axes = plt.subplots(1, 3, figsize=(12, 3.5), layout="constrained")
+        figure, axes = plt.subplots(2, 2, figsize=(11, 7), layout="constrained")
+        axes = axes.ravel()
+        handles = []
+        base_dt = rows[0]["dt_omega_p"]
         for row, data in zip(rows, histories):
-            label = f'{row["case"]}, Δtωₚ={row["dt_omega_p"]:g}, {row["cells"]} cells'
+            if not ((row["case"] in ("explicit", "implicit4", "proca") and row["dt_omega_p"] == base_dt)
+                    or (row["case"] == "implicit8" and row["dt_omega_p"] == .02)):
+                continue
+            method = "Proca explicit" if row["case"] == "proca" else row["case"].replace("implicit", "implicit ×")
+            label = f'{method}, Δtωₚ={row["dt_omega_p"]:g}, {row["cells"]} cells'
             t = np.asarray(data["t"])
-            axes[0].semilogy(t, np.maximum(abs(np.asarray(data["energy_error"])), 1e-17), label=label)
-            axes[1].plot(t, data["momentum_error"])
-            axes[2].semilogy(t, np.hypot(data["mode_real"], data["mode_imag"]))
+            mode = np.asarray(data["mode_real"]) + 1j * np.asarray(data["mode_imag"])
+            handles += axes[0].semilogy(t, np.maximum(abs(np.asarray(data["energy_error"])), 1e-17), label=label)
+            colour = handles[-1].get_color()
+            axes[1].semilogy(t, np.maximum(abs(np.asarray(data["momentum_error"])), 1e-19), color=colour)
+            axes[2].semilogy(t, abs(mode), color=colour)
+            selected = (t >= 8 - 1e-9) & (t <= 16 + 1e-9)
+            phase = np.unwrap(np.angle(mode[selected]))
+            axes[3].plot(t[selected], phase - phase[0], color=colour)
+            if row["case"] in ("explicit", "proca") and row["cells"] == 128:
+                theory = abs(mode[selected][0]) * np.exp(row["theory_growth_over_wp"] * (t[selected] - t[selected][0]))
+                axes[2].plot(t[selected], theory, "--", color=colour, linewidth=1)
         for axis in axes:
             axis.set_xlabel("ωₚt")
+            axis.grid(alpha=.4)
+        titles = ("Complete energy", "Continuum momentum", "First electric mode", "Mode phase in fit window")
+        for axis, title in zip(axes, titles):
+            axis.set_title(title)
         axes[0].set_ylabel("|ΔU| / U(0)")
-        axes[1].set_ylabel("ΔPₓ / (nmₑcL)")
+        axes[1].set_ylabel("|ΔPₓ| / (nmₑcL)")
         axes[2].set_ylabel("|E₁| / (mₑcωₚ/e)")
-        axes[0].legend(fontsize=6)
-        arrays = {f'{i}_{key}': np.asarray(value) for i, data in enumerate(histories) for key, value in data.items()}
-        save_run(folder, "pic_conservation", settings, dict(rows=rows,
-                 claim="method convergence comparison; implicit Proca not implemented"), figure, **arrays)
-        np.savez_compressed(Path(folder) / "data.npz", **arrays)
-        plt.close(figure)
+        axes[3].set_ylabel("arg E₁(t) − arg E₁(8/ωₚ) [rad]")
+        axes[3].axhline(0, color="#30343B", linestyle="--", linewidth=1)
+        figure.legend(handles=handles, loc="outside upper center", ncol=2, fontsize=9)
+        return figure
+
+
+def render(folder, settings, rows, histories):
+    """Save the computation provenance and compressed scalar histories."""
+    figure = figure_rows(rows, histories)
+    arrays = {f'{i}_{key}': np.asarray(value) for i, data in enumerate(histories) for key, value in data.items()}
+    save_run(folder, "pic_conservation", settings, dict(rows=rows,
+             claim="method convergence comparison; implicit Proca not implemented"), figure, **arrays)
+    np.savez_compressed(Path(folder) / "data.npz", **arrays)
+    plt.close(figure)
+
+
+def reanalyse(folder):
+    """Refit stored modes without altering their computation or timing provenance."""
+    record = json.loads((folder / "run.json").read_text())
+    rows = record["results"]["rows"]
+    with np.load(folder / "data.npz") as arrays:
+        histories = [{key.split("_", 1)[1]: arrays[key] for key in arrays.files if key.startswith(f"{i}_")}
+                     for i in range(len(rows))]
+    for row, data in zip(rows, histories):
+        mode = data["mode_real"] + 1j * data["mode_imag"]
+        row.setdefault("original_fit", {key: row[key] for key in (
+            "fitted_growth_over_wp", "regression_standard_error", "fitted_frequency_over_wp", "fit_window_omega_p")})
+        row.update(fit_mode(data["t"], mode))
+    record["analysis"] = dict(method="inclusive first-mode log-amplitude and unwrapped-phase regression",
+                              endpoint_tolerance_omega_p=1e-9,
+                              script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                              arrays_sha256=hashlib.sha256((folder / "data.npz").read_bytes()).hexdigest(),
+                              note="stored arrays reused; original fits and computation provenance retained")
+    figure = figure_rows(rows, histories)
+    figure.savefig(folder / "figure.png", dpi=160, bbox_inches="tight")
+    plt.close(figure)
+    (folder / "run.json").write_text(json.dumps(record, indent=1) + "\n")
 
 
 def overhead(case, cells, particles, dtau, samples):
@@ -188,6 +252,7 @@ def main():
     parser.add_argument("--case", choices=methods)
     parser.add_argument("--overhead-case", choices=("production", "reduced"))
     parser.add_argument("--overhead", action="store_true")
+    parser.add_argument("--render", action="store_true", help="refit and plot saved scalar arrays; no simulation")
     parser.add_argument("--full", action="store_true")
     parser.add_argument("--cells", type=int)
     parser.add_argument("--particles", type=int)
@@ -196,6 +261,9 @@ def main():
     parser.add_argument("--samples", type=int, default=3)
     parser.add_argument("--output", type=Path, default=Path("artifacts/pic_conservation"))
     args = parser.parse_args()
+    if args.render:
+        reanalyse(args.output)
+        return
     cells = args.cells if args.cells is not None else (128 if args.full else 64)
     particles = args.particles if args.particles is not None else (8192 if args.full else 1024)
     horizon = args.horizon if args.horizon is not None else (40 if args.full else 20)

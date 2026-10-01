@@ -12,5 +12,6 @@ html_static_path = ["_static"]
 html_css_files = ["dark.css"]
 exclude_patterns = ["_build"]
 myst_enable_extensions = ["dollarmath", "amsmath", "substitution"]
+myst_heading_anchors = 4
 _measured = Path(__file__).parent / "_static" / "figures" / "measurements.json"
 myst_substitutions = json.loads(_measured.read_text()) if _measured.exists() else {}

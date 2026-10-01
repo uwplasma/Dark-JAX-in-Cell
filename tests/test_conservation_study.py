@@ -105,3 +105,15 @@ def test_reduced_runner_rejects_an_incomplete_tail():
     state, _ = sim.initial_state(jax.random.PRNGKey(0))
     with pytest.raises(ValueError, match="divisible"):
         measured_run(sim, state, 10, 3)
+
+
+def test_mode_fit_keeps_physical_window_endpoints_with_accumulated_clock_error():
+    from docs.scripts.benchmark_pic_conservation import fit_mode
+
+    t = np.linspace(8 - 1e-12, 16 + 1e-12, 81)
+    mode = np.exp((.34 - .02j) * t)
+    assert np.count_nonzero((t >= 8) & (t <= 16)) == 79
+    fit = fit_mode(t, mode)
+    assert fit["fit_samples"] == 81
+    np.testing.assert_allclose(fit["fitted_growth_over_wp"], .34, rtol=1e-13)
+    np.testing.assert_allclose(fit["fitted_frequency_over_wp"], .02, rtol=1e-13)
