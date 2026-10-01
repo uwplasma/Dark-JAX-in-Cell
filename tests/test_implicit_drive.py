@@ -336,6 +336,7 @@ def test_grid_phase_recloses_charge_without_changing_velocity_weights_or_mean_cu
     old = old.replace(x=old.x.at[:32, 0].add(.03 * d.dx), E=old.E.at[:, 0].add(.1 * FIELD))
     state = drive_state(p, old)
     shifted = translated_initial(p, state, phase)
+    np.testing.assert_array_equal(shifted.background, state.background)
     if phase == 0:
         assert shifted is state
         return
@@ -365,3 +366,5 @@ def test_grid_phase_rejects_invalid_phase_and_restart_clock():
                     state.replace(ordinary=state.ordinary.replace(time=jnp.array(p.domain.dt)))):
         with pytest.raises(ValueError, match='zero-time, zero-work'):
             translated_initial(p, invalid, .25)
+    with pytest.raises(ValueError, match='neutralizing charge'):
+        translated_initial(p, state.replace(background=jnp.asarray(e * N)), .25)

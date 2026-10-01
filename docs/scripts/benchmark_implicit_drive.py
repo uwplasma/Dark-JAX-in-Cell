@@ -66,11 +66,12 @@ audit_state = globals().get("audit_state", None)
 output = Path(globals().get("output", "artifacts/implicit_drive"))
 
 
-def drive_state(plasma, ordinary):
+def drive_state(plasma, ordinary, background=None):
     """Start the existing complete work ledger at native integer-time positions."""
-    values = snapshot(plasma, ordinary)
+    background = -jnp.mean(ordinary.rho) if background is None else background
+    values = snapshot(plasma, ordinary, background)
     zero = jnp.zeros(())
-    return DarkState(ordinary, None, None, None, None, -jnp.mean(ordinary.rho), zero,
+    return DarkState(ordinary, None, None, None, None, background, zero,
                      values["balance"], zero, zero, zero, values["ordinary_gauss"], zero)
 
 
@@ -112,7 +113,7 @@ def run_drive(plasma, initial, drive, steps, stride=1):
     """Sparse scalar histories, actual initial sample and all-step SI maxima.
 
     Maxima: work balance, particle charge, grid charge, continuity, Gauss,
-    mean Ampere residual, continuum momentum, accepted particle impulse. The native state/work ledger
+    mean Ampere residual, continuum momentum, accepted internal particle impulse. The native state/work ledger
     can be resumed with the same model; absolute time fixes the drive phase.
     """
     if steps < 1 or stride < 1 or steps % stride:
@@ -127,6 +128,9 @@ def run_drive(plasma, initial, drive, steps, stride=1):
         continuity = (after.rho - before.rho) / plasma.domain.dt + divergence(current, plasma.domain.dx)
         ampere = jnp.mean((after.E - before.E) / plasma.domain.dt + current / epsilon_0, axis=0)
         impulse = jnp.sum((plasma.per_particle[0] * before.w)[:, None] * (after.u - before.u), axis=0)
+        force = drive.eta * drive.amplitude * jnp.cos(
+            drive.omega * (before.time + plasma.domain.dt / 2) + drive.phase)
+        impulse -= plasma.domain.dt * jnp.sum(plasma.per_particle[1] * before.w) * force
         errors = jnp.array([state.max_balance_error, abs(values["charge"] - reference["charge"]),
                             abs(values["grid_charge"] - reference["grid_charge"]), jnp.max(abs(continuity)),
                             state.max_ordinary_gauss, jnp.max(abs(ampere)),
@@ -295,8 +299,10 @@ def translated_initial(plasma, state, phase):
     old, d = state.ordinary, plasma.domain
     x = old.x.at[:, 0].set((old.x[:, 0] + phase * d.dx + d.length / 2) % d.length - d.length / 2)
     rho = deposit(x[:, 0], plasma.per_particle[1] * old.w, d.grid[0], d.dx, d.cells, (0, 0))
+    if abs(float(jnp.mean(rho) + state.background)) > 2e-12 * e * N:
+        raise ValueError('grid translation changed the shared neutralizing charge')
     electric = old.E.at[:, 0].set(E_x_from_rho(rho, d.dx, (0, 0)) + jnp.mean(old.E[:, 0]))
-    return drive_state(plasma, old.replace(x=x, rho=rho, E=electric))
+    return drive_state(plasma, old.replace(x=x, rho=rho, E=electric), state.background)
 
 
 def audit_orbits(args):
