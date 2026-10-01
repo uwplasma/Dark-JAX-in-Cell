@@ -1,0 +1,1471 @@
+{
+ "jaxincell": "unknown",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "4c9d4b347efcb8919e610d4630f5960b86931f01",
+ "example": "paper_implicit_comparison",
+ "settings": {
+  "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+  "figure_note": "Faint energy traces are raw; thick traces average approximately one plasma period with trimmed endpoints. All metrics use raw native samples."
+ },
+ "results": {
+  "comparison": {
+   "initial_hash_matches": {
+    "x": true,
+    "u": true,
+    "w": true,
+    "B": true
+   },
+   "windows": [
+    {
+     "end_omega_p": 40,
+     "samples": 81,
+     "observables": {
+      "mean_E": {
+       "l2_difference": 4.282640612971387e-05,
+       "reference_l2_norm": 0.0710147824290288,
+       "relative_l2_difference": 0.000603063259012502,
+       "max_absolute_difference": 1.351112588213535e-05,
+       "reference_mean": -0.0003975889214888055,
+       "comparison_mean": -0.00039755314394309207
+      },
+      "current": {
+       "l2_difference": 4.045711967970298e-05,
+       "reference_l2_norm": 0.0685357453107963,
+       "relative_l2_difference": 0.0005903068463943566,
+       "max_absolute_difference": 1.1771153454430416e-05,
+       "reference_mean": 0.00026819945234735906,
+       "comparison_mean": 0.00026789736743417804
+      },
+      "nonzero_electric": {
+       "l2_difference": 1.7649898622162347e-06,
+       "reference_l2_norm": 1.8885824953937708e-05,
+       "relative_l2_difference": 0.09345579907263903,
+       "max_absolute_difference": 3.8980311977380234e-07,
+       "reference_mean": 2.0623592836001137e-06,
+       "comparison_mean": 1.8871939834341596e-06
+      },
+      "work": {
+       "l2_difference": 2.0537367681381127e-07,
+       "reference_l2_norm": 0.0007299013130434829,
+       "relative_l2_difference": 0.000281371841841825,
+       "max_absolute_difference": 5.561503282791483e-08,
+       "reference_mean": 6.02981266343718e-05,
+       "comparison_mean": 6.028374166051663e-05
+      },
+      "balance": {
+       "l2_difference": 4.506975390757216e-06,
+       "reference_l2_norm": 4.506975390754532e-06,
+       "relative_l2_difference": 1.0000000000005955,
+       "max_absolute_difference": 6.864685628814487e-07,
+       "reference_mean": 4.876051579829208e-07,
+       "comparison_mean": -2.554847734335348e-19
+      },
+      "momentum": {
+       "l2_difference": [
+        0.00018736107351990857,
+        0.0,
+        0.0
+       ],
+       "reference_l2_norm": [
+        1.8732478154172762e-16,
+        0.0,
+        0.0
+       ],
+       "relative_l2_difference": [
+        1000193738265.0723,
+        null,
+        null
+       ],
+       "max_absolute_difference": [
+        4.8572429213947494e-05,
+        0.0,
+        0.0
+       ],
+       "reference_mean": [
+        1.9965586306873328e-17,
+        0.0,
+        0.0
+       ],
+       "comparison_mean": [
+        1.4201675712896984e-05,
+        0.0,
+        0.0
+       ]
+      }
+     }
+    },
+    {
+     "end_omega_p": 100,
+     "samples": 201,
+     "observables": {
+      "mean_E": {
+       "l2_difference": 0.0006921433054819142,
+       "reference_l2_norm": 0.27221600943656066,
+       "relative_l2_difference": 0.0025426252736366582,
+       "max_absolute_difference": 0.00013128530365648372,
+       "reference_mean": 0.0004443570361610701,
+       "comparison_mean": 0.0004432821542213691
+      },
+      "current": {
+       "l2_difference": 0.0006744031876980004,
+       "reference_l2_norm": 0.26959143647179534,
+       "relative_l2_difference": 0.0025015749629293455,
+       "max_absolute_difference": 0.00012687870236683524,
+       "reference_mean": -0.00014887216774065617,
+       "comparison_mean": -0.0001480912152173774
+      },
+      "nonzero_electric": {
+       "l2_difference": 6.355673287849084e-06,
+       "reference_l2_norm": 5.3765570275136695e-05,
+       "relative_l2_difference": 0.11821084116331221,
+       "max_absolute_difference": 1.6793063450908034e-06,
+       "reference_mean": 3.3412677594881905e-06,
+       "comparison_mean": 2.9927076759953863e-06
+      },
+      "work": {
+       "l2_difference": 1.171676820866343e-05,
+       "reference_l2_norm": 0.007092442835468957,
+       "relative_l2_difference": 0.001652007422614455,
+       "max_absolute_difference": 2.195619940307614e-06,
+       "reference_mean": 0.00037299024830589854,
+       "comparison_mean": 0.00037247954862445066
+      },
+      "balance": {
+       "l2_difference": 8.959432419155748e-06,
+       "reference_l2_norm": 8.959432419121066e-06,
+       "relative_l2_difference": 1.0000000000038711,
+       "max_absolute_difference": 8.768115140955043e-07,
+       "reference_mean": 6.167104066842088e-07,
+       "comparison_mean": -2.1370198783929763e-18
+      },
+      "momentum": {
+       "l2_difference": [
+        0.0005171850981076674,
+        0.0,
+        0.0
+       ],
+       "reference_l2_norm": [
+        7.209690997812375e-16,
+        0.0,
+        0.0
+       ],
+       "relative_l2_difference": [
+        717347107198.6248,
+        null,
+        null
+       ],
+       "max_absolute_difference": [
+        5.785362961119468e-05,
+        0.0,
+        0.0
+       ],
+       "reference_mean": [
+        4.3004760663405375e-17,
+        0.0,
+        0.0
+       ],
+       "comparison_mean": [
+        3.122438670004054e-05,
+        0.0,
+        0.0
+       ]
+      }
+     }
+    },
+    {
+     "end_omega_p": 250,
+     "samples": 501,
+     "observables": {
+      "mean_E": {
+       "l2_difference": 0.009944343937802197,
+       "reference_l2_norm": 0.9620692880660057,
+       "relative_l2_difference": 0.010336411380299601,
+       "max_absolute_difference": 0.002007054399835076,
+       "reference_mean": 4.088500016633692e-05,
+       "comparison_mean": 3.9485169425429834e-05
+      },
+      "current": {
+       "l2_difference": 0.009862460792452227,
+       "reference_l2_norm": 0.958860962563781,
+       "relative_l2_difference": 0.010285600496324515,
+       "max_absolute_difference": 0.0020270831752493557,
+       "reference_mean": -0.0003502684715011502,
+       "comparison_mean": -0.00035823974314422915
+      },
+      "nonzero_electric": {
+       "l2_difference": 0.0002574454938038614,
+       "reference_l2_norm": 0.0026670641790293393,
+       "relative_l2_difference": 0.0965276710729762,
+       "max_absolute_difference": 4.123089256016552e-05,
+       "reference_mean": 6.68585136371432e-05,
+       "comparison_mean": 6.0463317676009495e-05
+      },
+      "work": {
+       "l2_difference": 0.0001357705646473893,
+       "reference_l2_norm": 0.06569212455525528,
+       "relative_l2_difference": 0.00206677079736079,
+       "max_absolute_difference": 2.2860472750479803e-05,
+       "reference_mean": 0.0022155273265770286,
+       "comparison_mean": 0.0022149940275051
+      },
+      "balance": {
+       "l2_difference": 3.097919887928832e-05,
+       "reference_l2_norm": 3.097919887760479e-05,
+       "relative_l2_difference": 1.0000000000543439,
+       "max_absolute_difference": 4.4644976906724265e-06,
+       "reference_mean": 1.1679981193294593e-06,
+       "comparison_mean": -5.0437044367990794e-17
+      },
+      "momentum": {
+       "l2_difference": [
+        0.0006232184480776406,
+        0.0,
+        0.0
+       ],
+       "reference_l2_norm": [
+        6.90920494031812e-15,
+        0.0,
+        0.0
+       ],
+       "relative_l2_difference": [
+        90201181389.32289,
+        null,
+        null
+       ],
+       "max_absolute_difference": [
+        5.785362961119468e-05,
+        0.0,
+        0.0
+       ],
+       "reference_mean": [
+        2.3082703473455687e-16,
+        0.0,
+        0.0
+       ],
+       "comparison_mean": [
+        1.5686004966736365e-05,
+        0.0,
+        0.0
+       ]
+      }
+     }
+    },
+    {
+     "end_omega_p": 500,
+     "samples": 1001,
+     "observables": {
+      "mean_E": {
+       "l2_difference": 0.04538088451241991,
+       "reference_l2_norm": 1.622605128970494,
+       "relative_l2_difference": 0.027967916347714894,
+       "max_absolute_difference": 0.0038594978829532903,
+       "reference_mean": -4.9379109869843735e-05,
+       "comparison_mean": -5.56425020164352e-05
+      },
+      "current": {
+       "l2_difference": 0.04456326329166662,
+       "reference_l2_norm": 1.614425459635576,
+       "relative_l2_difference": 0.02760317178206907,
+       "max_absolute_difference": 0.00378402486273869,
+       "reference_mean": 0.00010566242614770502,
+       "comparison_mean": 0.00010233290922293434
+      },
+      "nonzero_electric": {
+       "l2_difference": 0.001708711006160782,
+       "reference_l2_norm": 0.013745275553508041,
+       "relative_l2_difference": 0.1243126046843556,
+       "max_absolute_difference": 0.0002101268757318971,
+       "reference_mean": 0.00029601856389105467,
+       "comparison_mean": 0.00027249671055986697
+      },
+      "work": {
+       "l2_difference": 0.0008449704645965487,
+       "reference_l2_norm": 0.23764173986594767,
+       "relative_l2_difference": 0.003555648368309337,
+       "max_absolute_difference": 6.42614492370984e-05,
+       "reference_mean": 0.006127567168718538,
+       "comparison_mean": 0.006122418534111432
+      },
+      "balance": {
+       "l2_difference": 6.491695579299251e-05,
+       "reference_l2_norm": 6.491695578104568e-05,
+       "relative_l2_difference": 1.0000000001840323,
+       "max_absolute_difference": 5.390008762022478e-06,
+       "reference_mean": 1.7919823477317278e-06,
+       "comparison_mean": -3.5678774527023745e-16
+      },
+      "momentum": {
+       "l2_difference": [
+        0.0017132689629220641,
+        0.0,
+        0.0
+       ],
+       "reference_l2_norm": [
+        3.721380122703747e-14,
+        0.0,
+        0.0
+       ],
+       "relative_l2_difference": [
+        46038536952.18048,
+        null,
+        null
+       ],
+       "max_absolute_difference": [
+        0.00010108886602909493,
+        0.0,
+        0.0
+       ],
+       "reference_mean": [
+        9.079545887079924e-16,
+        0.0,
+        0.0
+       ],
+       "comparison_mean": [
+        4.1761428158757494e-05,
+        0.0,
+        0.0
+       ]
+      }
+     }
+    },
+    {
+     "end_omega_p": 1000,
+     "samples": 2001,
+     "observables": {
+      "mean_E": {
+       "l2_difference": 0.19994646560734722,
+       "reference_l2_norm": 1.6741642402031511,
+       "relative_l2_difference": 0.11943061547120655,
+       "max_absolute_difference": 0.014937621017411877,
+       "reference_mean": 3.7278205395292742e-06,
+       "comparison_mean": 3.0144493238953365e-06
+      },
+      "current": {
+       "l2_difference": 0.19517432472530394,
+       "reference_l2_norm": 1.6653434019797984,
+       "relative_l2_difference": 0.11719764493814083,
+       "max_absolute_difference": 0.014803689565279225,
+       "reference_mean": 9.853309698408614e-07,
+       "comparison_mean": 2.5224895581353255e-07
+      },
+      "nonzero_electric": {
+       "l2_difference": 0.004862882670115101,
+       "reference_l2_norm": 0.0216951833586353,
+       "relative_l2_difference": 0.22414572809680983,
+       "max_absolute_difference": 0.0004325703374392921,
+       "reference_mean": 0.00035459641480455896,
+       "comparison_mean": 0.0003608089208963392
+      },
+      "work": {
+       "l2_difference": 0.009983277031133105,
+       "reference_l2_norm": 0.4540125460791935,
+       "relative_l2_difference": 0.021988989329364744,
+       "max_absolute_difference": 0.0005234657428682694,
+       "reference_mean": 0.009173023496010794,
+       "comparison_mean": 0.009058393477043609
+      },
+      "balance": {
+       "l2_difference": 7.936114876266813e-05,
+       "reference_l2_norm": 7.936114872256854e-05,
+       "relative_l2_difference": 1.00000000050528,
+       "max_absolute_difference": 5.390008762022478e-06,
+       "reference_mean": 1.6138352725179657e-06,
+       "comparison_mean": -1.0256397442967038e-15
+      },
+      "momentum": {
+       "l2_difference": [
+        0.0028244458783353503,
+        0.0,
+        0.0
+       ],
+       "reference_l2_norm": [
+        1.0070195379331888e-13,
+        0.0,
+        0.0
+       ],
+       "relative_l2_difference": [
+        28047577747.421417,
+        null,
+        null
+       ],
+       "max_absolute_difference": [
+        0.00013851478860352838,
+        0.0,
+        0.0
+       ],
+       "reference_mean": [
+        1.9193289726147045e-15,
+        0.0,
+        0.0
+       ],
+       "comparison_mean": [
+        5.175829155981479e-05,
+        0.0,
+        0.0
+       ]
+      }
+     }
+    }
+   ],
+   "max_clock_difference": 0.0,
+   "implicit_native_samples": 10001,
+   "common_samples": 2001,
+   "implicit_balance_over_peak_recorded_work": 1.5401869355096877e-13,
+   "native_run_sha256": [
+    "1505c095bb40156aff4b54222ad370883607b097c8a935716558ed9d9aeef120",
+    "06a53dfd9c812a2d4ad055986d3fb783328428bc86b7d499236488e73eced476"
+   ],
+   "native_data_sha256": [
+    "42d7b0252b9722faffa10f09a3d5890face03c5024cf266daa13d4e16b1ee40a",
+    "016ffd460f93fe319d3b4af89dbaa730bc55e44009509274e0834b12cd44525f"
+   ],
+   "notes": "Raw native samples, no interpolation or phase alignment. Momentum subtracts each actual initial value. Energy is normalized by n me c\u00b2 L and momentum by n me c L. The peak-work denominator uses the common output cadence, not all-step work. Implicit all-step maxima describe its final timed call; its repeat traces use one compiled callable. No species-heating estimate is inferred from field/work histories. Cross-method differences do not establish convergence or identify an error cause.",
+   "refined_method_comparison": {
+    "initial_hash_matches": {
+     "x": true,
+     "u": true,
+     "w": true,
+     "B": true
+    },
+    "windows": [
+     {
+      "end_omega_p": 40,
+      "samples": 81,
+      "observables": {
+       "mean_E": {
+        "l2_difference": 4.4776467822042186e-05,
+        "reference_l2_norm": 0.07101472957083672,
+        "relative_l2_difference": 0.0006305236687183037,
+        "max_absolute_difference": 1.4256249986388178e-05,
+        "reference_mean": -0.0003975725855296274,
+        "comparison_mean": -0.00039755314394309207
+       },
+       "current": {
+        "l2_difference": 4.2377415555051386e-05,
+        "reference_l2_norm": 0.06853503582083027,
+        "relative_l2_difference": 0.0006183321427866149,
+        "max_absolute_difference": 1.2399210815061332e-05,
+        "reference_mean": 0.000268221596740261,
+        "comparison_mean": 0.00026789736743417804
+       },
+       "nonzero_electric": {
+        "l2_difference": 1.7651258616382382e-06,
+        "reference_l2_norm": 1.8885971045436317e-05,
+        "relative_l2_difference": 0.09346227723168994,
+        "max_absolute_difference": 3.898292917915617e-07,
+        "reference_mean": 2.0623752879043938e-06,
+        "comparison_mean": 1.8871939834341596e-06
+       },
+       "work": {
+        "l2_difference": 2.0414554791186393e-07,
+        "reference_l2_norm": 0.0007299000279293621,
+        "relative_l2_difference": 0.00027968973845774483,
+        "max_absolute_difference": 5.540780536740877e-08,
+        "reference_mean": 6.0298020719368906e-05,
+        "comparison_mean": 6.028374166051663e-05
+       },
+       "balance": {
+        "l2_difference": 4.501518724108447e-06,
+        "reference_l2_norm": 4.5015187241057645e-06,
+        "relative_l2_difference": 1.000000000000596,
+        "max_absolute_difference": 6.840129102130431e-07,
+        "reference_mean": 4.870830034218035e-07,
+        "comparison_mean": -2.554847734335348e-19
+       },
+       "momentum": {
+        "l2_difference": [
+         0.0001873610735197585,
+         0.0,
+         0.0
+        ],
+        "reference_l2_norm": [
+         3.2611511154239293e-16,
+         0.0,
+         0.0
+        ],
+        "relative_l2_difference": [
+         574524353175.8347,
+         null,
+         null
+        ],
+        "max_absolute_difference": [
+         4.8572429213937445e-05,
+         0.0,
+         0.0
+        ],
+        "reference_mean": [
+         3.110334066396612e-17,
+         0.0,
+         0.0
+        ],
+        "comparison_mean": [
+         1.4201675712896984e-05,
+         0.0,
+         0.0
+        ]
+       }
+      }
+     },
+     {
+      "end_omega_p": 100,
+      "samples": 201,
+      "observables": {
+       "mean_E": {
+        "l2_difference": 0.0006975964941348354,
+        "reference_l2_norm": 0.2722159129457874,
+        "relative_l2_difference": 0.002562658760782158,
+        "max_absolute_difference": 0.00013459953569816552,
+        "reference_mean": 0.0004443331846642426,
+        "comparison_mean": 0.0004432821542213691
+       },
+       "current": {
+        "l2_difference": 0.0006774090478488834,
+        "reference_l2_norm": 0.2695882023824101,
+        "relative_l2_difference": 0.0025127547936536947,
+        "max_absolute_difference": 0.00012673719716004006,
+        "reference_mean": -0.0001489401036825637,
+        "comparison_mean": -0.0001480912152173774
+       },
+       "nonzero_electric": {
+        "l2_difference": 6.355164208456384e-06,
+        "reference_l2_norm": 5.376479192190393e-05,
+        "relative_l2_difference": 0.1182030838636478,
+        "max_absolute_difference": 1.6800307962113156e-06,
+        "reference_mean": 3.341252651446838e-06,
+        "comparison_mean": 2.9927076759953863e-06
+       },
+       "work": {
+        "l2_difference": 1.168956529650233e-05,
+        "reference_l2_norm": 0.007092416092883137,
+        "relative_l2_difference": 0.0016481781586717942,
+        "max_absolute_difference": 2.189535462669744e-06,
+        "reference_mean": 0.000372988987217932,
+        "comparison_mean": 0.00037247954862445066
+       },
+       "balance": {
+        "l2_difference": 8.901744555081407e-06,
+        "reference_l2_norm": 8.901744555046814e-06,
+        "relative_l2_difference": 1.000000000003886,
+        "max_absolute_difference": 8.581328241251116e-07,
+        "reference_mean": 6.132291756348671e-07,
+        "comparison_mean": -2.1370198783929763e-18
+       },
+       "momentum": {
+        "l2_difference": [
+         0.0005171850981074854,
+         0.0,
+         0.0
+        ],
+        "reference_l2_norm": [
+         8.740028075803702e-16,
+         0.0,
+         0.0
+        ],
+        "relative_l2_difference": [
+         591743062633.0419,
+         null,
+         null
+        ],
+        "max_absolute_difference": [
+         5.785362961117699e-05,
+         0.0,
+         0.0
+        ],
+        "reference_mean": [
+         5.44880941179618e-17,
+         0.0,
+         0.0
+        ],
+        "comparison_mean": [
+         3.122438670004054e-05,
+         0.0,
+         0.0
+        ]
+       }
+      }
+     },
+     {
+      "end_omega_p": 250,
+      "samples": 501,
+      "observables": {
+       "mean_E": {
+        "l2_difference": 0.01229337391798249,
+        "reference_l2_norm": 0.960695355478883,
+        "relative_l2_difference": 0.012796329083796337,
+        "max_absolute_difference": 0.00251039346520307,
+        "reference_mean": 4.078645494583068e-05,
+        "comparison_mean": 3.9485169425429834e-05
+       },
+       "current": {
+        "l2_difference": 0.012150000597849616,
+        "reference_l2_norm": 0.9574998111380315,
+        "relative_l2_difference": 0.012689298166449554,
+        "max_absolute_difference": 0.0025074293632861705,
+        "reference_mean": -0.00034793698933267776,
+        "comparison_mean": -0.00035823974314422915
+       },
+       "nonzero_electric": {
+        "l2_difference": 0.0002815152498045809,
+        "reference_l2_norm": 0.002671803047599809,
+        "relative_l2_difference": 0.10536527011505496,
+        "max_absolute_difference": 4.907185624651247e-05,
+        "reference_mean": 6.715840704495544e-05,
+        "comparison_mean": 6.0463317676009495e-05
+       },
+       "work": {
+        "l2_difference": 0.00016215430774790877,
+        "reference_l2_norm": 0.06567120105225244,
+        "relative_l2_difference": 0.0024691844392930756,
+        "max_absolute_difference": 3.032692652456346e-05,
+        "reference_mean": 0.0022150387507786887,
+        "comparison_mean": 0.0022149940275051
+       },
+       "balance": {
+        "l2_difference": 3.0483592738066057e-05,
+        "reference_l2_norm": 3.048359273638579e-05,
+        "relative_l2_difference": 1.0000000000551204,
+        "max_absolute_difference": 4.207996659066338e-06,
+        "reference_mean": 1.1498648811984249e-06,
+        "comparison_mean": -5.0437044367990794e-17
+       },
+       "momentum": {
+        "l2_difference": [
+         0.0006232184480776238,
+         0.0,
+         0.0
+        ],
+        "reference_l2_norm": [
+         6.459474025990523e-15,
+         0.0,
+         0.0
+        ],
+        "relative_l2_difference": [
+         96481299494.35887,
+         null,
+         null
+        ],
+        "max_absolute_difference": [
+         5.785362961117699e-05,
+         0.0,
+         0.0
+        ],
+        "reference_mean": [
+         2.1777716842895481e-16,
+         0.0,
+         0.0
+        ],
+        "comparison_mean": [
+         1.5686004966736365e-05,
+         0.0,
+         0.0
+        ]
+       }
+      }
+     },
+     {
+      "end_omega_p": 500,
+      "samples": 1001,
+      "observables": {
+       "mean_E": {
+        "l2_difference": 0.06493537391449973,
+        "reference_l2_norm": 1.6292370591808498,
+        "relative_l2_difference": 0.03985630792559312,
+        "max_absolute_difference": 0.007136456676539572,
+        "reference_mean": -4.2359802559556524e-05,
+        "comparison_mean": -5.56425020164352e-05
+       },
+       "current": {
+        "l2_difference": 0.06401013311357434,
+        "reference_l2_norm": 1.6207845692307716,
+        "relative_l2_difference": 0.039493301163370347,
+        "max_absolute_difference": 0.007222642575897588,
+        "reference_mean": 0.00011305258336797124,
+        "comparison_mean": 0.00010233290922293434
+       },
+       "nonzero_electric": {
+        "l2_difference": 0.0025006698791144428,
+        "reference_l2_norm": 0.014399705097504453,
+        "relative_l2_difference": 0.17366118696054564,
+        "max_absolute_difference": 0.00041830488901969877,
+        "reference_mean": 0.00030518003555844074,
+        "comparison_mean": 0.00027249671055986697
+       },
+       "work": {
+        "l2_difference": 0.0009697693594937032,
+        "reference_l2_norm": 0.2376346200800516,
+        "relative_l2_difference": 0.004080926252105096,
+        "max_absolute_difference": 7.118189842977157e-05,
+        "reference_mean": 0.006127013015731632,
+        "comparison_mean": 0.006122418534111432
+       },
+       "balance": {
+        "l2_difference": 6.16503001516872e-05,
+        "reference_l2_norm": 6.165030014002706e-05,
+        "relative_l2_difference": 1.0000000001891336,
+        "max_absolute_difference": 4.760845384064955e-06,
+        "reference_mean": 1.7035587657466349e-06,
+        "comparison_mean": -3.5678774527023745e-16
+       },
+       "momentum": {
+        "l2_difference": [
+         0.0017132689629182733,
+         0.0,
+         0.0
+        ],
+        "reference_l2_norm": [
+         4.1128401238659487e-14,
+         0.0,
+         0.0
+        ],
+        "relative_l2_difference": [
+         41656590368.6976,
+         null,
+         null
+        ],
+        "max_absolute_difference": [
+         0.0001010888660287181,
+         0.0,
+         0.0
+        ],
+        "reference_mean": [
+         9.807516037613767e-16,
+         0.0,
+         0.0
+        ],
+        "comparison_mean": [
+         4.1761428158757494e-05,
+         0.0,
+         0.0
+        ]
+       }
+      }
+     },
+     {
+      "end_omega_p": 1000,
+      "samples": 2001,
+      "observables": {
+       "mean_E": {
+        "l2_difference": 0.23836773357126104,
+        "reference_l2_norm": 1.7014457111714418,
+        "relative_l2_difference": 0.1400971726609751,
+        "max_absolute_difference": 0.01987311489359718,
+        "reference_mean": 7.713824644856176e-06,
+        "comparison_mean": 3.0144493238953365e-06
+       },
+       "current": {
+        "l2_difference": 0.2321353517344352,
+        "reference_l2_norm": 1.6915564786707222,
+        "relative_l2_difference": 0.1372318067185403,
+        "max_absolute_difference": 0.019394468451019067,
+        "reference_mean": 1.760489945278299e-06,
+        "comparison_mean": 2.5224895581353255e-07
+       },
+       "nonzero_electric": {
+        "l2_difference": 0.005716260538636081,
+        "reference_l2_norm": 0.0242509403382415,
+        "relative_l2_difference": 0.2357129438656061,
+        "max_absolute_difference": 0.00048333445112756454,
+        "reference_mean": 0.0003965913165288525,
+        "comparison_mean": 0.0003608089208963392
+       },
+       "work": {
+        "l2_difference": 0.007953336193130838,
+        "reference_l2_norm": 0.4518309356204839,
+        "relative_l2_difference": 0.017602460491574785,
+        "max_absolute_difference": 0.00037799373774256677,
+        "reference_mean": 0.00913242804539506,
+        "comparison_mean": 0.009058393477043609
+       },
+       "balance": {
+        "l2_difference": 7.397486197639607e-05,
+        "reference_l2_norm": 7.397486193754673e-05,
+        "relative_l2_difference": 1.0000000005251695,
+        "max_absolute_difference": 4.760845384064955e-06,
+        "reference_mean": 1.494485495352161e-06,
+        "comparison_mean": -1.0256397442967038e-15
+       },
+       "momentum": {
+        "l2_difference": [
+         0.002824445878322634,
+         0.0,
+         0.0
+        ],
+        "reference_l2_norm": [
+         1.161699499039432e-13,
+         0.0,
+         0.0
+        ],
+        "relative_l2_difference": [
+         24313050669.799442,
+         null,
+         null
+        ],
+        "max_absolute_difference": [
+         0.00013851478860307478,
+         0.0,
+         0.0
+        ],
+        "reference_mean": [
+         2.1955841676930876e-15,
+         0.0,
+         0.0
+        ],
+        "comparison_mean": [
+         5.175829155981479e-05,
+         0.0,
+         0.0
+        ]
+       }
+      }
+     }
+    ],
+    "max_clock_difference": 3.859781827486586e-09,
+    "implicit_native_samples": 10001,
+    "common_samples": 2001,
+    "implicit_balance_over_peak_recorded_work": 1.5401869355096877e-13,
+    "native_run_sha256": [
+     "3bcbb9b376de5c3e5f746f49190a2f03ba6b86572f41024d5a8160cef088bb1e",
+     "06a53dfd9c812a2d4ad055986d3fb783328428bc86b7d499236488e73eced476"
+    ],
+    "native_data_sha256": [
+     "7684a6c21f89aeb31a660606a26050059399efa20fe50c9fad3f9f15c73d3f7c",
+     "016ffd460f93fe319d3b4af89dbaa730bc55e44009509274e0834b12cd44525f"
+    ],
+    "notes": "Raw native samples, no interpolation or phase alignment. Momentum subtracts each actual initial value. Energy is normalized by n me c\u00b2 L and momentum by n me c L. The peak-work denominator uses the common output cadence, not all-step work. Implicit all-step maxima describe its final timed call; its repeat traces use one compiled callable. No species-heating estimate is inferred from field/work histories. Cross-method differences do not establish convergence or identify an error cause."
+   }
+  },
+  "native_runs": [
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "7d149ce1f725e9646befc0562f634c19adcc9650",
+    "example": "paper_resonant_conversion",
+    "settings": {
+     "source": "Hook, Huang, Shalaby arXiv:2510.13956v1 Fig. 2 and Appendix B",
+     "cells": 1000,
+     "particles_per_species": 103000,
+     "dt_omega_p": 0.01,
+     "horizon_omega_p": 999.9999999987047,
+     "seed": 0,
+     "length_c_over_omega_p": 40,
+     "mass_ratio": 1836,
+     "T_each_over_mec2": 0.001,
+     "drive_quiver_over_sigma": 0.03,
+     "force_quiver_over_c": 0.0009486832980505137,
+     "coupling": null,
+     "output_dt_omega_p": 0.5,
+     "block_steps": 10000,
+     "block_horizon_omega_p": 100.0,
+     "local_moments_output_dt_omega_p": 0.5,
+     "initial_fingerprints": {
+      "loading": {
+       "x": "18f8b26c79989ac0e60ac72c50376c8fd527f9d41d546e17a176883a71ae0a3e",
+       "v": "19a02c1c53dca1bdc77852a7290441f6b63fad0a7dbeb2c1dc79def00ab9a794"
+      },
+      "state": {
+       "x": "8f6deb1d442315acc6303041bf37a289689e86e56eda00d297e6d16993b931a2",
+       "u": "b0ad4a0faa655c90fcc2b0c5030b28e615205c68d27803d6120de47cef6e7969",
+       "w": "01879c5131ecfbb95740b9288894e085f98bb78259911f6f1229616f9bdfc9c6",
+       "E": "470e60d6519510adc9ea42d92704301c99e86809285df86dbaa893467e24029b",
+       "B": "d5142ec0b2b773e5e84e8d8d1f33519a9dbf0545f52c7f64b80fe036c688659c",
+       "rho": "f0e0c3c0667efff563b2dc61e9706a0bb6fda64645c956ba8515557d26d4bb75"
+      }
+     },
+     "initial_state_source": "native initialization",
+     "timing": "one synchronized run including host scalar transfers; compilation reported separately",
+     "normalization": {
+      "omega_p_rad_s": 1000000000.0,
+      "field_scale_V_m": 1704509.0240267625,
+      "energy_scale_J_m2": 308.48072561081693,
+      "charge_density_C_m3": 5.034163677108044e-05,
+      "epsilon0_F_m": 8.8541878128e-12,
+      "c_m_s": 299792458.0
+     },
+     "local_spread_lengths_c_over_wp": [
+      0.06324555320336758,
+      0.12649110640673517
+     ],
+     "loading": "co-located lattice; independent Gaussian velocities, zero mean and exact variance",
+     "pusher": "relativistic Boris; electric 1V uses the same momentum kick as Vay",
+     "shape": "quadratic parent spline; paper uses fifth-order",
+     "inferred_t_noise": 2.398609209870515,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a"
+    },
+    "results": {
+     "early_mean_error_over_homogeneous_peak": 0.0027012606488398855,
+     "early_mean_error_over_cold_peak": 0.015312369411510094,
+     "max_energy_work_defect_over_initial_thermal": 0.005409569781814519,
+     "max_momentum_defect_over_nmecL": 3.612450657409435e-15,
+     "max_particle_charge_change_over_enL": 0.0,
+     "max_grid_charge_change_over_enL": 9.219864208199664e-17,
+     "max_continuity_over_enwp": 2.2763727954356196e-14,
+     "max_ordinary_gauss_over_en_eps0": 1.2391687726128297e-13,
+     "max_dark_gauss_over_en_eps0": 0.0,
+     "late_electron_spread_over_initial": 22.363587521622495,
+     "late_ion_spread_over_initial": 1.2047296692366123,
+     "late_electric_energy_over_initial_electron_thermal": 0.3016045765606514,
+     "late_nonzero_electric_energy_over_initial_electron_thermal": 0.2841196748192375,
+     "local_spread_final_over_initial": [
+      [
+       22.5812601542287,
+       22.59354260817731
+      ],
+      [
+       1.157832013890082,
+       1.1592552033830819
+      ]
+     ],
+     "final_particle_kinetic_increment": 0.012817842514742975,
+     "final_homogeneous_particle_kinetic_increment": 0.00025379161960473336,
+     "max_energy_work_defect_over_peak_injected_work": 0.0004201500435707882,
+     "max_speed_over_c": 0.9419057902331924,
+     "compile_s": 6.981756638037041,
+     "warm_primal_s": 221.74523218499962,
+     "compiler_temporary_MiB": 28.40203094482422,
+     "compiler_arguments_MiB": 12.627330780029297,
+     "compiler_outputs_MiB": 12.681278228759766,
+     "process_peak_MiB": 1105.46875,
+     "claim": "Fig. 2 parameter replay; late reproduction requires loading/grid/time/seed convergence"
+    }
+   },
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "8acc5138394be63c58004561c8610d9965973dbf",
+    "example": "implicit_drive",
+    "settings": {
+     "cells": 1000,
+     "dt": 0.01,
+     "iterations": 4,
+     "horizon": 1000.0,
+     "amplitude": 0.0009486832980505137,
+     "temperature": 0.001,
+     "samples": 1,
+     "gradient_horizon": 0.0,
+     "newtonian": false,
+     "paper_loading": true,
+     "particles": 103000,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+     "precision": "float64",
+     "loading": "paper_plasma: co-located spatial lattice, Gaussian velocities; exact mean and variance, seed 0",
+     "wp_rad_s": 1000000000.0,
+     "mass_ratio": 1836.0,
+     "particles_per_species": 103000,
+     "length_over_c_wp": 40.0,
+     "steps": 100000,
+     "store_every": 10,
+     "actual_horizon": 999.9999999987047,
+     "initial_fingerprints": {
+      "x": "18f8b26c79989ac0e60ac72c50376c8fd527f9d41d546e17a176883a71ae0a3e",
+      "u": "b0ad4a0faa655c90fcc2b0c5030b28e615205c68d27803d6120de47cef6e7969",
+      "w": "01879c5131ecfbb95740b9288894e085f98bb78259911f6f1229616f9bdfc9c6",
+      "E": "fe9191f6e0cf8d593ea5f0549c02a45c7a7c09111ceddac19240b00293dfcfa9",
+      "B": "d5142ec0b2b773e5e84e8d8d1f33519a9dbf0545f52c7f64b80fe036c688659c",
+      "rho": "153838d9625f4edea4d85de855a44ecb31d8ab7dd8cebcf361eed753be4a9137",
+      "time": "d1248b792eba25b9c46dd64b0c01fb8ca1e496438632797016046f536a8c6161",
+      "mass": "bbdc1cd26d089efd4bc31acb67a63d8c33cbaee6a040ad8078863079159d6dc9",
+      "charge": "23cf0918371807e46af439ad9a6da518054d09fc74bee3f1faf3f307ccd4fe46"
+     },
+     "position_time": "native implicit integer time",
+     "physical_loading_fingerprints": {
+      "electrons": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "12450b403d84d01d11717031fb7df08b4206ff31329ff5e47d9c626c8c7a8f18"
+      },
+      "ions": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "8125af708d909dfdc7ec5e315c21faec8b52648d511fd994abc8b390e0cbec7b"
+      }
+     },
+     "trace_scales": "E: me c wp/e; J: epsilon0 Eref wp; nonzero energy: n me c\u00b2 L; momentum: n me c L",
+     "thermal_parameter_definition": "Gaussian velocity sigma_e squared / c squared"
+    },
+    "results": {
+     "compile_s": 6.879271117970347,
+     "first_primal_s": 1687.719824925065,
+     "warm_primal_s": [
+      1687.018307338003
+     ],
+     "compiler_temporary_bytes": 85967336,
+     "peak_rss_bytes": 1065967616,
+     "host_load": [
+      6.48095703125,
+      6.96484375,
+      7.052734375
+     ],
+     "device_kinds": [
+      "NVIDIA RTX A4000"
+     ],
+     "max_balance_over_nmc2L": 1.9024329304685714e-15,
+     "max_particle_charge_change_over_enL": 0.0,
+     "max_grid_charge_change_over_enL": 1.0217231743627454e-16,
+     "max_continuity_over_enwp": 2.1390677696791853e-14,
+     "max_gauss_over_en_eps0": 9.567111847378466e-14,
+     "max_mean_ampere_over_fieldwp": 3.5667417252323065e-16,
+     "max_momentum_over_nmecL": 0.00013863496441200674,
+     "max_mean_E_error": 0.2086506693460144,
+     "max_current_error": 0.20521169477068213,
+     "max_phase_error_rad": 10.817635771618939,
+     "phase_definition": "unwrapped arg(E+iJ) against oracle; exclude near-zero radius and startup",
+     "phase_mask_samples": 9889,
+     "phase_total_samples": 10001,
+     "phase_radius_threshold_normalized": 0.0020847277244259678,
+     "phase_mask": "t>=2\u03c0 and both |E+iJ| exceed 1% of oracle peak radius",
+     "phase_unavailable_reason": null,
+     "max_sampled_nonzero_electric_over_nmc2L": 0.0013455186659403664,
+     "final_nonzero_electric_over_nmc2L": 7.330176165950742e-05,
+     "nonzero_electric_convention": "epsilon0 dx sum|E-mean(E)|\u00b2/2, all components; no clamp",
+     "nonzero_threshold_crossings": [
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": 178.30000000005194
+      },
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": 178.30000000005194
+      }
+     ],
+     "oracle_windows": {
+      "mean_E": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.00034157708685102884,
+        "reference_l2": 0.15797506368524292,
+        "observed_l2": 0.1576758084515141,
+        "max_abs_difference": 6.339642763211403e-05,
+        "relative_l2": 0.0021622215486591188
+       },
+       "100": {
+        "samples": 1001,
+        "final_time": 99.99999999998856,
+        "difference_l2": 0.010772189110464705,
+        "reference_l2": 0.6161222127063511,
+        "observed_l2": 0.6065410573818671,
+        "max_abs_difference": 0.0011964104300620643,
+        "relative_l2": 0.017483851236505928
+       },
+       "250": {
+        "samples": 2501,
+        "final_time": 250.00000000013324,
+        "difference_l2": 0.3693745387974552,
+        "reference_l2": 2.4131159172815315,
+        "observed_l2": 2.1595591238425302,
+        "max_abs_difference": 0.03269144903992173,
+        "relative_l2": 0.15306953808235202
+       },
+       "500": {
+        "samples": 5001,
+        "final_time": 500.0000000002941,
+        "difference_l2": 3.476714016631113,
+        "reference_l2": 6.490219251236279,
+        "observed_l2": 3.592333777198887,
+        "max_abs_difference": 0.15772707113105228,
+        "relative_l2": 0.5356851412945497
+       },
+       "1000": {
+        "samples": 10001,
+        "final_time": 999.9999999987047,
+        "difference_l2": 8.378607635931193,
+        "reference_l2": 10.149143052026233,
+        "observed_l2": 3.702437761960672,
+        "max_abs_difference": 0.2086506693460144,
+        "relative_l2": 0.8255482845183111
+       }
+      },
+      "current": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.0003131455917235593,
+        "reference_l2": 0.15226621939051027,
+        "observed_l2": 0.1519944010887485,
+        "max_abs_difference": 5.541208227917427e-05,
+        "relative_l2": 0.0020565664070272146
+       },
+       "100": {
+        "samples": 1001,
+        "final_time": 99.99999999998856,
+        "difference_l2": 0.010664000266678122,
+        "reference_l2": 0.6080728093322365,
+        "observed_l2": 0.5986087470844215,
+        "max_abs_difference": 0.0011904923231206913,
+        "relative_l2": 0.017537373983863774
+       },
+       "250": {
+        "samples": 2501,
+        "final_time": 250.00000000013324,
+        "difference_l2": 0.3608020129321358,
+        "reference_l2": 2.407742388221191,
+        "observed_l2": 2.155972016858009,
+        "max_abs_difference": 0.03135539476032373,
+        "relative_l2": 0.14985075425726574
+       },
+       "500": {
+        "samples": 5001,
+        "final_time": 500.0000000002941,
+        "difference_l2": 3.4418427555753794,
+        "reference_l2": 6.446962300502862,
+        "observed_l2": 3.575496978286272,
+        "max_abs_difference": 0.15418140024144544,
+        "relative_l2": 0.5338704641264796
+       },
+       "1000": {
+        "samples": 10001,
+        "final_time": 999.9999999987047,
+        "difference_l2": 8.332544446509463,
+        "reference_l2": 10.103208704638297,
+        "observed_l2": 3.684526942624353,
+        "max_abs_difference": 0.20521169477068213,
+        "relative_l2": 0.8247423853259671
+       }
+      },
+      "phase": {
+       "40": {
+        "samples": 338,
+        "max_error_rad": 0.0007447549900980732,
+        "max_nonzero_electric_over_nmc2L": 2.5211359643027837e-06
+       },
+       "100": {
+        "samples": 938,
+        "max_error_rad": 0.007758886640402807,
+        "max_nonzero_electric_over_nmc2L": 9.432340931580727e-06
+       },
+       "250": {
+        "samples": 2438,
+        "max_error_rad": 0.16195010179552582,
+        "max_nonzero_electric_over_nmc2L": 0.0003897694455997702
+       },
+       "500": {
+        "samples": 4938,
+        "max_error_rad": 0.5237431931012111,
+        "max_nonzero_electric_over_nmc2L": 0.0013105328168173313
+       },
+       "1000": {
+        "samples": 9889,
+        "max_error_rad": 10.817635771618939,
+        "max_nonzero_electric_over_nmc2L": 0.0013455186659403664
+       }
+      }
+     },
+     "execution_variability": [
+      {
+       "mean_E": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 5.528751649747048e-13,
+         "reference_l2": 0.1576758084511593,
+         "observed_l2": 0.1576758084515141,
+         "max_abs_difference": 1.1142649303241825e-13,
+         "relative_l2": 3.506404504315321e-12
+        },
+        "100": {
+         "samples": 1001,
+         "final_time": 99.99999999998856,
+         "difference_l2": 6.601452051510057e-10,
+         "reference_l2": 0.6065410575017578,
+         "observed_l2": 0.6065410573818671,
+         "max_abs_difference": 1.634655293070164e-10,
+         "relative_l2": 1.0883767833789102e-09
+        },
+        "250": {
+         "samples": 2501,
+         "final_time": 250.00000000013324,
+         "difference_l2": 0.0021897358129599268,
+         "reference_l2": 2.159124315153261,
+         "observed_l2": 2.1595591238425302,
+         "max_abs_difference": 0.00039226606962252525,
+         "relative_l2": 0.0010141777375169308
+        },
+        "500": {
+         "samples": 5001,
+         "final_time": 500.0000000002941,
+         "difference_l2": 0.027937075394563696,
+         "reference_l2": 3.577189715990297,
+         "observed_l2": 3.592333777198887,
+         "max_abs_difference": 0.0015046204025185583,
+         "relative_l2": 0.0078097829896141505
+        },
+        "1000": {
+         "samples": 10001,
+         "final_time": 999.9999999987047,
+         "difference_l2": 0.16678073762975915,
+         "reference_l2": 3.6947490985545737,
+         "observed_l2": 3.702437761960672,
+         "max_abs_difference": 0.006611693520699974,
+         "relative_l2": 0.04513993594179524
+        }
+       },
+       "current": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 7.300793734301517e-13,
+         "reference_l2": 0.15199440108848247,
+         "observed_l2": 0.1519944010887485,
+         "max_abs_difference": 2.4562643585746e-13,
+         "relative_l2": 4.803330702985178e-12
+        },
+        "100": {
+         "samples": 1001,
+         "final_time": 99.99999999998856,
+         "difference_l2": 7.480778966199131e-10,
+         "reference_l2": 0.5986087471018556,
+         "observed_l2": 0.5986087470844215,
+         "max_abs_difference": 1.764988225017028e-10,
+         "relative_l2": 1.2496942288960984e-09
+        },
+        "250": {
+         "samples": 2501,
+         "final_time": 250.00000000013324,
+         "difference_l2": 0.002023295922283857,
+         "reference_l2": 2.155527290679423,
+         "observed_l2": 2.155972016858009,
+         "max_abs_difference": 0.0003611042116877794,
+         "relative_l2": 0.0009386547463503065
+        },
+        "500": {
+         "samples": 5001,
+         "final_time": 500.0000000002941,
+         "difference_l2": 0.027698286483536436,
+         "reference_l2": 3.5603589566411165,
+         "observed_l2": 3.575496978286272,
+         "max_abs_difference": 0.001407706282012186,
+         "relative_l2": 0.007779633127123597
+        },
+        "1000": {
+         "samples": 10001,
+         "final_time": 999.9999999987047,
+         "difference_l2": 0.16314757363245533,
+         "reference_l2": 3.677112227261794,
+         "observed_l2": 3.684526942624353,
+         "max_abs_difference": 0.006337908587897806,
+         "relative_l2": 0.04436839659744221
+        }
+       },
+       "nonzero_electric": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.2417449934230491e-14,
+         "reference_l2": 3.8469577413019186e-05,
+         "observed_l2": 3.846957741715119e-05,
+         "max_abs_difference": 4.052865458330484e-15,
+         "relative_l2": 3.2278623185572287e-10
+        },
+        "100": {
+         "samples": 1001,
+         "final_time": 99.99999999998856,
+         "difference_l2": 1.2419487742381953e-11,
+         "reference_l2": 0.00010613536010179957,
+         "observed_l2": 0.00010613536113174858,
+         "max_abs_difference": 3.2184058816977536e-12,
+         "relative_l2": 1.1701555193735453e-07
+        },
+        "250": {
+         "samples": 2501,
+         "final_time": 250.00000000013324,
+         "difference_l2": 0.00012969667145247145,
+         "reference_l2": 0.005517997789579084,
+         "observed_l2": 0.005453062889374951,
+         "max_abs_difference": 2.348645229353956e-05,
+         "relative_l2": 0.023504299276344
+        },
+        "500": {
+         "samples": 5001,
+         "final_time": 500.0000000002941,
+         "difference_l2": 0.0012536557755732894,
+         "reference_l2": 0.027468645183564126,
+         "observed_l2": 0.027668477601152368,
+         "max_abs_difference": 7.782548925666438e-05,
+         "relative_l2": 0.04563951979413294
+        },
+        "1000": {
+         "samples": 10001,
+         "final_time": 999.9999999987047,
+         "difference_l2": 0.0055201573267482625,
+         "reference_l2": 0.044816158169427404,
+         "observed_l2": 0.048232962211961404,
+         "max_abs_difference": 0.0002293484522183784,
+         "relative_l2": 0.12317337211010632
+        }
+       },
+       "momentum": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.1856101106905657e-12,
+         "reference_l2": 0.00041231753840033955,
+         "observed_l2": 0.0004123175374834924,
+         "max_abs_difference": 3.186846674139293e-13,
+         "relative_l2": 2.8754782425466415e-09
+        },
+        "100": {
+         "samples": 1001,
+         "final_time": 99.99999999998856,
+         "difference_l2": 9.517903566833995e-10,
+         "reference_l2": 0.0011537839325268862,
+         "observed_l2": 0.0011537837462885915,
+         "max_abs_difference": 2.389787706171876e-10,
+         "relative_l2": 8.249294602316888e-07
+        },
+        "250": {
+         "samples": 2501,
+         "final_time": 250.00000000013324,
+         "difference_l2": 8.717436032678648e-05,
+         "reference_l2": 0.0013642401522213487,
+         "observed_l2": 0.0013915066732883006,
+         "max_abs_difference": 6.5602909355282135e-06,
+         "relative_l2": 0.06389957089654871
+        },
+        "500": {
+         "samples": 5001,
+         "final_time": 500.0000000002941,
+         "difference_l2": 0.0005285153151771339,
+         "reference_l2": 0.0037625510711037542,
+         "observed_l2": 0.003824515238165414,
+         "max_abs_difference": 2.4999640287843127e-05,
+         "relative_l2": 0.14046728009517556
+        },
+        "1000": {
+         "samples": 10001,
+         "final_time": 999.9999999987047,
+         "difference_l2": 0.0031197185044070327,
+         "reference_l2": 0.004660696866855825,
+         "observed_l2": 0.00630990331294446,
+         "max_abs_difference": 9.06757489322083e-05,
+         "relative_l2": 0.6693673915144885
+        }
+       }
+      }
+     ],
+     "execution_comparison": "execution 0 against each later call to the same compiled callable and input; norms use fixed physical scales; recorded arrays/results use the final call",
+     "oracle_scope": "homogeneous momentum-distribution reference; late differences mix time integration, spatial PIC dynamics and velocity loading once nonzero modes grow",
+     "max_work_error_over_nmc2L": 0.01145413469889677,
+     "oracle_nodes": 64,
+     "particle_substeps": 2,
+     "claim": "uniform prescribed-drive prototype; phase and work checks, no implicit Proca"
+    }
+   },
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "7d149ce1f725e9646befc0562f634c19adcc9650",
+    "example": "paper_resonant_conversion",
+    "settings": {
+     "source": "Hook, Huang, Shalaby arXiv:2510.13956v1 Fig. 2 and Appendix B",
+     "cells": 1000,
+     "particles_per_species": 103000,
+     "dt_omega_p": 0.005,
+     "horizon_omega_p": 1000.0000000015851,
+     "seed": 0,
+     "length_c_over_omega_p": 40,
+     "mass_ratio": 1836,
+     "T_each_over_mec2": 0.001,
+     "drive_quiver_over_sigma": 0.03,
+     "force_quiver_over_c": 0.0009486832980505137,
+     "coupling": null,
+     "output_dt_omega_p": 0.5,
+     "block_steps": 20000,
+     "block_horizon_omega_p": 100.0,
+     "local_moments_output_dt_omega_p": 0.5,
+     "initial_fingerprints": {
+      "loading": {
+       "x": "18f8b26c79989ac0e60ac72c50376c8fd527f9d41d546e17a176883a71ae0a3e",
+       "v": "19a02c1c53dca1bdc77852a7290441f6b63fad0a7dbeb2c1dc79def00ab9a794"
+      },
+      "state": {
+       "x": "be8e5c6df2361453f3b44c83989a2dd10a81405967c39ff640e99ede91473f6f",
+       "u": "b0ad4a0faa655c90fcc2b0c5030b28e615205c68d27803d6120de47cef6e7969",
+       "w": "01879c5131ecfbb95740b9288894e085f98bb78259911f6f1229616f9bdfc9c6",
+       "E": "108576ddd4c1f7cc09df37af5d6f3ce96e8172116c42104ca9416899f125ff2f",
+       "B": "d5142ec0b2b773e5e84e8d8d1f33519a9dbf0545f52c7f64b80fe036c688659c",
+       "rho": "be7101dc118114351cbd7446601a1bbede95c0c18b290f90d9897e88bf458680"
+      }
+     },
+     "initial_state_source": "native initialization",
+     "timing": "one synchronized run including host scalar transfers; compilation reported separately",
+     "normalization": {
+      "omega_p_rad_s": 1000000000.0,
+      "field_scale_V_m": 1704509.0240267625,
+      "energy_scale_J_m2": 308.48072561081693,
+      "charge_density_C_m3": 5.034163677108044e-05,
+      "epsilon0_F_m": 8.8541878128e-12,
+      "c_m_s": 299792458.0
+     },
+     "local_spread_lengths_c_over_wp": [
+      0.06324555320336758,
+      0.12649110640673517
+     ],
+     "loading": "co-located lattice; independent Gaussian velocities, zero mean and exact variance",
+     "pusher": "relativistic Boris; electric 1V uses the same momentum kick as Vay",
+     "shape": "quadratic parent spline; paper uses fifth-order",
+     "inferred_t_noise": 2.398609209870515,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a"
+    },
+    "results": {
+     "early_mean_error_over_homogeneous_peak": 0.0027198942436352925,
+     "early_mean_error_over_cold_peak": 0.015368677241165593,
+     "max_energy_work_defect_over_initial_thermal": 0.004774007255229794,
+     "max_momentum_defect_over_nmecL": 4.033484544879408e-15,
+     "max_particle_charge_change_over_enL": 0.0,
+     "max_grid_charge_change_over_enL": 1.0233698246978662e-16,
+     "max_continuity_over_enwp": 3.494051576486102e-14,
+     "max_ordinary_gauss_over_en_eps0": 1.9142413838660516e-13,
+     "max_dark_gauss_over_en_eps0": 0.0,
+     "late_electron_spread_over_initial": 21.852517212413225,
+     "late_ion_spread_over_initial": 1.2215351956669556,
+     "late_electric_energy_over_initial_electron_thermal": 0.3789823169222218,
+     "late_nonzero_electric_energy_over_initial_electron_thermal": 0.3434994805038692,
+     "local_spread_final_over_initial": [
+      [
+       21.975257504641416,
+       21.98341198601487
+      ],
+      [
+       1.1599899428736071,
+       1.16215589089289
+      ]
+     ],
+     "final_particle_kinetic_increment": 0.012609356366913922,
+     "final_homogeneous_particle_kinetic_increment": 0.00025379161724258046,
+     "max_energy_work_defect_over_peak_injected_work": 0.00037592097031841277,
+     "max_speed_over_c": 0.933279345589057,
+     "compile_s": 6.844300678931177,
+     "warm_primal_s": 440.20601553900633,
+     "compiler_temporary_MiB": 28.40203094482422,
+     "compiler_arguments_MiB": 12.627330780029297,
+     "compiler_outputs_MiB": 12.681278228759766,
+     "process_peak_MiB": 1106.578125,
+     "claim": "Fig. 2 parameter replay; late reproduction requires loading/grid/time/seed convergence"
+    }
+   }
+  ],
+  "claim": "Prescribed-force numerical comparison; late field/particle convergence remains open"
+ }
+}

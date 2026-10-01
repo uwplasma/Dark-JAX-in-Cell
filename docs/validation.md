@@ -129,9 +129,11 @@ The particle/grid/time-error and noise distinctions follow the classical treatme
 
 Performance decisions use [JAX's synchronized profiling](https://docs.jax.dev/en/latest/profiling.html), separating compilation, warm execution and output. A [persistent compilation cache](https://docs.jax.dev/en/latest/persistent_compilation_cache.html) can reduce repeated startup cost without changing the physics. [Buffer donation](https://docs.jax.dev/en/latest/buffer_donation.html) permits reuse of dead input storage; it is appropriate only when the caller relinquishes that state. Adopt these options after a representative profile and primal/gradient correctness check; the [performance evidence](performance.md) reports measured choices.
 
+[π-PIC](https://github.com/hi-chi/pipic/tree/68757ea57283c93623c4d0c8b64351a55d47a6ce) provides CPU/OpenMP relativistic spectral PIC in 1D/2D/3D. [Gonoskov, §5 and Figures 11–12](https://arxiv.org/html/2302.01893v3), identifies charge-continuity error in its `ec/ec2` energy-preserving solvers and energy changes from optional divergence correction. [Brogren, §5.2](https://arxiv.org/html/2511.09950v1), adds `emc2` with improved electromagnetic momentum exchange; electrostatic momentum/charge coupling remains qualified. These distinctions make it a useful independent ordinary-plasma comparison, with invariant claims tied to the selected solver. Its reviewed model does not evolve a Proca field.
+
 ### Reviewed public-source snapshots
 
-Reviewed **30 September 2026**, with Project3 inspected **1 October**. The parent remains pinned to `83d3271`; the public README/source snapshots below qualify the feature comparison. Documentation releases can include backend features absent from a particular public branch. For example, the [OSIRIS feature page](https://osiris-code.github.io/features/) advertises CUDA, but the reviewed public tree did not establish availability of that backend.
+Reviewed **30 September 2026**, with Project3 and π-PIC inspected **1 October**. The parent remains pinned to `83d3271`; the public README/source snapshots below qualify the feature comparison. Documentation releases can include backend features absent from a particular public branch. For example, the [OSIRIS feature page](https://osiris-code.github.io/features/) advertises CUDA, but the reviewed public tree did not establish availability of that backend.
 
 | Code | Reviewed public tree |
 |---|---|
@@ -142,6 +144,7 @@ Reviewed **30 September 2026**, with Project3 inspected **1 October**. The paren
 | VPIC 2.0 | [b24fdf1](https://github.com/lanl/vpic-kokkos/tree/b24fdf16225c82857779d6f91130ea7ff2104616) |
 | ECSIM test code | [e7e5fa2](https://github.com/petschge/ECSIM/tree/e7e5fa285e6a0ba1fc7facd4fb6c80c25bf0c389) |
 | Unstaggered_PIC | [c9e2010](https://github.com/sgong11/Unstaggered_PIC/tree/c9e20107624781af147d5497c5de10d004a35cd1) |
+| π-PIC | [68757ea](https://github.com/hi-chi/pipic/tree/68757ea57283c93623c4d0c8b64351a55d47a6ce) |
 | GEMPICX | [6036e6c](https://github.com/NMPPMaxPlanck/GEMPICX/tree/6036e6c33e519631fee217643a1cf1ced981c02a) |
 | ADEPT | [ce5d3fe](https://github.com/ergodicio/adept/tree/ce5d3feed0c107fcba52cbf3ee8cce6fb293961d) |
 | SPECTRAX | [ab87385](https://github.com/uwplasma/SPECTRAX/tree/ab87385fc84871122666df66a0fabe21dfa50dbd) |

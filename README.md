@@ -85,6 +85,12 @@ Charge, continuity and both Gauss residuals remain below $4.6\times10^{-13}$ in 
 
 A [prescribed-drive implicit control](docs/performance.md#energy-balance-and-resolved-phase) follows 4,096 particles through $\omega_pt=1000$ with energy-minus-source-work defects below $3\times10^{-16}nm_ec^2L$. Halving the step reduces early waveform error fourfold. Its discrete velocity beams develop spatial modes, and momentum retains a finite defect; this control validates work balance and short-time derivatives, with late Maxwellian accuracy requiring separate tests.
 
+### Gaussian implicit control
+
+<img src="docs/_static/figures/paper_implicit_comparison/figure.png" width="800" alt="Matched explicit and implicit Gaussian plasma fields, momentum and energy balance">
+
+With the **206,000-particle Gaussian loading** of the resonant-drive case, the implicit energy/work defect is $1.90\times10^{-15}nm_ec^2L$, while momentum changes by $1.39\times10^{-4}nm_ecL$. Repeated calls to the same compiled solver differ by **12.3%** in nonzero-mode energy through $\omega_pt=1000$. The [matched fields, momentum, conservation and timings](docs/performance.md#gaussian-loading-and-a-fixed-compiled-solver) guide method selection alongside spatial and particle refinement. A separate [exact-state four/eight-iteration check](docs/performance.md#independent-implicit-orbit-and-iteration-checks) leaves early momentum drift unchanged; independent orbit and charge reconstruction verify the accepted impulse.
+
 ## Cold exchange: a known answer
 
 A homogeneous transverse dark field drives a cold electron plasma. The full [example](examples/dark_photon.py) follows the ordinary and dark mean fields through $\omega_0t=20$ and compares both with an independent four-state matrix exponential. The largest field error is **$2.922\times10^{-4}$** of the initial dark field; closed-energy drift from the physical time-zero state is **$8.709\times10^{-5}$**. This checks the coupling, mean current and potential-energy ledger before kinetic effects enter. [Settings and arrays](docs/_static/figures/cold_exchange/run.json) are saved with the figure.
@@ -175,7 +181,13 @@ The [parameter replay](examples/dark_reservoir.py) advances **206,000 particles*
 
 Final RMS speeds are **0.1926c (electrons)** and **0.000834c (ions)**, about **4.6%/5.4% below** the visible PDF curves; their variance-energy increments differ by **9.2%/35.2%**. Late electron variance grows **36.09×**, versus **1.0025×** without driving. The energy/work defect is at most **0.0241% of peak injected work**. Halving the timestep changes late electron spread by **1.1%**, but total/nonzero-mode field energy by **52.7%/65.0%**. A third step verifies early second-order behavior; same-step replays diverge during nonlinear broadening. Spatial broadening follows the published trend; quantitative late agreement remains open. [Data, refinement, normalization and mechanism limits](docs/kinetic.md#long-strong-drive-replay-and-controls).
 
+### Late resolution controls
+
 Two [exact archived-state replays](docs/kinetic.md#exact-archived-state-equal-horizon-replays) at the same timestep and horizon agree early, then differ by **9.3%** in nonzero-mode energy's relative $L^2$ norm through $\omega_pt=1000$. On $800\le\omega_pt\le1000$, its mean changes by **31.3%**, versus less than **0.6%** for particle spread at a fixed physical smoothing length. Gauss residuals stay near roundoff; an endpoint projection would change $E/E_{\star}$ by less than **$4\times10^{-15}$**. The late field needs execution, seed and isolated resolution checks before a physical suppression factor can be assigned.
+
+At $\Delta t\omega_p=0.005$, an [isolated 1,000→2,000-cell check](docs/kinetic.md#isolated-mesh-particles-and-seed-controls) holds all 206,000 particles fixed. The energy/work defect falls **3.1×**, while late nonzero-field mean energy changes **+22.9%** and local electron spread **+3.6%**. At 2,000 cells, doubling the loading to **412,000 particles** changes those late means by **+129.4% / +8.9%**; an independent velocity seed on the original grid gives **−37.6% / +6.3%**. These controls quantify sensitivity alongside conservation; the published late conversion curve still requires convergence.
+
+<img src="docs/_static/figures/replay_resolution/figure.png" width="800" alt="Late field, local velocity spread, density and energy balance under separate grid, particle and seed controls">
 
 ## Oscillating pair plasma: a kinetic bridge
 
@@ -250,11 +262,12 @@ The [isolated field-step benchmark](docs/_static/figures/field_cost.json) uses 8
 | [VPIC 2.0](https://github.com/lanl/vpic-kokkos) | ✅ | ✅ | ❌ | ❌ | — | ✅ | ✅ |
 | [ECSIM test code](https://github.com/petschge/ECSIM) | ✅ | ✅ | ❌ | ❌ | — | — | ❌ |
 | [Unstaggered_PIC, Project3](https://github.com/sgong11/Unstaggered_PIC/tree/c9e20107624781af147d5497c5de10d004a35cd1/Project3) | ✅ | ✅ | ❌ | ❌ | — | — | ✅ |
+| [π-PIC](https://github.com/hi-chi/pipic/tree/68757ea57283c93623c4d0c8b64351a55d47a6ce) | ✅ | ✅ | ❌ | ❌ | — | — | ✅ |
 | [GEMPICX](https://github.com/NMPPMaxPlanck/GEMPICX) | ✅ | ✅ | ❌ | ❌ | — | ✅ | ✅ |
 | [ADEPT](https://github.com/ergodicio/adept) | ✅ | ✅¹ | ❌ | ❌ | ✅ | ✅ | ✅ |
 | [SPECTRAX](https://github.com/uwplasma/SPECTRAX) | ✅ | ❌ | ❌ | ❌ | — | ✅ | ✅ |
 
-✅ documents the feature; ❌ excludes it from the reviewed model; — leaves it unverified. Review: **30 September 2026** (Project3: **1 October**), pinned parent above, Smilei 5.1, WarpX 26.09, PIConGPU 0.9.0-dev and GEMPICX 0.5.648; [source snapshots and conservation methods](docs/validation.md#other-numerical-approaches) give the qualifications. ¹ ADEPT's PIC module is electrostatic; its multidimensional kinetic solvers evolve distributions. SPECTRAX uses Hermite–Fourier moments. Unstaggered_PIC Project3 provides relativistic 3D potential PIC on CPU, with optional OpenMP; GPU support is unverified. OSIRIS's general CUDA documentation does not establish GPU support in its public snapshot. Particle/field restart is supported here and by several large PIC codes; it does not imply the same dark-field archive format.
+✅ documents the feature; ❌ excludes it from the reviewed model; — leaves it unverified. Review: **30 September 2026** (Project3 and π-PIC: **1 October**), pinned parent above, Smilei 5.1, WarpX 26.09, PIConGPU 0.9.0-dev and GEMPICX 0.5.648; [source snapshots and conservation methods](docs/validation.md#other-numerical-approaches) give the qualifications. ¹ ADEPT's PIC module is electrostatic; its multidimensional kinetic solvers evolve distributions. SPECTRAX uses Hermite–Fourier moments. Unstaggered_PIC Project3 provides relativistic 3D potential PIC on CPU, with optional OpenMP; GPU support is unverified. π-PIC supplies CPU/OpenMP spectral solvers; its GPU and AD support are unverified. OSIRIS's general CUDA documentation does not establish GPU support in its public snapshot. Particle/field restart is supported here and by several large PIC codes; it does not imply the same dark-field archive format.
 
 The pair benchmark confirms a known kinetic instability; the current finite-reservoir runs extend the model but have unresolved late loading dependence. They neither contradict Hook *et al.* nor confirm that paper's nonlinear conversion curve. Differentiable kinetic optimization already exists in ADEPT and the parent. The tested contribution here is the coupled Maxwell–Proca trajectory and its complete energy/work and gradient diagnostics; a new physical mechanism still requires converged controls.
 

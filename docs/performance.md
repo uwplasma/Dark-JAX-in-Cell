@@ -153,6 +153,64 @@ python docs/scripts/benchmark_implicit_drive.py --cells 256 --nodes 8 --dt .04 -
 python docs/scripts/benchmark_implicit_drive.py --cells 256 --nodes 8 --dt .02 --iterations 8 --horizon 1000 --samples 2 --gradient-horizon 8 --output artifacts/implicit_dt02
 ```
 
+#### Gaussian loading and a fixed compiled solver
+
+The next control uses the resonant-drive fixture itself: 1,000 cells, $L=40c/\omega_p$, 103,000 particles per species, $T_e=T_i=10^{-3}m_ec^2$, and the same conditioned Gaussian draw as the explicit runs. Four Picard iterations and two orbit substeps advance $\Delta t\omega_p=0.01$ through $\tau=1000$. Initial momenta, weights and magnetic fields match exactly; supplied integer-time positions match the implicit initialization. Native leapfrog positions and initial grid charge differ with the methods' staggering. The comparison retains 2,001 common samples at $\Delta\tau=0.5$, without interpolation or phase alignment.
+
+![Matched Gaussian drive: mean field, nonzero modes, momentum and complete energy/work](_static/figures/paper_implicit_comparison/figure.png)
+
+| Method | $\Delta t\omega_p$ | All-step max $|\Delta U-W|/(nm_ec^2L)$ | All-step max $|\Delta P|/(nm_ecL)$ |
+|---|---:|---:|---:|
+| Explicit | 0.01 | $5.41\times10^{-6}$ | $3.61\times10^{-15}$ |
+| Explicit | 0.005 | $4.77\times10^{-6}$ | $4.03\times10^{-15}$ |
+| Implicit, four iterations | 0.01 | {{ implicit_paper_balance }} | {{ implicit_paper_momentum }} |
+
+The implicit defect is $1.54\times10^{-13}$ of peak work **recorded at the common cadence**; an all-step work maximum was not retained. Charge is unchanged and its Gauss residual is **{{ implicit_paper_gauss }}** in units $en/\epsilon_0$. A uniform electric drive supplies impulse $hQ_{\rm mobile}F_{\rm midpoint}$, which vanishes for these two neutral mobile species. The measured momentum change is referenced to the actual initial relativistic momentum. It already reaches $4.86\times10^{-5}nm_ecL$ by $\tau=40$.
+
+Through $\tau=40$, implicit/explicit mean-field and nonzero-energy $L^2$ differences are **{{ implicit_paper_vs_explicit_mean_E_40 }}% / {{ implicit_paper_vs_explicit_nonzero_40 }}%**. Through $1000$, they reach **{{ implicit_paper_vs_explicit_mean_E_1000 }}% / {{ implicit_paper_vs_explicit_nonzero_1000 }}%**. Two calls with identical input to the **same compiled callable** differ by **{{ implicit_paper_repeat_mean_E_percent }}% / {{ implicit_paper_repeat_nonzero_percent }}%** over that horizon. One pair quantifies execution sensitivity rather than statistical uncertainty. These differences include particle–mesh coupling and nonlinear dynamics; energy balance does not assign their cause or establish a converged late trajectory.
+
+An independent accepted-step test evaluates each particle impulse $m_pw_p\Delta u_p=q_pw_ph\overline E_{\mathrm{orbit},p}$ and its sum from the midpoint electric field, including the uniform drive. It also verifies the grid permutation under a whole-cell translation. This checks the momentum diagnostic and force update without assuming continuous translation symmetry of the discrete-gradient gather. [Campos Pinto, Kormann and Sonnendrücker, §7/Figure 3](https://link.springer.com/article/10.1007/s10915-022-01781-3#Fig3) likewise retain energy and Gauss while momentum develops a finite nonlinear defect.
+
+Compilation takes **{{ implicit_paper_compile }} s**; the first and single warm synchronized calls take 1687.72 / **{{ implicit_paper_warm }} s**. Compiler temporaries are 81.98 MiB and process peak is 1016.59 MiB on an RTX A4000, float64 JAX 0.6.2. The explicit 0.01/0.005 runs take 221.75 / 440.21 s with compilation separate, fixed blocks of duration $100/\omega_p$ and host transfers included. Their cadence and timing protocols differ from the implicit whole-run executable, so these are workload records rather than a matched speed benchmark.
+
+The [record](_static/figures/paper_implicit_comparison/run.json) retains native clean computation revisions `7d149ce` and `8acc513`, input hashes, common-clock checks, raw window norms and final implicit-call conservation maxima. [Compressed scalar arrays](_static/figures/paper_implicit_comparison/data.npz) retain both implicit executions at their original 0.1 cadence. Faint nonzero-energy curves are raw and thick curves average approximately one plasma period; metrics use raw samples. This legacy implicit run stores fields, work and momentum; species broadening needs the newer species/restart outputs. It remains a prescribed-force control.
+
+```sh
+python docs/scripts/benchmark_implicit_drive.py --paper-loading --dt .01 --iterations 4 --horizon 1000 --samples 1 --output artifacts/implicit_paper
+python docs/scripts/compare_replays.py artifacts/paper_fixed_first artifacts/implicit_paper --implicit --refined artifacts/paper_fixed_fine --publish docs/_static/figures/paper_implicit_comparison
+```
+
+#### Independent implicit orbit and iteration checks
+
+A shorter Gaussian control starts both four/eight-iteration runs from **all 50 identical native initial arrays**, including the field, charge and work ledger. Each uses two particle substeps, $\Delta t\omega_p=0.01$, 206,000 particles and 401 samples through $\tau=40$; a first and one warm execution use the same compiled callable.
+
+| Picard iterations | All-step $|\Delta U-W|/(nm_ec^2L)$ | All-step $|\Delta P|/(nm_ecL)$ | Warm synchronized time (s) |
+|---|---:|---:|---:|
+| 4 | {{ implicit_iterations_4_balance }} | {{ implicit_iterations_4_momentum }} | {{ implicit_iterations_4_warm }} |
+| 8 | {{ implicit_iterations_8_balance }} | {{ implicit_iterations_8_momentum }} | {{ implicit_iterations_8_warm }} |
+
+Raw four/eight relative $L^2$ differences are **{{ implicit_iterations_mean_E_l2 }}** for mean electric field and **{{ implicit_iterations_nonzero_l2 }}** for nonzero-mode energy. Electron/ion RMS differences are $1.03\times10^{-12}/4.13\times10^{-14}$. More iterations cost approximately twice as much in this matched workload while leaving the early momentum defect unchanged.
+
+The independent NumPy reference solves two particle substeps in each accepted midpoint field using
+
+$$
+\Delta u=(q/m)h\overline E_{\rm orbit},\qquad
+\Delta x=h\frac{u^-+u^+}{\gamma^-+\gamma^+},\qquad
+\gamma=\sqrt{1+(u/c)^2},\qquad h=\Delta t/2.
+$$
+
+It integrates the linear face-field interpolant exactly, splitting at a crossed face and including the uniform midpoint drive. Independent quadratic endpoint deposits reconstruct the continuity current and retain its mean displacement current. This reference uses neither the production gather nor potential transpose. Four/eight one-step probes share the same complete checkpoint at $\tau=0$ and $40$.
+
+At the latter checkpoint the accepted momentum increment is $1.435\times10^{-8}nm_ecL$; the neutral drive's impulse is below $1.2\times10^{-23}nm_ecL$. Across all four probes, independent weighted impulse disagreement is at most **{{ implicit_orbit_momentum_disagreement }} $nm_ecL$**. The maximum individual $u/c$ discrepancy is $1.84\times10^{-11}$; it includes native potential-evaluation roundoff and finite-iteration error. These residuals concern a separately converged **frozen accepted-field orbit**, rather than inaccessible internal parent iterates. They verify the measured impulse and give no evidence that insufficient four-iteration convergence explains the early momentum drift. Spatial and substep refinement remain the next tests before a longer implicit calculation or coupled Proca extension.
+
+The [record](_static/figures/implicit_iteration_control/run.json) retains both native computations, complete initial hashes, raw norms and four independently produced orbit audits; [compressed arrays](_static/figures/implicit_iteration_control/data.npz) retain both executions and species traces. Native producers are `bc59e5e` and `cc2c1ad`, with the parent pinned above. Both short runs reuse the initial archive produced by the preceding Gaussian example:
+
+```sh
+python docs/scripts/benchmark_implicit_drive.py --paper-loading --dt .01 --iterations 4 --horizon 40 --samples 1 --initial-state artifacts/implicit_paper/initial_state.npz --output artifacts/implicit_picard4_exact_40
+python docs/scripts/benchmark_implicit_drive.py --paper-loading --dt .01 --iterations 8 --horizon 40 --samples 1 --initial-state artifacts/implicit_paper/initial_state.npz --output artifacts/implicit_picard8_exact_40
+python docs/scripts/benchmark_implicit_drive.py --paper-loading --dt .01 --iterations 4 --audit-state artifacts/implicit_picard4_exact_40/final_state.npz --output artifacts/orbit_final_4
+```
+
 #### Coupling an implicit dark field
 
 A conservative dynamical Proca extension requires one accepted orbit current and conjugate particle work:
@@ -170,7 +228,7 @@ With midpoint fields, compatible curls and the divergence/gradient adjoint cance
 
 [Ricketson and Hu's relativistic explicit correction, Section 3.1](https://arxiv.org/html/2605.18542v1) enforces local particle work when its analytic correction is real. Adoption requires tracking correction failures, charge-conserving trajectories, momentum, phase and derivatives. [Campos Pinto, Kormann and Sonnendrücker, Figure 3](https://link.springer.com/article/10.1007/s10915-022-01781-3#Fig3) demonstrate finite momentum defects alongside conserved energy and Gauss. A discrete-gradient work identity alone does not establish translation symmetry of the mesh coupling.
 
-[SHARP](https://arxiv.org/abs/1702.04732v2) motivates matched higher-order particle shapes and joint grid/loading refinement. [Adams, Werner and Cary](https://arxiv.org/html/2503.13697v2) show that higher-order field differences alone do not remove grid instability in their explicit electrostatic schemes. [Schmitz, Sections 3–4](https://arxiv.org/html/2603.06509v1) compares relativistic pushers and higher-order compositions in prescribed fields; improving the pusher alone does not establish the order or conservation of a coupled PIC update.
+[SHARP, §§6.2–6.4/Figures 17–19](https://arxiv.org/html/1702.04732v2) tests higher-order particle shapes and joint grid/loading refinement. [Adams, Werner and Cary, §I/Figure 1](https://arxiv.org/html/2503.13697v2) distinguish coherent interpolation aliases from finite-particle stochastic heating; mesh and particle count therefore need separate controls. [Adams, Werner and Cary](https://arxiv.org/html/2503.13697v2) show that higher-order field differences alone do not remove grid instability in their explicit electrostatic schemes. [Schmitz, Sections 3–4](https://arxiv.org/html/2603.06509v1) compares relativistic pushers and higher-order compositions in prescribed fields; improving the pusher alone does not establish the order or conservation of a coupled PIC update.
 
 ### Repeated execution and compiled horizons
 

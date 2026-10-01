@@ -1,0 +1,893 @@
+{
+ "jaxincell": "unknown",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "5b072d1e4f8e8e21fd8a52b66e331af63e384d0b",
+ "example": "implicit_iteration_control",
+ "settings": {
+  "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a"
+ },
+ "results": {
+  "native_runs": [
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "bc59e5efac1f7f1783342f3cd76eb7dbfde83d0b",
+    "example": "implicit_drive",
+    "settings": {
+     "cells": 1000,
+     "dt": 0.01,
+     "iterations": 4,
+     "horizon": 40.0,
+     "amplitude": 0.0009486832980505137,
+     "temperature": 0.001,
+     "samples": 1,
+     "gradient_horizon": 0.0,
+     "newtonian": false,
+     "paper_loading": true,
+     "particles": 103000,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+     "precision": "float64",
+     "initial_state_source": "complete zero-time archive",
+     "loading": "paper_plasma: co-located spatial lattice, Gaussian velocities; exact mean and variance, seed 0",
+     "wp_rad_s": 1000000000.0,
+     "mass_ratio": 1836.0,
+     "particles_per_species": 103000,
+     "length_over_c_wp": 40.0,
+     "steps": 4000,
+     "store_every": 10,
+     "actual_horizon": 39.99999999999993,
+     "native_archives": [
+      "initial_state.npz",
+      "final_state.npz"
+     ],
+     "archive_final_execution": 1,
+     "initial_fingerprints": {
+      "x": "18f8b26c79989ac0e60ac72c50376c8fd527f9d41d546e17a176883a71ae0a3e",
+      "u": "b0ad4a0faa655c90fcc2b0c5030b28e615205c68d27803d6120de47cef6e7969",
+      "w": "01879c5131ecfbb95740b9288894e085f98bb78259911f6f1229616f9bdfc9c6",
+      "E": "f057e335fdebb8609b7ec4e62ec6ca278ad0f73a4125bff701a69a82dafa9699",
+      "B": "d5142ec0b2b773e5e84e8d8d1f33519a9dbf0545f52c7f64b80fe036c688659c",
+      "rho": "fac27dec639dee8ff0620b506ef07d08396f4f0e1f9fa9064c04c330c5727f2d",
+      "time": "d1248b792eba25b9c46dd64b0c01fb8ca1e496438632797016046f536a8c6161",
+      "mass": "bbdc1cd26d089efd4bc31acb67a63d8c33cbaee6a040ad8078863079159d6dc9",
+      "charge": "23cf0918371807e46af439ad9a6da518054d09fc74bee3f1faf3f307ccd4fe46"
+     },
+     "position_time": "native implicit integer time",
+     "physical_loading_fingerprints": {
+      "electrons": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "12450b403d84d01d11717031fb7df08b4206ff31329ff5e47d9c626c8c7a8f18"
+      },
+      "ions": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "8125af708d909dfdc7ec5e315c21faec8b52648d511fd994abc8b390e0cbec7b"
+      }
+     },
+     "species_order": [
+      "electrons",
+      "ions"
+     ],
+     "trace_scales": "E: me c wp/e; J: epsilon0 Eref wp; nonzero/kinetic/spread energy: n me c\u00b2 L; momentum: n me c L; mean/rms: c",
+     "velocity_spread_energy_definition": "0.5 (ms/me) (sigma_s/c)\u00b2; lab frame, each species' global mean removed; not a relativistic temperature",
+     "thermal_parameter_definition": "Gaussian velocity sigma_e squared / c squared"
+    },
+    "results": {
+     "compile_s": 6.706454601953737,
+     "first_primal_s": 67.94279067905154,
+     "warm_primal_s": [
+      68.61299922503531
+     ],
+     "compiler_temporary_bytes": 85123816,
+     "peak_rss_bytes": 1114820608,
+     "host_load": [
+      7.798828125,
+      7.5537109375,
+      7.171875
+     ],
+     "device_kinds": [
+      "NVIDIA RTX A4000"
+     ],
+     "max_balance_over_nmc2L": 8.997507238311443e-19,
+     "max_particle_charge_change_over_enL": 0.0,
+     "max_grid_charge_change_over_enL": 8.1749944145953e-17,
+     "max_continuity_over_enwp": 1.2384551994215216e-14,
+     "max_gauss_over_en_eps0": 4.443153067696366e-15,
+     "max_mean_ampere_over_fieldwp": 6.775632992221706e-17,
+     "max_momentum_over_nmecL": 4.85724295949137e-05,
+     "max_mean_E_error": 6.339642772590012e-05,
+     "max_current_error": 5.5412082290234865e-05,
+     "max_phase_error_rad": 0.0007447549882915183,
+     "phase_definition": "unwrapped arg(E+iJ) against oracle; exclude near-zero radius and startup",
+     "phase_mask_samples": 338,
+     "phase_total_samples": 401,
+     "phase_radius_threshold_normalized": 0.00018723780703506818,
+     "phase_mask": "t>=2\u03c0 and both |E+iJ| exceed 1% of oracle peak radius",
+     "phase_unavailable_reason": null,
+     "max_sampled_nonzero_electric_over_nmc2L": 2.521135963340391e-06,
+     "final_nonzero_electric_over_nmc2L": 2.0774958001466845e-06,
+     "nonzero_electric_convention": "epsilon0 dx sum|E-mean(E)|\u00b2/2, all components; no clamp",
+     "nonzero_threshold_crossings": [
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": null
+      },
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": null
+      }
+     ],
+     "oracle_windows": {
+      "mean_E": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.0003415770873536275,
+        "reference_l2": 0.15797506368522898,
+        "observed_l2": 0.1576758084509369,
+        "max_abs_difference": 6.339642772590012e-05,
+        "relative_l2": 0.002162221551840816
+       }
+      },
+      "current": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.0003131455919606148,
+        "reference_l2": 0.15226621939050225,
+        "observed_l2": 0.1519944010882741,
+        "max_abs_difference": 5.5412082290234865e-05,
+        "relative_l2": 0.002056566408584172
+       }
+      },
+      "phase": {
+       "40": {
+        "samples": 338,
+        "max_error_rad": 0.0007447549882915183,
+        "max_nonzero_electric_over_nmc2L": 2.521135963340391e-06
+       }
+      }
+     },
+     "execution_variability": [
+      {
+       "mean_E": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.2603139888811685e-12,
+         "reference_l2": 0.157675808451094,
+         "observed_l2": 0.1576758084509369,
+         "max_abs_difference": 1.9642360654659186e-13,
+         "relative_l2": 7.993071361178894e-12
+        }
+       },
+       "current": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.3077192892226262e-12,
+         "reference_l2": 0.15199440108843798,
+         "observed_l2": 0.1519944010882741,
+         "max_abs_difference": 2.0617708929027145e-13,
+         "relative_l2": 8.60373329450293e-12
+        }
+       },
+       "nonzero_electric": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.2171903816324003e-14,
+         "reference_l2": 3.846957741155205e-05,
+         "observed_l2": 3.8469577413880477e-05,
+         "max_abs_difference": 3.461857113229742e-15,
+         "relative_l2": 3.164033669023069e-10
+        }
+       },
+       "momentum": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          9.081116497797775e-13,
+          0.0,
+          0.0
+         ],
+         "reference_l2": [
+          0.00041231753967725757,
+          0.0,
+          0.0
+         ],
+         "observed_l2": [
+          0.00041231753947468263,
+          0.0,
+          0.0
+         ],
+         "max_abs_difference": [
+          2.124275758010226e-13,
+          0.0,
+          0.0
+         ],
+         "relative_l2": [
+          2.20245699586441e-09,
+          null,
+          null
+         ]
+        }
+       },
+       "mean": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          1.3071879034072323e-12,
+          7.066792974886592e-16
+         ],
+         "reference_l2": [
+          0.15191151059442703,
+          8.289079870119793e-05
+         ],
+         "observed_l2": [
+          0.15191151059426322,
+          8.289079870112157e-05
+         ],
+         "max_abs_difference": [
+          2.0606433226433296e-13,
+          1.136466222913463e-16
+         ],
+         "relative_l2": [
+          8.604929924613542e-12,
+          8.525425120296813e-12
+         ]
+        }
+       },
+       "rms": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          4.690912957877675e-13,
+          1.7883831654727654e-15
+         ],
+         "reference_l2": [
+          0.6322914171807963,
+          0.014774341196849278
+         ],
+         "observed_l2": [
+          0.6322914171808063,
+          0.01477434119684842
+         ],
+         "max_abs_difference": [
+          1.1848855230311983e-13,
+          3.531246475785288e-16
+         ],
+         "relative_l2": [
+          7.4189097470168e-13,
+          1.210465591422885e-13
+         ]
+        }
+       }
+      }
+     ],
+     "execution_comparison": "execution 0 against each later call to the same compiled callable and input; norms use fixed physical scales; recorded arrays/results use the final call",
+     "oracle_scope": "homogeneous momentum-distribution reference; late differences mix time integration, spatial PIC dynamics and velocity loading once nonzero modes grow",
+     "max_work_error_over_nmc2L": 2.540626063892988e-07,
+     "oracle_nodes": 64,
+     "particle_substeps": 2,
+     "claim": "uniform prescribed-drive prototype; phase and work checks, no implicit Proca"
+    }
+   },
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "bc59e5efac1f7f1783342f3cd76eb7dbfde83d0b",
+    "example": "implicit_drive",
+    "settings": {
+     "cells": 1000,
+     "dt": 0.01,
+     "iterations": 8,
+     "horizon": 40.0,
+     "amplitude": 0.0009486832980505137,
+     "temperature": 0.001,
+     "samples": 1,
+     "gradient_horizon": 0.0,
+     "newtonian": false,
+     "paper_loading": true,
+     "particles": 103000,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+     "precision": "float64",
+     "initial_state_source": "complete zero-time archive",
+     "loading": "paper_plasma: co-located spatial lattice, Gaussian velocities; exact mean and variance, seed 0",
+     "wp_rad_s": 1000000000.0,
+     "mass_ratio": 1836.0,
+     "particles_per_species": 103000,
+     "length_over_c_wp": 40.0,
+     "steps": 4000,
+     "store_every": 10,
+     "actual_horizon": 39.99999999999993,
+     "native_archives": [
+      "initial_state.npz",
+      "final_state.npz"
+     ],
+     "archive_final_execution": 1,
+     "initial_fingerprints": {
+      "x": "18f8b26c79989ac0e60ac72c50376c8fd527f9d41d546e17a176883a71ae0a3e",
+      "u": "b0ad4a0faa655c90fcc2b0c5030b28e615205c68d27803d6120de47cef6e7969",
+      "w": "01879c5131ecfbb95740b9288894e085f98bb78259911f6f1229616f9bdfc9c6",
+      "E": "f057e335fdebb8609b7ec4e62ec6ca278ad0f73a4125bff701a69a82dafa9699",
+      "B": "d5142ec0b2b773e5e84e8d8d1f33519a9dbf0545f52c7f64b80fe036c688659c",
+      "rho": "fac27dec639dee8ff0620b506ef07d08396f4f0e1f9fa9064c04c330c5727f2d",
+      "time": "d1248b792eba25b9c46dd64b0c01fb8ca1e496438632797016046f536a8c6161",
+      "mass": "bbdc1cd26d089efd4bc31acb67a63d8c33cbaee6a040ad8078863079159d6dc9",
+      "charge": "23cf0918371807e46af439ad9a6da518054d09fc74bee3f1faf3f307ccd4fe46"
+     },
+     "position_time": "native implicit integer time",
+     "physical_loading_fingerprints": {
+      "electrons": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "12450b403d84d01d11717031fb7df08b4206ff31329ff5e47d9c626c8c7a8f18"
+      },
+      "ions": {
+       "x": "25c4bbe013a8e8b58aa98628e0d93222b7d94d997bff7c29a3f6f46dd4d8f3a6",
+       "v": "8125af708d909dfdc7ec5e315c21faec8b52648d511fd994abc8b390e0cbec7b"
+      }
+     },
+     "species_order": [
+      "electrons",
+      "ions"
+     ],
+     "trace_scales": "E: me c wp/e; J: epsilon0 Eref wp; nonzero/kinetic/spread energy: n me c\u00b2 L; momentum: n me c L; mean/rms: c",
+     "velocity_spread_energy_definition": "0.5 (ms/me) (sigma_s/c)\u00b2; lab frame, each species' global mean removed; not a relativistic temperature",
+     "thermal_parameter_definition": "Gaussian velocity sigma_e squared / c squared"
+    },
+    "results": {
+     "compile_s": 7.175694575998932,
+     "first_primal_s": 134.45224052399863,
+     "warm_primal_s": [
+      136.15161047398578
+     ],
+     "compiler_temporary_bytes": 85123816,
+     "peak_rss_bytes": 1115209728,
+     "host_load": [
+      6.93798828125,
+      7.09130859375,
+      7.0751953125
+     ],
+     "device_kinds": [
+      "NVIDIA RTX A4000"
+     ],
+     "max_balance_over_nmc2L": 3.599002895324577e-19,
+     "max_particle_charge_change_over_enL": 0.0,
+     "max_grid_charge_change_over_enL": 8.152658493340374e-17,
+     "max_continuity_over_enwp": 1.1223782533050624e-14,
+     "max_gauss_over_en_eps0": 3.0354720842672177e-15,
+     "max_mean_ampere_over_fieldwp": 5.672290075009408e-17,
+     "max_momentum_over_nmecL": 4.857242929975347e-05,
+     "max_mean_E_error": 6.339642785930383e-05,
+     "max_current_error": 5.541208241546802e-05,
+     "max_phase_error_rad": 0.0007447549905439388,
+     "phase_definition": "unwrapped arg(E+iJ) against oracle; exclude near-zero radius and startup",
+     "phase_mask_samples": 338,
+     "phase_total_samples": 401,
+     "phase_radius_threshold_normalized": 0.00018723780703506818,
+     "phase_mask": "t>=2\u03c0 and both |E+iJ| exceed 1% of oracle peak radius",
+     "phase_unavailable_reason": null,
+     "max_sampled_nonzero_electric_over_nmc2L": 2.521135964255235e-06,
+     "final_nonzero_electric_over_nmc2L": 2.0774957993209943e-06,
+     "nonzero_electric_convention": "epsilon0 dx sum|E-mean(E)|\u00b2/2, all components; no clamp",
+     "nonzero_threshold_crossings": [
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": null
+      },
+      {
+       "1e-16": 0.10000000000000003,
+       "1e-12": 0.10000000000000003,
+       "1e-08": 0.10000000000000003,
+       "0.0001": null
+      }
+     ],
+     "oracle_windows": {
+      "mean_E": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.00034157708773689964,
+        "reference_l2": 0.15797506368522898,
+        "observed_l2": 0.15767580845077409,
+        "max_abs_difference": 6.339642785930383e-05,
+        "relative_l2": 0.0021622215542669715
+       }
+      },
+      "current": {
+       "40": {
+        "samples": 401,
+        "final_time": 39.99999999999993,
+        "difference_l2": 0.00031314559237916273,
+        "reference_l2": 0.15226621939050225,
+        "observed_l2": 0.15199440108816498,
+        "max_abs_difference": 5.541208241546802e-05,
+        "relative_l2": 0.002056566411332962
+       }
+      },
+      "phase": {
+       "40": {
+        "samples": 338,
+        "max_error_rad": 0.0007447549905439388,
+        "max_nonzero_electric_over_nmc2L": 2.521135964255235e-06
+       }
+      }
+     },
+     "execution_variability": [
+      {
+       "mean_E": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.2716137785397391e-12,
+         "reference_l2": 0.15767580845161053,
+         "observed_l2": 0.15767580845077409,
+         "max_abs_difference": 2.1590715326702536e-13,
+         "relative_l2": 8.06473606209533e-12
+        }
+       },
+       "current": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.2725338911354809e-12,
+         "reference_l2": 0.1519944010889158,
+         "observed_l2": 0.15199440108816498,
+         "max_abs_difference": 2.9501921738894765e-13,
+         "relative_l2": 8.372241885351135e-12
+        }
+       },
+       "nonzero_electric": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": 1.798510902527858e-14,
+         "reference_l2": 3.846957741953037e-05,
+         "observed_l2": 3.846957741765004e-05,
+         "max_abs_difference": 4.736673462582986e-15,
+         "relative_l2": 4.67515117963002e-10
+        }
+       },
+       "momentum": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          1.902831259885282e-12,
+          0.0,
+          0.0
+         ],
+         "reference_l2": [
+          0.0004123175382706921,
+          0.0,
+          0.0
+         ],
+         "observed_l2": [
+          0.00041231753883948035,
+          0.0,
+          0.0
+         ],
+         "max_abs_difference": [
+          3.9153076803908823e-13,
+          0.0,
+          0.0
+         ],
+         "relative_l2": [
+          4.614965610888099e-09,
+          null,
+          null
+         ]
+        }
+       },
+       "mean": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          1.271790218154674e-12,
+          1.2762780847878298e-15
+         ],
+         "reference_l2": [
+          0.1519115105949046,
+          8.289079870140616e-05
+         ],
+         "observed_l2": [
+          0.1519115105941544,
+          8.289079870082365e-05
+         ],
+         "max_abs_difference": [
+          2.948492144883019e-13,
+          1.8204601508978874e-16
+         ],
+         "relative_l2": [
+          8.371914762575814e-12,
+          1.5397102027998423e-11
+         ]
+        }
+       },
+       "rms": {
+        "40": {
+         "samples": 401,
+         "final_time": 39.99999999999993,
+         "difference_l2": [
+          9.617097794959173e-13,
+          6.683175391925567e-16
+         ],
+         "reference_l2": [
+          0.6322914171804379,
+          0.014774341196848123
+         ],
+         "observed_l2": [
+          0.632291417180799,
+          0.014774341196848508
+         ],
+         "max_abs_difference": [
+          2.579464419838473e-13,
+          1.7889335846010823e-16
+         ],
+         "relative_l2": [
+          1.5209913551957528e-12,
+          4.523501456262104e-14
+         ]
+        }
+       }
+      }
+     ],
+     "execution_comparison": "execution 0 against each later call to the same compiled callable and input; norms use fixed physical scales; recorded arrays/results use the final call",
+     "oracle_scope": "homogeneous momentum-distribution reference; late differences mix time integration, spatial PIC dynamics and velocity loading once nonzero modes grow",
+     "max_work_error_over_nmc2L": 2.540626063819533e-07,
+     "oracle_nodes": 64,
+     "particle_substeps": 2,
+     "claim": "uniform prescribed-drive prototype; phase and work checks, no implicit Proca"
+    }
+   }
+  ],
+  "observables": {
+   "electric": {
+    "l2_difference": 9.877369632250897e-13,
+    "reference_l2_norm": 0.1576758084509369,
+    "relative_l2_difference": 6.264353250691835e-12,
+    "max_absolute_difference": 1.4926558253303135e-13,
+    "reference_mean": -0.0003367326673765606,
+    "comparison_mean": -0.000336732667376788
+   },
+   "current": {
+    "l2_difference": 1.0923910691503313e-12,
+    "reference_l2_norm": 0.1519944010882741,
+    "relative_l2_difference": 7.187048084198187e-12,
+    "max_absolute_difference": 2.0393582655930942e-13,
+    "reference_mean": 0.0003388161179577093,
+    "comparison_mean": 0.00033881611795434494
+   },
+   "nonzero_electric": {
+    "l2_difference": 1.431304119719345e-14,
+    "reference_l2_norm": 3.8469577413880477e-05,
+    "relative_l2_difference": 3.720613055663321e-10,
+    "max_absolute_difference": 2.9490836957527227e-15,
+    "reference_mean": 1.8956456585457077e-06,
+    "comparison_mean": 1.895645658715749e-06
+   },
+   "momentum": {
+    "l2_difference": [
+     1.4225846825922208e-12,
+     0.0,
+     0.0
+    ],
+    "reference_l2_norm": [
+     0.00041231753947468263,
+     0.0,
+     0.0
+    ],
+    "relative_l2_difference": [
+     3.450216268763825e-09,
+     null,
+     null
+    ],
+    "max_absolute_difference": [
+     2.9516023143400655e-13,
+     0.0,
+     0.0
+    ],
+    "reference_mean": [
+     1.4033844275225377e-05,
+     0.0,
+     0.0
+    ],
+    "comparison_mean": [
+     1.403384426786824e-05,
+     0.0,
+     0.0
+    ]
+   },
+   "mean": {
+    "l2_difference": [
+     1.091814482032669e-12,
+     9.679730632279913e-16
+    ],
+    "reference_l2_norm": [
+     0.15191151059426322,
+     8.289079870112157e-05
+    ],
+    "relative_l2_difference": [
+     7.187174150014017e-12,
+     1.1677690146504692e-11
+    ],
+    "max_absolute_difference": [
+     2.0375194587085588e-13,
+     1.960999857506321e-16
+    ],
+    "reference_mean": [
+     -0.00033862369818664546,
+     1.9241977106367434e-07
+    ],
+    "comparison_mean": [
+     -0.0003386236981832864,
+     1.9241977105782558e-07
+    ]
+   },
+   "rms": {
+    "l2_difference": [
+     6.510480109539998e-13,
+     6.104782562268717e-16
+    ],
+    "reference_l2_norm": [
+     0.6322914171808063,
+     0.01477434119684842
+    ],
+    "relative_l2_difference": [
+     1.0296644763214144e-12,
+     4.13201677213936e-14
+    ],
+    "max_absolute_difference": [
+     1.3730683257051624e-13,
+     1.7759231585312563e-16
+    ],
+    "reference_mean": [
+     0.031575125024047586,
+     0.000737795374643773
+    ],
+    "comparison_mean": [
+     0.03157512502404719,
+     0.000737795374643778
+    ]
+   },
+   "kinetic": {
+    "l2_difference": [
+     1.8805706260016507e-14,
+     8.264295340405857e-16
+    ],
+    "reference_l2_norm": [
+     0.010610255357433202,
+     0.01000693270470639
+    ],
+    "relative_l2_difference": [
+     1.772408450739297e-12,
+     8.258569917752171e-14
+    ],
+    "max_absolute_difference": [
+     4.524050405130264e-15,
+     2.4210234511601314e-16
+    ],
+    "reference_mean": [
+     0.0005285276032624743,
+     0.0004997223322827126
+    ],
+    "comparison_mean": [
+     0.0005285276032624221,
+     0.0004997223322827185
+    ]
+   }
+  },
+  "orbit_audits": [
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "cc2c1ad3df2b3a14d76ed2e5c86863475717cfb1",
+    "example": "implicit_orbit_audit",
+    "settings": {
+     "dt": 0.01,
+     "iterations": 4,
+     "particles_per_species": 103000,
+     "cells": 1000,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a"
+    },
+    "results": {
+     "checkpoint_time_omega_p": 0.0,
+     "checkpoint_sha256": "96b6c8f8e148c4a0cdf70172c61757d8aec107ddb95b245995b5664649be8259",
+     "reference_converged": true,
+     "reference_iterations": [
+      2,
+      2
+     ],
+     "reference_residual_u": [
+      1.2201509605198196e-17,
+      1.1565387861810217e-17
+     ],
+     "reference_residual_x_over_dx": [
+      0.0,
+      0.0
+     ],
+     "max_position_difference_over_c_wp": 1.4210854715202004e-14,
+     "max_momentum_per_mass_difference_over_c": 1.507119150073906e-13,
+     "max_charge_difference_over_en": 4.469639719104079e-14,
+     "max_current_difference_over_enc": 2.497572461346298e-13,
+     "reference_ampere_residual_over_fieldwp": 2.4976071558158175e-13,
+     "momentum_increment_over_nmecL": -1.9908421950051596e-12,
+     "uniform_drive_impulse_over_nmecL": -1.6456826171483305e-23,
+     "reference_momentum_increment_over_nmecL": -1.990841429181496e-12,
+     "momentum_disagreement_over_nmecL": -7.658236634362943e-19,
+     "scope": "Frozen accepted-midpoint 1V orbit/deposit reference; differences include finite iteration and native force evaluation roundoff. Not an internal parent Picard residual."
+    }
+   },
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "cc2c1ad3df2b3a14d76ed2e5c86863475717cfb1",
+    "example": "implicit_orbit_audit",
+    "settings": {
+     "dt": 0.01,
+     "iterations": 8,
+     "particles_per_species": 103000,
+     "cells": 1000,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a"
+    },
+    "results": {
+     "checkpoint_time_omega_p": 0.0,
+     "checkpoint_sha256": "96b6c8f8e148c4a0cdf70172c61757d8aec107ddb95b245995b5664649be8259",
+     "reference_converged": true,
+     "reference_iterations": [
+      2,
+      2
+     ],
+     "reference_residual_u": [
+      1.2959604092990795e-17,
+      1.1528118412131028e-17
+     ],
+     "reference_residual_x_over_dx": [
+      0.0,
+      0.0
+     ],
+     "max_position_difference_over_c_wp": 1.4210854715202004e-14,
+     "max_momentum_per_mass_difference_over_c": 1.2957356533416903e-13,
+     "max_charge_difference_over_en": 4.538069139220502e-14,
+     "max_current_difference_over_enc": 2.514230143524365e-13,
+     "reference_ampere_residual_over_fieldwp": 2.5142778484199546e-13,
+     "momentum_increment_over_nmecL": -1.990842153381431e-12,
+     "uniform_drive_impulse_over_nmecL": -1.6456826171483305e-23,
+     "reference_momentum_increment_over_nmecL": -1.990841410004141e-12,
+     "momentum_disagreement_over_nmecL": -7.433772903340553e-19,
+     "scope": "Frozen accepted-midpoint 1V orbit/deposit reference; differences include finite iteration and native force evaluation roundoff. Not an internal parent Picard residual."
+    }
+   },
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "cc2c1ad3df2b3a14d76ed2e5c86863475717cfb1",
+    "example": "implicit_orbit_audit",
+    "settings": {
+     "dt": 0.01,
+     "iterations": 4,
+     "particles_per_species": 103000,
+     "cells": 1000,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a"
+    },
+    "results": {
+     "checkpoint_time_omega_p": 39.99999999999993,
+     "checkpoint_sha256": "c0154f60b2159cfe12f5deb1f62a0661efc685ba78496e401be7b116b6ec454b",
+     "reference_converged": true,
+     "reference_iterations": [
+      3,
+      3
+     ],
+     "reference_residual_u": [
+      1.2630955309456127e-17,
+      1.3037531124138191e-17
+     ],
+     "reference_residual_x_over_dx": [
+      0.0,
+      0.0
+     ],
+     "max_position_difference_over_c_wp": 4.618527782440651e-14,
+     "max_momentum_per_mass_difference_over_c": 1.8402909092983012e-11,
+     "max_charge_difference_over_en": 5.719318248165184e-14,
+     "max_current_difference_over_enc": 2.6572320732665133e-13,
+     "reference_ampere_residual_over_fieldwp": 2.656798392397519e-13,
+     "momentum_increment_over_nmecL": 1.4346862965850883e-08,
+     "uniform_drive_impulse_over_nmecL": 1.1036995247486933e-23,
+     "reference_momentum_increment_over_nmecL": 1.4346861722597099e-08,
+     "momentum_disagreement_over_nmecL": 1.2432537841561807e-15,
+     "scope": "Frozen accepted-midpoint 1V orbit/deposit reference; differences include finite iteration and native force evaluation roundoff. Not an internal parent Picard residual."
+    }
+   },
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "cc2c1ad3df2b3a14d76ed2e5c86863475717cfb1",
+    "example": "implicit_orbit_audit",
+    "settings": {
+     "dt": 0.01,
+     "iterations": 8,
+     "particles_per_species": 103000,
+     "cells": 1000,
+     "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a"
+    },
+    "results": {
+     "checkpoint_time_omega_p": 39.99999999999993,
+     "checkpoint_sha256": "c0154f60b2159cfe12f5deb1f62a0661efc685ba78496e401be7b116b6ec454b",
+     "reference_converged": true,
+     "reference_iterations": [
+      3,
+      3
+     ],
+     "reference_residual_u": [
+      1.2766480581016815e-17,
+      1.3295029140103498e-17
+     ],
+     "reference_residual_x_over_dx": [
+      0.0,
+      0.0
+     ],
+     "max_position_difference_over_c_wp": 2.842170943040401e-14,
+     "max_momentum_per_mass_difference_over_c": 1.2667872894872763e-11,
+     "max_charge_difference_over_en": 5.696918631281633e-14,
+     "max_current_difference_over_enc": 2.6348714876611723e-13,
+     "reference_ampere_residual_over_fieldwp": 2.6345418902007367e-13,
+     "momentum_increment_over_nmecL": 1.434686266086693e-08,
+     "uniform_drive_impulse_over_nmecL": 1.1036995247486933e-23,
+     "reference_momentum_increment_over_nmecL": 1.4346861722653426e-08,
+     "momentum_disagreement_over_nmecL": 9.38213502927384e-16,
+     "scope": "Frozen accepted-midpoint 1V orbit/deposit reference; differences include finite iteration and native force evaluation roundoff. Not an internal parent Picard residual."
+    }
+   }
+  ],
+  "native_data_sha256": [
+   "6a5272e0923f374cfa0fff96e7b3b29d584e7f6c17d4f6660c1008df31b2e090",
+   "417331bc8458a2149d45fdf620e3734b35cc48b338ca3dbde8541f3936bed569"
+  ],
+  "claim": "Iteration-count sensitivity with exact native initialization; conservation alone does not validate late trajectories. Orbit references use frozen accepted fields."
+ }
+}
