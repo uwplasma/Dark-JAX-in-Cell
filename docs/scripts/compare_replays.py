@@ -356,25 +356,35 @@ def _implicit_controls(ordinary, record):
     return matches
 
 
-def implicit_comparison(explicit, implicit, tolerance=1e-5):
-    """Align prescribed 1V Gaussian controls; native E schemas have different units.
-
-    Explicit ``electric`` is energy, implicit ``electric`` is mean field. Current
-    is instantaneous in both; accepted midpoint work stays in its native ledger.
-    Particle u/w and supplied x hashes anchor loading despite position staggering.
-    """
-    ordinary = _load(explicit, tolerance)
-    path = Path(implicit)
+def _implicit_load(folder):
+    """Read finite native implicit arrays without broadcasting malformed histories."""
+    path = Path(folder)
     record = json.loads((path / 'run.json').read_text())
     with np.load(path / 'data.npz', allow_pickle=False) as stored:
         data = dict(stored)
     count = len(data['t'])
+    if (data['t'].ndim != 1 or count < 2 or data['t'][0] != 0 or np.any(np.diff(data['t']) <= 0)
+            or not np.allclose(np.diff(data['t']), record['settings']['dt'] * record['settings']['store_every'],
+                               rtol=0, atol=1e-5)):
+        raise ValueError('implicit native clocks must start at zero and match the recorded cadence')
     for key, value in data.items():
         shape = ((count, 3) if key.endswith('momentum') else (count, 2)
                  if key in ('mean', 'rms', 'kinetic', 'velocity_spread_energy')
                  or key.endswith(('_mean', '_rms')) else (count,))
         if value.shape != shape or not np.all(np.isfinite(value)):
             raise ValueError(f'implicit {key} requires finite native shape {shape}')
+    return record, data
+
+
+def implicit_comparison(explicit, implicit, tolerance=1e-5):
+    """Align prescribed Gaussian controls; explicit electric is energy, implicit is E.
+
+    Particle u/w and supplied x hashes anchor loading despite position staggering.
+    Instantaneous current comparisons leave accepted midpoint work in its native ledger.
+    """
+    ordinary = _load(explicit, tolerance)
+    path = Path(implicit)
+    record, data = _implicit_load(path)
     matches = _implicit_controls(ordinary[0], record)
     a, b = ordinary[0]['settings'], record['settings']
     time = ordinary[1]['t']
@@ -421,6 +431,33 @@ def implicit_comparison(explicit, implicit, tolerance=1e-5):
                         'compiled callable. No species-heating estimate is inferred from field/work histories. '
                         'Cross-method differences do not establish convergence or identify an error cause.')
     return result, ordinary[0], record, first, second, data
+
+
+def publish_iterations(first, second, folder, audits=()):
+    """Retain exact-input Picard controls, raw arrays and independent orbit records."""
+    from jaxincell import save_run
+    records, data = zip(*[_implicit_load(path) for path in (first, second)])
+    settings = [record['settings'] for record in records]
+    for key in settings[0].keys() | settings[1].keys():
+        if key != 'iterations' and settings[0].get(key) != settings[1].get(key):
+            raise ValueError(f'iteration controls must share {key}, including all initial hashes')
+    for key in ('git', 'jax', 'jaxincell', 'numpy', 'backend', 'jax_enable_x64'):
+        if records[0][key] != records[1][key]:
+            raise ValueError(f'iteration controls must share runtime/source {key}')
+    if not np.array_equal(data[0]['t'], data[1]['t']) or data[0]['t'][0] != 0:
+        raise ValueError('iteration controls require identical native clocks')
+    result = dict(native_runs=records,
+                  observables={key: metrics(data[0][key], data[1][key]) for key in
+                               ('electric', 'current', 'nonzero_electric', 'momentum', 'mean', 'rms', 'kinetic')},
+                  orbit_audits=[json.loads((Path(path) / 'run.json').read_text()) for path in audits],
+                  native_data_sha256=[hashlib.sha256((Path(path) / 'data.npz').read_bytes()).hexdigest()
+                                      for path in (first, second)],
+                  claim='Iteration-count sensitivity with exact native initialization; conservation alone '
+                        'does not validate late trajectories. Orbit references use frozen accepted fields.')
+    arrays = {f'{index}_{key}': value for index, row in enumerate(data) for key, value in row.items()}
+    save_run(folder, 'implicit_iteration_control', dict(parent_revision=settings[0]['parent_revision']),
+             result, **arrays)
+    np.savez_compressed(Path(folder) / 'data.npz', **arrays)
 
 
 def publish_implicit(explicit, implicit, folder, refined=None):
@@ -491,6 +528,8 @@ def main():
     parser.add_argument('first', type=Path)
     parser.add_argument('second', type=Path)
     parser.add_argument('--implicit', action='store_true', help='second record is a Gaussian implicit drive')
+    parser.add_argument('--picard', action='store_true', help='compare two exact-input implicit iteration counts')
+    parser.add_argument('--orbit-audits', type=Path, nargs='+', default=(), help='retain independent orbit records')
     parser.add_argument('--variant', choices=VARIANTS, default='repeat')
     parser.add_argument('--legacy', action='store_true', help='retain explicit missing-fingerprint status')
     parser.add_argument('--constraints', action='store_true', help='audit endpoint closure without applying it')
@@ -502,6 +541,14 @@ def main():
     destination.add_argument('--output', type=Path, help='write comparison JSON only')
     destination.add_argument('--publish', type=Path, help='render a compact figure, arrays and native run records')
     args = parser.parse_args()
+    if args.picard:
+        if (not args.publish or args.implicit or args.refined or args.loading_refined or args.loading_repeat
+                or args.constraints or args.legacy or args.variant != 'repeat'):
+            parser.error('--picard requires two iteration records and --publish')
+        publish_iterations(args.first, args.second, args.publish, args.orbit_audits)
+        return
+    if args.orbit_audits:
+        parser.error('--orbit-audits requires --picard')
     if (args.refined or args.loading_refined or args.loading_repeat) and not args.publish:
         parser.error('refinements require --publish')
     if args.loading_repeat and not args.loading_refined:

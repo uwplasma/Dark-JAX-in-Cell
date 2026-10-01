@@ -207,6 +207,28 @@ def test_cross_method_native_units_and_momentum_offset(method_records):
     assert str(method_records[0]) not in json.dumps(result, allow_nan=False)
 
 
+def test_iteration_comparison_requires_exact_native_fields_and_keeps_species_arrays(method_records):
+    from docs.scripts.compare_replays import publish_iterations
+    first = method_records[1]
+    with np.load(first / 'data.npz') as stored:
+        data = dict(stored)
+    for key in ('mean', 'rms', 'kinetic'):
+        data[key] = np.ones((len(data['t']), 2))
+    np.savez_compressed(first / 'data.npz', **data)
+    change_settings(first, iterations=4)
+    second, folder = first.parent / 'iterations8', first.parent / 'iteration_evidence'
+    copytree(first, second)
+    change_settings(second, iterations=8)
+    publish_iterations(first, second, folder)
+    with np.load(folder / 'data.npz') as result:
+        np.testing.assert_array_equal(result['0_rms'], data['rms'])
+    record = json.loads((second / 'run.json').read_text())
+    record['settings']['initial_fingerprints']['E'] = '9' * 64
+    (second / 'run.json').write_text(json.dumps(record))
+    with pytest.raises(ValueError, match='initial_fingerprints'):
+        publish_iterations(first, second, folder)
+
+
 @pytest.mark.parametrize('change', ['clock', 'initial', 'amplitude', 'runtime', 'finite', 'shape', 'execution'])
 def test_cross_method_mismatches_are_rejected(method_records, change):
     path = method_records[1]
