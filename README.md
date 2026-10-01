@@ -31,7 +31,7 @@ python -m pip install -e .
 darkjaxincell examples/input.toml --steps 160 --save artifacts/cold_run
 ```
 
-For the movie scripts, install `python -m pip install -e ".[media]"`. Companion scripts linked below each result place editable inputs after their imports. Run a script with `python examples/dark_photon.py`; set `full=True` for the published preset. Defaults are short smoke runs, with live progress and output under `artifacts/`. Batch studies pass the same input names through `runpy.run_path(..., run_name="__main__", init_globals={...})` and run one simulation process at a time.
+For the figure and movie scripts, install `python -m pip install -e ".[media]"`. Companion scripts linked below each result place editable inputs after their imports. Run a script with `python examples/dark_photon.py`; set `full=True` for the published preset. Defaults are short smoke runs, with live progress and output under `artifacts/`. Batch studies pass the same input names through `runpy.run_path(..., run_name="__main__", init_globals={...})` and run one simulation process at a time.
 
 The default JAX installation runs on a CPU. For a GPU, install the appropriate accelerator-enabled [JAX wheel](https://docs.jax.dev/en/latest/installation.html) first; `jax.devices()` shows the selected backend. The forward solver and a density gradient have been exercised on an NVIDIA RTX A4000 ([device smoke record](docs/_static/figures/gpu_smoke/run.json)). The [TOML input](examples/input.toml) uses JAX-in-Cell's tables plus `[dark]`; CLI flags override steps, seed, mixing and mass frequency. `--save` writes a complete restart and provenance. [GPU and gradient companion](examples/optimize_dark_photon.py) · `full=False`, `cells=8`, `particles=32`, `start=5`, `stop=12`.
 
