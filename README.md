@@ -229,9 +229,9 @@ The [parameter replay](examples/dark_reservoir.py) advances **206,000 particles*
 
 <img src="docs/_static/figures/paper_replay/figure.png" width="800" alt="Strong resonant drive compared with published RMS curves, no-drive and homogeneous relativistic controls">
 
-[Simulation script](examples/dark_reservoir.py) · `study="paper"`, `full=True`; [comparison and plot](docs/scripts/make_paper_replay.py) ([drive, control and refinement inputs](docs/scripts/make_all.py)).
-
 Final RMS speeds are **0.1926c (electrons)** and **0.000834c (ions)**, about **4.6%/5.4% below** the visible PDF curves; their variance-energy increments differ by **9.2%/35.2%**. Late electron variance grows **36.09×**, versus **1.0025×** without driving. The energy/work defect is at most **0.0241% of peak injected work**. Halving the timestep changes late electron spread by **1.1%**, but total/nonzero-mode field energy by **52.7%/65.0%**. A third step verifies early second-order behavior; same-step replays diverge during nonlinear broadening. Spatial broadening follows the published trend; quantitative late agreement remains open. [Data, refinement, normalization and mechanism limits](docs/kinetic.md#long-strong-drive-replay-and-controls).
+
+[Simulation script](examples/dark_reservoir.py) · `study="paper"`, `full=True`; [comparison and plot](docs/scripts/make_paper_replay.py) ([drive, control and refinement inputs](docs/scripts/make_all.py)).
 
 ### Late resolution controls
 
