@@ -33,7 +33,7 @@ from jaxincell import (Domain, Simulation, Solver, Species, elementary_charge as
 from jaxincell._core import deposit, E_x_from_rho  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from darkjaxincell import PrescribedDrive, midnight  # noqa: E402
+from darkjaxincell import PrescribedDrive, load_state, midnight  # noqa: E402
 from darkjaxincell._simulation import DarkState  # noqa: E402
 from darkjaxincell._proca import divergence  # noqa: E402
 from docs.scripts.conservation import snapshot  # noqa: E402
@@ -246,11 +246,24 @@ def load_plasma(args):
     return plasma, drive_state(plasma, ordinary)
 
 
+def archived_initial(path, initial, model):
+    """Reuse every native array while checking the supplied particles and zero clock."""
+    if path is None:
+        return initial
+    restored = load_state(path, model)
+    for key in ('x', 'u', 'w'):
+        np.testing.assert_array_equal(getattr(initial.ordinary, key), getattr(restored.ordinary, key))
+    if float(restored.ordinary.time) != 0 or float(restored.work) != 0:
+        raise ValueError('implicit benchmark requires a zero-time, zero-work initial archive')
+    return restored
+
+
 def benchmark(args):
     from examples.dark_reservoir import array_fingerprint, save_compressed_state
     plasma, initial = load_plasma(args)
     drive = PrescribedDrive(1., jnp.array([args.amplitude * FIELD, 0., 0.]), WP)
     archive_model = SimpleNamespace(plasma=plasma, dark=drive)
+    initial = archived_initial(args.initial_state, initial, archive_model)
     stride = max(1, round(.1 / args.dt))
     steps = stride * round(args.horizon / (stride * args.dt))
     jax.block_until_ready(initial)
@@ -394,10 +407,12 @@ def benchmark(args):
         axes[1, 1].set_ylabel("state-plane phase error [rad]")
         for axis in axes.ravel():
             axis.set_xlabel("ωₚt")
-        settings = {key: value for key, value in vars(args).items() if key != "output"}
+        settings = {key: value for key, value in vars(args).items() if key not in ("output", "initial_state")}
         for key in (("nodes", "rings") if args.paper_loading else ("particles",)):
             settings.pop(key)
         settings.update(parent_revision="83d327118163833f93e2588edcb5029241f6ba2a", precision="float64",
+                        initial_state_source=("complete zero-time archive" if args.initial_state
+                                              else "native initialization"),
                         loading=("paper_plasma: co-located spatial lattice, Gaussian velocities; "
                                  "exact mean and variance, seed 0" if args.paper_loading else
                                  "weighted Gauss-Hermite velocity rings; two mobile species"),
@@ -446,6 +461,7 @@ def main():
     parser.add_argument("--newtonian", action="store_true")
     parser.add_argument("--paper-loading", action="store_true", help="reuse the paper example's Gaussian plasma")
     parser.add_argument("--particles", type=int, default=103000, help="markers per species with --paper-loading")
+    parser.add_argument("--initial-state", type=Path, help="reuse a complete zero-time, zero-work native archive")
     parser.add_argument("--output", type=Path, default=Path("artifacts/implicit_drive"))
     args = parser.parse_args()
     args.cells = args.cells if args.cells is not None else (1000 if args.paper_loading else 32)
