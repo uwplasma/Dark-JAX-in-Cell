@@ -6,7 +6,8 @@ from jax import random
 import jax.numpy as jnp
 from jaxincell import elementary_charge as e, epsilon_0, mass_electron, speed_of_light as c
 
-from examples.dark_reservoir import paper_case, paper_plasma
+from examples.dark_reservoir import (array_fingerprint, paper_case, paper_initial,
+                                     paper_plasma, save_compressed_state)
 from darkjaxincell import DarkSimulation, PrescribedDrive, load_state
 
 
@@ -61,7 +62,8 @@ def test_paper_rejects_invalid_experiment(tmp_path, horizon, ratio, eta):
 
 def test_paper_scalar_archive_retains_initial_values_and_independent_control(tmp_path):
     """Host normalization and figure rendering complete without particle histories."""
-    history, settings, results = paper_case(tmp_path, 16, 64, .02, 1, 0, .03)
+    history, settings, results = paper_case(tmp_path, 16, 64, .02, 1, 0, .03,
+                                            block_horizon=.5, local_moments=True)
     assert history['t'][0] == 0 and history['t'][-1] == pytest.approx(1)
     assert settings['force_quiver_over_c'] == pytest.approx(.03 * np.sqrt(.001))
     assert settings['inferred_t_noise'] == pytest.approx(40 / (.03 * np.sqrt(.001 * 3 * 64 * 16)))
@@ -75,6 +77,12 @@ def test_paper_scalar_archive_retains_initial_values_and_independent_control(tmp
         assert stored['local_spread_final'].shape == (2, 2)
         assert np.all(stored['local_spread_initial'] > 0)
         assert np.all(stored['local_spread_final'] > 0)
+        np.testing.assert_allclose(stored['local_spread'][0], stored['local_spread_initial'])
+        np.testing.assert_allclose(stored['local_spread'][-1], stored['local_spread_final'])
+        assert stored['local_density_rms'].shape == (3, 2, 2)
+    assert settings['block_steps'] == 25
+    assert settings['initial_fingerprints']['state']['w']
+    assert (tmp_path / 'initial_state.npz').is_file()
     assert np.isfinite(results['max_energy_work_defect_over_initial_thermal'])
     plasma, wp = paper_plasma(16, 64, .02, 0)
     force = .03 * np.sqrt(.001) * mass_electron * c * wp / e
@@ -84,3 +92,18 @@ def test_paper_scalar_archive_retains_initial_values_and_independent_control(tmp
     assert len(restored.ordinary.w) == 128
     energy_scale = float(plasma.species[0].density) * mass_electron * c**2 * plasma.domain.length
     assert restored.work / energy_scale == pytest.approx(history['work'][-1])
+
+
+def test_paper_archive_reuses_exact_initial_arrays_and_rejects_wrong_loading(tmp_path):
+    plasma, wp = paper_plasma(8, 16, .02, 0)
+    sim = DarkSimulation(plasma, PrescribedDrive(1., jnp.array([1., 0., 0.]), wp))
+    start, original = paper_initial(sim, 0, None)
+    path = tmp_path / 'initial.npz'
+    save_compressed_state(path, start, sim)
+    repeated, fingerprint = paper_initial(sim, 0, path)
+    assert original == fingerprint
+    assert array_fingerprint(np.arange(4, dtype=np.float64)) != array_fingerprint(np.arange(4, dtype=np.float32))
+    assert repeated.ordinary.time == 0
+    other, _ = paper_plasma(8, 16, .02, 1)
+    with pytest.raises(AssertionError):
+        paper_initial(DarkSimulation(other, sim.dark), 1, path)

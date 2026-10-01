@@ -294,6 +294,17 @@ A second $\Delta\tau=0.01$ run ends at $1000$, with the same clean computational
 
 The repeat variation is negligible through $250$, where timestep contraction already fails, and becomes material during later broadening. Through $1000$, its mean-field and nonzero-energy differences are 34% and 19% of the fine adjacent-timestep differences. This one replay identifies execution sensitivity, not its cause or a statistical uncertainty. Exact initial particle arrays were not archived. The next nonlinear comparison needs repeated executions and independent loading seeds at fixed physical smoothing scales, alongside isolated mesh and timestep checks. A solver change should be judged on these observables as well as conservation.
 
+#### Controlled replay preparation
+
+The example now saves a compressed complete zero-time state before running. SHA-256 fingerprints identify the explicit loading positions/velocities and initialized particle weights, momenta and fields. `--initial-state` reuses that state after checking its particle arrays and physical metadata. `--block-horizon` compiles one fixed interval and carries the original conservation reference through every block; the total horizon changes the number of calls. These controls distinguish different compiled horizons from repeat variation within a fixed execution pattern.
+
+`--local-moments` records Gaussian-smoothed species density contrast and lab-frame random-energy histories at $2\lambda_{D0}$ and $4\lambda_{D0}$, at the native scalar cadence. These physical scales stay fixed across grid changes. The variances subtract resolved local flow and remain distinct from thermodynamic temperature. Timings include synchronized execution and host scalar transfers, with compilation separate.
+
+```sh
+python examples/dark_reservoir.py --paper --full --dt 0.01 --horizon 1000 --block-horizon 100 --local-moments --output artifacts/paper_fixed_first
+python examples/dark_reservoir.py --paper --full --dt 0.01 --horizon 1000 --block-horizon 100 --local-moments --initial-state artifacts/paper_fixed_first/initial_state.npz --output artifacts/paper_fixed_repeat
+```
+
 Run the following cases **sequentially**. The final complete restart is compressed and retained in each computational output; the public summary keeps compressed scalar curves and provenance.
 
 ```sh

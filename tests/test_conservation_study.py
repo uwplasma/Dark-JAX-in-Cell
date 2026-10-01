@@ -107,6 +107,25 @@ def test_reduced_runner_rejects_an_incomplete_tail():
         measured_run(sim, state, 10, 3)
 
 
+def test_fixed_blocks_keep_global_work_reference_and_physical_moments():
+    """Segmented diagnostics must not reset a conservation defect at each block."""
+    plasma = neutral_box(relativistic=True)
+    sim = DarkSimulation(plasma, PrescribedDrive(.3, jnp.array([.02 * m * c * WP / e, 0., 0.]), WP))
+    state, _ = sim.initial_state(jax.random.PRNGKey(0))
+    reference = snapshot(sim, state)
+    scales = jnp.array([.1, .2]) * c / WP
+    final, full, maximum = measured_run(sim, state, 24, 6, reference, scales)
+    middle, first, peak1 = measured_run(sim, state, 12, 6, reference, scales)
+    repeated, last, peak2 = measured_run(sim, middle, 12, 6, reference, scales)
+    for key in full:
+        joined = np.concatenate((first[key], last[key][1:]))
+        np.testing.assert_allclose(joined, full[key], rtol=1e-13, atol=1e-30)
+    np.testing.assert_allclose(np.maximum(peak1, peak2), maximum, rtol=1e-13, atol=1e-30)
+    np.testing.assert_allclose(repeated.work, final.work, rtol=1e-13)
+    np.testing.assert_allclose(last['t'][0], middle.ordinary.time)
+    assert full['local_spread'].shape == full['local_density_rms'].shape == (5, 2, 2)
+
+
 def test_mode_fit_keeps_physical_window_endpoints_with_accumulated_clock_error():
     from docs.scripts.benchmark_pic_conservation import fit_mode
 

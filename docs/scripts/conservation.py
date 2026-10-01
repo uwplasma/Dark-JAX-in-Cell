@@ -92,13 +92,14 @@ def density_rms(sim, state):
     return jnp.stack(values)
 
 
-def coarse_spread(sim, state, scales, groups=None):
+def coarse_spread(sim, state, scales, groups=None, *, with_density=False):
     """Longitudinal random energy after Gaussian smoothing at physical lengths.
 
     ``groups`` joins numerical populations of the same physical species before
     subtracting their local flow. This lab-frame variance is not relativistic
     temperature; coherent motion below the smoothing scale remains included.
     Group consistency is checked on the host with fixed species definitions.
+    ``with_density`` also returns std/mean of density at each physical scale.
     """
     p = sim.plasma if isinstance(sim, DarkSimulation) else sim
     o = state.ordinary if isinstance(sim, DarkSimulation) else state
@@ -114,24 +115,27 @@ def coarse_spread(sim, state, scales, groups=None):
                                   for power in range(3)]))
         offset += species.n
     k = 2 * jnp.pi * jnp.fft.rfftfreq(p.domain.cells, p.domain.dx)
-    energies = []
+    energies, contrasts = [], []
     for group in groups:
         if not group or (len(group) > 1 and len({(p.species[i].mass, p.species[i].charge)
                                                 for i in group}) != 1):
             raise ValueError("a physical-species group needs one mass and charge")
         spectrum = jnp.fft.rfft(sum(moments[i] for i in group), axis=-1)
-        row = []
+        row, density_row = [], []
         for scale in scales:
             density, flow, second = jnp.fft.irfft(
                 spectrum * jnp.exp(-.5 * (k * scale)**2), n=p.domain.cells, axis=-1)
             variance = second - flow**2 / jnp.where(density > 0, density, 1.)
             row.append(.5 * p.species[group[0]].mass * p.domain.dx * jnp.sum(variance))
+            density_row.append(jnp.std(density) / jnp.mean(density))
         energies.append(jnp.stack(row))
-    return jnp.stack(energies)
+        contrasts.append(jnp.stack(density_row))
+    result = jnp.stack(energies)
+    return (result, jnp.stack(contrasts)) if with_density else result
 
 
 @partial(jax.jit, static_argnames=("steps", "stride"))
-def measured_run(sim, initial, steps, stride):
+def measured_run(sim, initial, steps, stride, reference=None, scales=None):
     """Sparse scalar histories and all-step maxima; valid for neutral closed boxes.
 
     A neutral homogeneous prescribed drive has zero total external impulse.
@@ -141,6 +145,8 @@ def measured_run(sim, initial, steps, stride):
     Maxima are absolute SI values ordered as energy/work, momentum, particle
     charge, continuity, ordinary Gauss, dark Gauss, grid charge, dark-sector
     work balance, and ordinary-sector work balance.
+    Pass the original ``snapshot`` as ``reference`` across fixed compiled blocks
+    to keep global defects; optional ``scales`` adds Gaussian local moments.
     """
     if steps < 1 or stride < 1 or steps % stride:
         raise ValueError("steps must be positive and divisible by stride")
@@ -150,7 +156,7 @@ def measured_run(sim, initial, steps, stride):
     if (p.domain.field_bc != (0, 0) or p.domain.particle_bc != (0, 0)
             or p.external_E is not None or p.external_B is not None or p.collisions is not None or p.sources):
         raise ValueError("reduced ledgers require periodic collisionless PIC without external parent fields")
-    reference = snapshot(sim, initial)
+    reference = snapshot(sim, initial) if reference is None else reference
     o = initial.ordinary if dark else initial
     background = initial.background if dark else -jnp.mean(o.rho)
     extra = p.per_particle
@@ -177,13 +183,20 @@ def measured_run(sim, initial, steps, stride):
                             jnp.abs(dark_work), jnp.abs(ordinary_work)])
         return (state, jnp.maximum(maxima, defect)), None
 
+    def sample(state):
+        values = {**snapshot(sim, state, background), "density_rms": density_rms(sim, state)}
+        if scales is not None:
+            values["local_spread"], values["local_density_rms"] = coarse_spread(
+                sim, state, scales, with_density=True)
+        return values
+
     def chunk(carry, _):
         carry, _ = lax.scan(one, carry, None, length=stride)
         state = carry[0]
-        return carry, {**snapshot(sim, state, background), "density_rms": density_rms(sim, state)}
+        return carry, sample(state)
 
     maxima = jnp.array([0., 0., 0., 0., reference["ordinary_gauss"], reference["dark_gauss"], 0., 0., 0.])
     (final, maxima), history = lax.scan(chunk, (initial, maxima), None, length=steps // stride)
-    first = {**reference, "density_rms": density_rms(sim, initial)}
+    first = sample(initial)
     history = jax.tree.map(lambda a, b: jnp.concatenate((a[None], b)), first, history)
     return final, history, maxima

@@ -37,6 +37,43 @@ Initialization sets the longitudinal electric fields from both Gauss laws. A sup
 
 For source-free fields the mass adds a frequency even in a homogeneous box. The field-only stability bound is $\Delta t\sqrt{4c^2/\Delta x^2+\Omega_D^2}<2$; construction uses a 1.9 margin. Resolve plasma and gyro frequencies separately. No implicit or SOLVAX solve is used in this explicit step.
 
+### Constraint propagation and divergence control
+
+For each source interval $h$, define the continuity and Gauss residuals
+
+$$
+\begin{aligned}
+C&=(\rho_{\rm total}^{\rm new}-\rho_{\rm total}^{\rm old})/h+D\mathbf J,\\
+C_M&=D\mathbf E-\rho_{\rm total}/\epsilon_0,\\
+C_D&=D\mathbf E_D+\Omega_D^2\phi_D/c^2-\eta\rho_{\rm total}/\epsilon_0.
+\end{aligned}
+$$
+
+The compatible electric kicks obey
+
+$$
+C_M^{\rm new}-C_M^{\rm old}=-hC/\epsilon_0,\qquad
+C_D^{\rm new}-C_D^{\rm old}=-\eta hC/\epsilon_0.
+$$
+
+The dark mass terms cancel between $D\dot{\mathbf E}_D$ and $\Omega_D^2\dot\phi_D/c^2$. Drift preserves Gauss and $\mathbf B_D-\operatorname{curl}\mathbf A_D$ because $D\operatorname{curl}=0$ and $\operatorname{curl}G=0$. The periodic current's spatial mean supplies the homogeneous electric response; it is retained in both Ampère updates.
+
+The [coupled conservation measurements](performance.md#conservation-with-the-same-particles) find residuals consistent with accumulated floating-point roundoff. These constraints therefore give no basis for routine divergence correction. Particle work and wave phase require separate accuracy checks even when Gauss is preserved.
+
+A projection at fixed charge and potentials changes $\mathbf E_D$ by $\delta\mathbf E_D$ with $D\delta\mathbf E_D=-C_D$. Its changes to physical energy and momentum per transverse area are
+
+$$
+\begin{aligned}
+\Delta U_D&=\epsilon_0\int dx\,
+\left(\mathbf E_D\cdot\delta\mathbf E_D+\tfrac12|\delta\mathbf E_D|^2\right),\\
+\Delta\mathbf P_D&=\epsilon_0\int dx\,\delta\mathbf E_D\times\mathbf B_D.
+\end{aligned}
+$$
+
+The energy expression also holds with the discrete face sum; momentum uses the face-to-centre quadrature defined below. Correcting $\phi_D$ additionally changes its mass energy and the $\phi_D\mathbf A_D$ momentum term. These potentials are physical: imposing Maxwell's divergence condition on $\mathbf E_D$ would discard the scalar-potential contribution and alter a longitudinal Proca wave. Initialization preserves the electric mean and reports its correction before starting the energy ledger.
+
+[GL-ECSIM](https://arxiv.org/abs/1808.05745) demonstrates that electric-field correction can break energy conservation; its alternative displaces particles. [ChECSIM](https://doi.org/10.1016/j.jcp.2021.110912) constructs compatible current deposition and coupling to preserve energy and charge. Both place the particle–field discretization at the centre of the conservation argument.
+
 ## Energy and work
 
 The full closed energy per transverse area is

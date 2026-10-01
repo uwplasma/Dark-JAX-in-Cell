@@ -6,6 +6,7 @@ same force but different finite field energies.  All share one loading.
 """
 
 import argparse
+import hashlib
 from pathlib import Path
 import resource
 import time
@@ -24,13 +25,13 @@ import sys
 from jaxincell import (Domain, Simulation, Solver, Species, elementary_charge as e,
                        epsilon_0, mass_electron, mass_proton, quiet_start,
                        save_run, speed_of_light as c)
-from darkjaxincell import DarkField, DarkSimulation, PrescribedDrive, midnight, save_state
+from darkjaxincell import DarkField, DarkSimulation, PrescribedDrive, load_state, midnight, save_state
 from darkjaxincell._proca import energy as dark_energy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "docs" / "scripts"))
 from pair_reference import (coupled_response, growth, relativistic_response,
                             seeded_response)  # noqa: E402
-from conservation import coarse_spread, measured_run  # noqa: E402
+from conservation import coarse_spread, measured_run, snapshot  # noqa: E402
 from drive_reference import forced_cold, homogeneous  # noqa: E402
 
 
@@ -622,12 +623,75 @@ def paper_plasma(cells, particles, dtau, seed):
                       tuple(species), Solver(relativistic=True)), wp
 
 
-def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None):
+def array_fingerprint(array):
+    """Exact host-array identity: dtype, shape and contiguous bytes, without storing it."""
+    array = np.ascontiguousarray(array)
+    digest = hashlib.sha256(f'{array.dtype.str}:{array.shape}'.encode())
+    digest.update(array.tobytes())
+    return digest.hexdigest()
+
+
+def save_compressed_state(path, state, sim):
+    """Keep complete replay states privately without uncompressed particle archives."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    archive = save_state(path, state, sim)
+    with np.load(archive, allow_pickle=False) as stored:
+        arrays = {key: stored[key] for key in stored.files}
+    np.savez_compressed(archive, **arrays)
+
+
+def paper_initial(sim, seed, initial_state):
+    """Check a reused initial archive and record exact loading/state identities."""
+    start, _ = sim.initial_state(random.PRNGKey(seed))
+    if initial_state is not None:
+        restored = load_state(initial_state, sim)
+        for key in ('x', 'u', 'w'):
+            np.testing.assert_array_equal(getattr(restored.ordinary, key), getattr(start.ordinary, key))
+        if float(restored.ordinary.time) != 0 or float(restored.work) != 0:
+            raise ValueError('paper initial archive must be a zero-time, zero-work state')
+        start = restored
+    fingerprints = dict(
+        loading={key: array_fingerprint(np.concatenate([np.asarray(getattr(s, key)) for s in sim.plasma.species]))
+                 for key in ('x', 'v')},
+        state={key: array_fingerprint(getattr(start.ordinary, key)) for key in ('x', 'u', 'w', 'E', 'B', 'rho')})
+    if isinstance(sim.dark, DarkField):
+        fingerprints['state'].update({f'dark_{key}': array_fingerprint(getattr(start, key))
+                                      for key in ('E', 'B', 'A', 'phi')})
+    return start, fingerprints
+
+
+def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder):
+    """Compile one fixed interval, preserving the global reference across every block."""
+    if block_horizon is not None and (not np.isfinite(block_horizon) or block_horizon <= 0):
+        raise ValueError('paper block horizon must be finite and positive')
+    block_steps = steps if block_horizon is None else round(block_horizon / sim.plasma.domain.dt / wp)
+    if block_steps < 1 or block_steps % stride or steps % block_steps:
+        raise ValueError('paper blocks must divide the run and contain complete output intervals')
+    reference = snapshot(sim, start)
+    save_compressed_state(Path(folder) / 'initial_state.npz', start, sim)
+    before = time.perf_counter()
+    executable = measured_run.lower(sim, start, block_steps, stride, reference, scales).compile()
+    compile_seconds = time.perf_counter() - before
+    memory = executable.memory_analysis()
+    before = time.perf_counter()
+    final, maxima, chunks = start, jnp.zeros(9), []
+    for index in range(steps // block_steps):
+        final, history, block_max = executable(sim, final, reference, scales)
+        maxima = jnp.maximum(maxima, block_max)
+        chunks.append({key: np.array(value)[int(index > 0):] for key, value in history.items()})
+        if block_horizon is not None:
+            print(f'🌒 block {index + 1}/{steps // block_steps}', flush=True)
+    maxima.block_until_ready()
+    warm_seconds = time.perf_counter() - before
+    history = {key: np.concatenate([chunk[key] for chunk in chunks]) for key in chunks[0]}
+    return final, history, maxima, block_steps, compile_seconds, warm_seconds, memory
+
+
+def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
+               block_horizon=None, local_moments=False, initial_state=None):
     """Hook Fig. 2 drive with reduced moments, work and both constraint ledgers."""
-    if not np.isfinite(horizon) or horizon <= 0:
-        raise ValueError("paper horizon must be finite and positive")
-    if not np.isfinite(ratio) or ratio < 0:
-        raise ValueError("paper drive ratio must be finite and nonnegative")
+    if not np.isfinite(horizon) or horizon <= 0 or not np.isfinite(ratio) or ratio < 0:
+        raise ValueError("paper horizon must be positive and drive ratio nonnegative, both finite")
     if eta is not None and (not np.isfinite(eta) or eta <= 0):
         raise ValueError("paper finite-reservoir coupling must be finite and positive")
     plasma, wp = paper_plasma(cells, particles, dtau, seed)
@@ -638,28 +702,24 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None):
              else DarkField(wp, eta, initial_E=jnp.tile(
                  jnp.array([force / eta, 0., 0.]), (cells, 1))))
     sim = DarkSimulation(plasma, model)
-    start, _ = sim.initial_state(random.PRNGKey(seed))
+    start, fingerprints = paper_initial(sim, seed, initial_state)
     stride = max(1, round(0.5 / dtau))
     steps = stride * max(1, round(horizon / (stride * dtau)))
-    before = time.perf_counter()
-    executable = measured_run.lower(sim, start, steps, stride).compile()
-    compile_seconds = time.perf_counter() - before
-    memory = executable.memory_analysis()
-    before = time.perf_counter()
-    final, history, maxima = executable(sim, start)
-    maxima.block_until_ready()
-    warm_seconds = time.perf_counter() - before
-    history = {key: np.array(value) for key, value in history.items()}
+    scales = np.array([2., 4.]) * np.sqrt(1e-3) * c / wp
+    sampled_scales = jnp.asarray(scales) if local_moments else None
+    final, history, maxima, block_steps, compile_seconds, warm_seconds, memory = paper_run(
+        sim, start, steps, stride, block_horizon, wp, sampled_scales, folder)
     density = plasma.species[0].density
     energy_scale = density * mass_electron * c**2 * plasma.domain.length
     momentum_scale = energy_scale / c
-    scales = np.array([2., 4.]) * np.sqrt(1e-3) * c / wp
     coarse_initial = np.asarray(coarse_spread(sim, start, scales)) / energy_scale
     coarse_final = np.asarray(coarse_spread(sim, final, scales)) / energy_scale
     t = history['t'] * wp
     history['t'] = t
     for key in ('electric', 'magnetic', 'dark', 'kinetic', 'spread', 'balance', 'work'):
         history[key] /= energy_scale
+    if local_moments:
+        history['local_spread'] /= energy_scale
     for key in ('mean', 'rms', 'max_speed'):
         history[key] /= c
     history['momentum'] /= momentum_scale
@@ -707,6 +767,15 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None):
                     horizon_omega_p=float(t[-1]), seed=seed, length_c_over_omega_p=40,
                     mass_ratio=1836, T_each_over_mec2=1e-3, drive_quiver_over_sigma=ratio,
                     force_quiver_over_c=amplitude, coupling=eta, output_dt_omega_p=stride * dtau,
+                    block_steps=block_steps, block_horizon_omega_p=block_steps * dtau,
+                    local_moments_output_dt_omega_p=stride * dtau if local_moments else None,
+                    initial_fingerprints=fingerprints,
+                    initial_state_source=('complete zero-time archive' if initial_state is not None
+                                          else 'native initialization'),
+                    timing='one synchronized run including host scalar transfers; compilation reported separately',
+                    normalization=dict(omega_p_rad_s=wp, field_scale_V_m=field_scale,
+                                       energy_scale_J_m2=energy_scale, charge_density_C_m3=e * density,
+                                       epsilon0_F_m=float(epsilon_0), c_m_s=float(c)),
                     local_spread_lengths_c_over_wp=(scales * wp / c).tolist(),
                     loading='co-located lattice; independent Gaussian velocities, zero mean and exact variance',
                     pusher='relativistic Boris; electric 1V uses the same momentum kick as Vay',
@@ -748,10 +817,7 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None):
         # Scalar histories compress well; retain the native example/provenance path.
         np.savez_compressed(Path(folder) / 'data.npz', **arrays)
         plt.close(fig)
-    archive = save_state(Path(folder) / 'final_state.npz', final, sim)
-    with np.load(archive, allow_pickle=False) as stored:
-        restart = {key: stored[key] for key in stored.files}
-    np.savez_compressed(archive, **restart)
+    save_compressed_state(Path(folder) / 'final_state.npz', final, sim)
     print('🌘 PAPER REPLAY:', results, flush=True)
     return history, settings, results
 
@@ -769,6 +835,9 @@ def main():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--drive-ratio", type=float, default=0.03, help="paper v_quiver / RMS sigma_e")
     parser.add_argument("--coupling", type=float, help="replace prescribed drive with a finite Proca reservoir")
+    parser.add_argument("--block-horizon", type=float, help="fixed compiled interval in 1/omega_p")
+    parser.add_argument("--local-moments", action="store_true", help="sample fixed physical Gaussian moments")
+    parser.add_argument("--initial-state", type=Path, help="repeat a complete zero-time paper state")
     pair_mode = parser.add_mutually_exclusive_group()
     pair_mode.add_argument("--pair", action="store_true", help="ordinary oscillating pair-plasma bridge")
     pair_mode.add_argument("--pair-dark", action="store_true", help="finite Proca pair-plasma bridge")
@@ -778,7 +847,8 @@ def main():
         paper_case(args.output, args.cells,
                    args.particles if args.particles is not None else (103000 if args.full else 20000),
                    args.dt, args.horizon if args.horizon is not None else (5000 if args.full else 40),
-                   args.seed, args.drive_ratio, args.coupling)
+                   args.seed, args.drive_ratio, args.coupling, args.block_horizon,
+                   args.local_moments, args.initial_state)
         return
     if args.pair:
         pair_figure(args.output, args.full)
