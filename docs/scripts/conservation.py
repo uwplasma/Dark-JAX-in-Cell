@@ -157,8 +157,7 @@ def measured_run(sim, initial, steps, stride, reference=None, scales=None):
             or p.external_E is not None or p.external_B is not None or p.collisions is not None or p.sources):
         raise ValueError("reduced ledgers require periodic collisionless PIC without external parent fields")
     reference = snapshot(sim, initial) if reference is None else reference
-    o = initial.ordinary if dark else initial
-    background = initial.background if dark else -jnp.mean(o.rho)
+    background = initial.background if dark else -reference["grid_charge"] / p.domain.length
     extra = p.per_particle
     step = (sim._step if dark else p._implicit_step if p.solver.algorithm == "implicit"
             else p._explicit_step)

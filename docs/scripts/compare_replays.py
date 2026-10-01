@@ -267,7 +267,7 @@ def publish(first, second, folder, comparison):
             defect = (data['balance'] - data['balance'][0]) / max(abs(data['work']).max(), 1e-30)
             axes[1, 1].plot(time, defect, style, color=color, label=label)
         axes[0, 0].set(ylabel=r'$U_{E,k\ne0}/(nT_{e0}L/2)$', title='Nonzero-mode electric energy',
-                       yscale='log')
+                       yscale='log', ylim=(1e-4, None))
         axes[0, 1].set(ylabel=r'$U_{\rm local}(t)/U_{\rm local}(0)$', title=r'Local spread at $2\lambda_{D0}$',
                        yscale='log')
         axes[1, 0].set(ylabel='smoothed density RMS / mean', title=r'Density at $2\lambda_{D0}$')
