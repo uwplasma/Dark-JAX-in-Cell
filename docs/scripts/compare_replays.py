@@ -12,6 +12,7 @@ variant = globals().get('variant', 'repeat')
 implicit = globals().get('implicit', False)
 picard = globals().get('picard', False)
 method_controls = globals().get('method_controls', False)
+phase_controls = globals().get('phase_controls', ())  # Native implicit folders, grouped by mesh and phase.
 constraints = globals().get('constraints', False)
 legacy = globals().get('legacy', False)
 refined = globals().get('refined', None)
@@ -462,15 +463,17 @@ def _implicit_pair(first, second, variant='iterations'):
     if not all(all(_hash_matches((row['initial_fingerprints'],) * 2, keys).values()) for row in settings):
         raise ValueError('implicit controls require complete initial fingerprints')
     changes = {'iterations': {'iterations'}, 'substeps': {'substeps'},
+               'grid_phase': {'grid_phase', 'initial_fingerprints'},
                'cells': {'cells', 'initial_fingerprints', 'initial_state_source'}}[variant]
     for key in settings[0].keys() | settings[1].keys():
         if key not in changes and settings[0].get(key) != settings[1].get(key):
             raise ValueError(f'implicit controls must share {key}, including required initial hashes')
     if settings[0][variant] == settings[1][variant]:
         raise ValueError(f'implicit controls must vary {variant}')
-    if variant == 'cells':
+    if variant in ('cells', 'grid_phase'):
         hashes = [row['initial_fingerprints'] for row in settings]
-        if not all(_hash_matches(hashes, ('x', 'u', 'w', 'time', 'mass', 'charge')).values()):
+        shared = ('u', 'w', 'time', 'mass', 'charge') + (('x',) if variant == 'cells' else ())
+        if not all(_hash_matches(hashes, shared).values()):
             raise ValueError('mesh controls require identical physical particle arrays')
     for key in ('git', 'jax', 'jaxincell', 'numpy', 'backend', 'jax_enable_x64'):
         if records[0][key] != records[1][key]:
@@ -480,6 +483,57 @@ def _implicit_pair(first, second, variant='iterations'):
     traces = [dict(row, momentum=row['momentum'] - row['momentum'][0]) for row in data]
     return records, data, {key: metrics(traces[0][key], traces[1][key]) for key in
                            ('electric', 'current', 'nonzero_electric', 'momentum', 'mean', 'rms', 'kinetic')}
+
+
+def publish_phases(folders, folder):
+    """Compare fixed Gaussian loadings translated within each mesh, retaining repeat variability."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from darkjaxincell import midnight
+    from jaxincell import save_run
+    records, data = zip(*[_implicit_load(path) for path in folders])
+    controls = {(row['settings']['cells'], row['settings']['grid_phase']): index
+                for index, row in enumerate(records)}
+    meshes = sorted({key[0] for key in controls})
+    phases = sorted({key[1] for key in controls})
+    if (len(controls) != len(records) or len(meshes) < 2 or len(phases) < 2 or phases[0] != 0
+            or set(controls) != {(mesh, phase) for mesh in meshes for phase in phases}):
+        raise ValueError('phase controls require a complete distinct mesh/phase grid with phase zero')
+    comparisons = []
+    for mesh in meshes:
+        base = controls[mesh, 0]
+        for phase in phases[1:]:
+            index = controls[mesh, phase]
+            _, _, norms = _implicit_pair(folders[base], folders[index], 'grid_phase')
+            comparisons.append(dict(cells=mesh, grid_phase=phase, observables=norms))
+    for mesh in meshes[1:]:
+        _implicit_pair(folders[controls[meshes[0], 0]], folders[controls[mesh, 0]], 'cells')
+    arrays = {f'{index}_{key}': value for index, row in enumerate(data) for key, value in row.items()}
+    with midnight():
+        fig, axes = plt.subplots(2, len(meshes), figsize=(4 * len(meshes), 6),
+                                 squeeze=False, layout='constrained')
+        for column, mesh in enumerate(meshes):
+            for phase in phases:
+                row = data[controls[mesh, phase]]
+                axes[0, column].plot(row['t'], row['momentum'][:, 0] - row['momentum'][0, 0],
+                                     label=f'{phase:g} Δx')
+                axes[1, column].plot(row['t'], row['nonzero_electric'])
+            axes[0, column].set(title=f'{mesh:,} cells', ylabel=r'$\Delta P_x/(nm_ecL)$')
+            axes[1, column].set(ylabel=r'$U_{E,k\ne0}/(nm_ec^2L)$', xlabel=r'$\omega_pt$')
+            axes[0, column].legend(fontsize=9)
+        for axis in axes.flat:
+            axis.grid(alpha=.25)
+        save_run(folder, 'implicit_grid_phase', dict(parent_revision=records[0]['settings']['parent_revision']),
+                 dict(native_runs=records, phase_observables=comparisons,
+                      native_data_sha256=[hashlib.sha256((Path(path) / 'data.npz').read_bytes()).hexdigest()
+                                          for path in folders],
+                      native_run_sha256=[hashlib.sha256((Path(path) / 'run.json').read_bytes()).hexdigest()
+                                         for path in folders],
+                      claim='Short Gaussian grid-phase controls with exact loading and separate repeat traces; '
+                            'no late-conversion or continuum momentum-convergence claim'), fig, **arrays)
+        np.savez_compressed(Path(folder) / 'data.npz', **arrays)
+        plt.close(fig)
 
 
 def publish_iterations(first, second, folder, audits=()):
@@ -619,7 +673,7 @@ def publish_implicit(explicit, implicit, folder, refined=None):
 
 if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
     print(f"Comparing {first} and {second}", flush=True)
-    if sum((implicit, picard, method_controls)) > 1:
+    if sum((implicit, picard, method_controls, bool(phase_controls))) > 1:
         raise ValueError('select one comparison mode')
     if (refined or loading_refined or loading_repeat) and destination is None:
         raise ValueError('refinements require a publish folder')
@@ -627,7 +681,11 @@ if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
         raise ValueError('a loading repeat requires its first record')
     if finer_mesh and not method_controls or orbit_audits and not picard:
         raise ValueError('finer_mesh requires method_controls; orbit_audits requires picard')
-    if method_controls:
+    if phase_controls:
+        if destination is None:
+            raise ValueError('phase controls require a publish folder')
+        publish_phases(phase_controls, destination)
+    elif method_controls:
         if destination is None or refined is None:
             raise ValueError('method_controls requires substep, mesh and publish folders')
         publish_method_controls(first, second, refined, destination, finer_mesh)

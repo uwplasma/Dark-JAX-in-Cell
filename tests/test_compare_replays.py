@@ -280,6 +280,51 @@ def test_implicit_mesh_substep_controls_keep_loading_and_reject_hidden_changes(m
             np.testing.assert_array_equal(stored['3_rms'], data['rms'])
 
 
+@pytest.mark.parametrize('corrupt', [None, 'missing_phase', 'weights', 'clock'])
+def test_grid_phase_controls_retain_native_arrays_and_reject_unmatched_controls(method_records, corrupt):
+    from docs.scripts.compare_replays import publish_phases
+    template = method_records[1]
+    with np.load(template / 'data.npz') as stored:
+        data = dict(stored)
+    for key in ('mean', 'rms', 'kinetic'):
+        data[key] = np.ones((len(data['t']), 2))
+    data['execution_1_nonzero_electric'] = data['nonzero_electric'].copy()
+    np.savez_compressed(template / 'data.npz', **data)
+    change_settings(template, grid_phase=0.,
+                    initial_fingerprints={key: '3' * 64 for key in
+                                          ('x', 'u', 'w', 'time', 'mass', 'charge', 'E', 'B', 'rho')})
+    folders = []
+    for mesh in (1000, 2000):
+        for phase in (0., .25):
+            path = template.parent / f'phase_{mesh}_{phase}'
+            copytree(template, path)
+            record = json.loads((path / 'run.json').read_text())
+            record['settings'].update(cells=mesh, grid_phase=phase)
+            hashes = record['settings']['initial_fingerprints']
+            if phase:
+                hashes['x'] = '4' * 64
+            if mesh == 2000 or phase:
+                hashes['E'] = hashes['rho'] = '5' * 64
+            if corrupt == 'weights' and mesh == 2000 and phase:
+                hashes['w'] = '6' * 64
+            (path / 'run.json').write_text(json.dumps(record))
+            folders.append(path)
+    if corrupt == 'missing_phase':
+        folders.pop()
+    if corrupt == 'clock':
+        change_settings(folders[-1], dt=.2)
+    folder = template.parent / 'phase_evidence'
+    if corrupt:
+        with pytest.raises(ValueError):
+            publish_phases(folders, folder)
+    else:
+        publish_phases(folders, folder)
+        record = json.loads((folder / 'run.json').read_text())['results']
+        assert len(record['phase_observables']) == 2 and len(record['native_runs']) == 4
+        with np.load(folder / 'data.npz') as stored:
+            assert '3_momentum' in stored and '0_execution_1_nonzero_electric' in stored
+
+
 @pytest.mark.parametrize('change', ['clock', 'truncated', 'horizon', 'initial', 'amplitude', 'runtime',
                                     'finite', 'shape', 'execution'])
 def test_cross_method_mismatches_are_rejected(method_records, change):
