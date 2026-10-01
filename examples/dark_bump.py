@@ -5,7 +5,6 @@ counterdrift makes the loaded plasma current-neutral; both runs use exactly
 the same particle arrays, ordinary field, grid and step.
 """
 
-import argparse
 from pathlib import Path
 
 import jax
@@ -24,6 +23,15 @@ if __package__:
     from .dark_kinetic import longitudinal_root
 else:
     from dark_kinetic import longitudinal_root
+
+
+# Each row is (cells, bulk markers, beam markers, dt * omega_p, horizon * omega_p).
+full = globals().get("full", False)
+output = Path(globals().get("output", "artifacts/dark_bump"))
+eta = globals().get("eta", 0.3)
+cases = globals().get("cases", ((128, 80000, 40000, 0.025, 45),
+                                (256, 160000, 80000, 0.0125, 45)) if full else
+                      ((64, 4000, 2000, 0.025, 20),))
 
 
 def build_plasma(cells, bulk_count, beam_count, dt_wp=0.025):
@@ -99,9 +107,9 @@ def experiment(cells, bulk_count, beam_count, dt_wp, horizon, eta=0.3):
     plasma, wp, vth = build_plasma(cells, bulk_count, beam_count, dt_wp)
     stride = max(1, round(0.5 / dt_wp))
     steps = stride * round(horizon / (stride * dt_wp))
-    parent = plasma.run(steps, store_every=stride, store_particles=True)
+    parent = plasma.run(steps, store_every=stride, store_particles=True, verbose=True)
     dark = DarkSimulation(plasma, DarkField(0.7 * wp, eta)).run(
-        steps, store_every=stride, store_particles=False)
+        steps, store_every=stride, store_particles=False, verbose=True)
     t = np.asarray(parent.t) * wp
 
     def mode(history):
@@ -157,15 +165,9 @@ def experiment(cells, bulk_count, beam_count, dt_wp, horizon, eta=0.3):
                         "matched_loading": "identical x, v, weights, ordinary E, grid and step"}}
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Watch a beam haunt its own tail")
-    parser.add_argument("--full", action="store_true", help="resolved two-level kinetic replay")
-    parser.add_argument("--output", type=Path, default=Path("artifacts/dark_bump"))
-    args = parser.parse_args()
-    cases = ((128, 80000, 40000, 0.025, 45), (256, 160000, 80000, 0.0125, 45)) if args.full else (
-        (64, 4000, 2000, 0.025, 20),)
-    runs = [experiment(*case) for case in cases]
-    scan = bump_reference_scan(0.05 * c * 128, (0.05 * c * 128) / (5 * 2 * np.pi * 5))
+if __name__ == "__main__":
+    runs = [experiment(*case, eta) for case in cases]
+    scan = bump_reference_scan(0.05 * c * 128, (0.05 * c * 128) / (5 * 2 * np.pi * 5), eta)
     with midnight():
         fig, panels = plt.subplots(2, 2, figsize=(10, 7), layout="constrained")
         axes = (panels[0, 0], panels[0, 1], panels[1, 0])
@@ -208,7 +210,7 @@ def main():
                           "selected_roots_over_wp": {
                               model: np.stack((roots.real, roots.imag), axis=-1).tolist()
                               for model, roots in scan["roots"].items()}}
-        save_run(args.output, "dark_bump", {"preset": "full" if args.full else "quick",
+        save_run(output, "dark_bump", {"preset": "full" if full else "quick",
                  "cases": [run["settings"] for run in runs]},
                  {"cases": [run["results"] for run in runs], "reference_scan": reference_scan}, fig,
                  **{f"case_{i}_{key}": run[key] for i, run in enumerate(runs)
@@ -219,7 +221,3 @@ def main():
                                 "mixed_population_histogram")})
         plt.close(fig)
     print("🦇 BUMP-ON-TAIL:", [run["results"] for run in runs])
-
-
-if __name__ == "__main__":
-    main()

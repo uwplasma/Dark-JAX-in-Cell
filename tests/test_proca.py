@@ -1,6 +1,7 @@
 """Independent field identities and parent-integration regressions."""
 
 import json
+import runpy
 import numpy as np
 import itertools
 import pytest
@@ -105,6 +106,19 @@ def test_physical_landau_scale_and_fixed_window_fit():
     damping, frequency, peaks, _, _ = fixed_window_mode(time, signal)
     np.testing.assert_allclose([frequency, damping], [mixed.real, mixed.imag], rtol=2e-3)
     assert len(peaks) >= 4
+
+
+def test_physical_landau_driver_matches_its_recorded_reference(tmp_path):
+    experiment = runpy.run_path("examples/dark_kinetic.py", run_name="__main__",
+                                init_globals=dict(physical=True, cells=16, particles=128,
+                                                  steps=4, output=tmp_path))
+    model, wp, k = (experiment[key] for key in ("model", "wp", "k"))
+    assert model.omega == pytest.approx(k * c)
+    record = json.loads((tmp_path / "run.json").read_text())
+    assert record["settings"]["mu_over_wp"] == pytest.approx(model.omega / wp)
+    expected, residual = mixed_root(k * c / wp, .05, model.eta, model.omega / wp)
+    assert residual < 1e-8
+    np.testing.assert_allclose(experiment["analytic"], expected, rtol=1e-12)
 
 
 def test_warm_two_stream_growing_and_single_humped_control():
@@ -238,6 +252,30 @@ def plasma(density=0.0, n=16, cells=16, external_E=None, external_B=None):
     domain = Domain(length=2 * np.pi * c / OMEGA, cells=cells, dt_over_dx_c=0.2)
     return Simulation(domain, (Species.electrons(n, density=density),),
                       external_E=external_E, external_B=external_B)
+
+
+@pytest.mark.parametrize("drive", [False, True])
+@pytest.mark.parametrize("particles", [False, True])
+def test_host_progress_preserves_complete_history_and_traced_gradient(drive, particles):
+    base = plasma(N_REF * .1)
+    model = PrescribedDrive(.1, jnp.array([1e-5, 0., 0.]), OMEGA) if drive else DarkField(OMEGA, .1)
+    sim = DarkSimulation(base, model)
+    updates = []
+    plain = sim.run(24, store_every=2, store_particles=particles)
+    grouped = sim.run(24, store_every=2, store_particles=particles,
+                      verbose=lambda done, total: updates.append((done, total)))
+    assert updates[-1] == (24, 24) and len(updates) > 1
+    jax.tree.map(lambda a, b: np.testing.assert_array_equal(a, b), plain, grouped)
+
+    def objective(eta, verbose):
+        output = DarkSimulation(base, DarkField(OMEGA, eta)).run(4, store_particles=False, verbose=verbose)
+        return output.energy()["total_with_dark"][-1]
+
+    derivative = jax.grad(objective)(.1, False)
+    np.testing.assert_array_equal(jax.grad(objective)(.1, updates.append), derivative)
+    assert updates[-1] == (24, 24)  # traced execution never calls the host meter
+    with pytest.raises(ValueError, match="verbose"):
+        sim.run(2, verbose="sometimes")
 
 
 def test_dark_toml_and_cli_save_complete_restart(tmp_path):

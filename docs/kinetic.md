@@ -19,7 +19,9 @@ The same full run now advances **JAX-in-Cell itself** from the identical electro
 
 ## A physical-speed Landau replay
 
-`python examples/dark_kinetic.py --physical --full` holds $k\lambda_D=0.5$, $\sigma/c=0.05$, $\eta=0.3$, $\Omega_D/(kc)=1$, the box length and the physical $\omega_p$ fixed. Here $kc/\omega_p=10$, so the plasma-like phase speed is about $0.14c$. The largest initial sampled speed is below $0.224c$ in all three runs. The independent ordinary, full and quasistatic roots are **{{ physical_reference_parent }}**, **{{ physical_reference_mixed }}** and **{{ physical_reference_screened }}** in $\omega_p$ units. The closeness of the last two is a screening prediction for this setting, not evidence of a resonant propagating dark wave.
+**Producer correction (1 October 2026):** the example previously constructed $\Omega_D=\omega_p$ while its physical-preset theory and settings used $\Omega_D=kc=10\omega_p$. The archived records came from dirty source whose full contents were not saved; their simulated mass cannot be certified from the revision. The code now uses the same model mass in simulation, theory and metadata. The existing table and figure below are historical measurements, pending a clean-source replacement; they do not validate the stated mixed mass.
+
+[dark_kinetic.py](../examples/dark_kinetic.py) with `physical=True, full=True` holds $k\lambda_D=0.5$, $\sigma/c=0.05$, $\eta=0.3$, $\Omega_D/(kc)=1$, the box length and the physical $\omega_p$ fixed. Here $kc/\omega_p=10$, so the plasma-like phase speed is about $0.14c$. The largest initial sampled speed is below $0.224c$ in all three runs. The independent ordinary, full and quasistatic roots are **{{ physical_reference_parent }}**, **{{ physical_reference_mixed }}** and **{{ physical_reference_screened }}** in $\omega_p$ units. The closeness of the last two is a screening prediction for this setting, not evidence of a resonant propagating dark wave.
 
 The same quiet loading is used for matched parent/dark runs at each resolution. A fixed $2<\omega_pt<12$ window fits the early absolute-field maxima; it does not require the signal to reach a noise floor. The longer windows $2$–$14$ and $3$–$16$ are saved as sensitivity checks. The complex ordinary, dark and effective mode coefficients, particle-plus-field energy and exact settings are in the linked records.
 
@@ -77,7 +79,7 @@ The independent convolution of a seeded PIC ordinary-field history predicts its 
 
 ### Through nonlinear saturation
 
-`python examples/dark_saturation.py --full` follows the **same cold beam loading** in the parent and dark solvers through $\omega_pt=80$. It starts with 64 cells, 4,000 particles per beam and $\Delta t\omega_p=0.025$. The five runs halve the step, then independently double cells and particles at the smaller step. The fitted parent/dark rates over $10<\omega_pt<20$ are $0.33228/0.34069$ at the base setting, $0.33407/0.34276$ after timestep refinement and $0.33435/0.34302$ after joint grid/loading refinement. The independent cold roots are $0.33847/0.34670$. The growth-rate difference survives these numerical refinements; absolute PIC rates are lower by roughly 1–2%.
+[dark_saturation.py](../examples/dark_saturation.py) with `full=True` follows the **same cold beam loading** in the parent and dark solvers through $\omega_pt=80$. It starts with 64 cells, 4,000 particles per beam and $\Delta t\omega_p=0.025$. The five runs halve the step, then independently double cells and particles at the smaller step. The fitted parent/dark rates over $10<\omega_pt<20$ are $0.33228/0.34069$ at the base setting, $0.33407/0.34276$ after timestep refinement and $0.33435/0.34302$ after joint grid/loading refinement. The independent cold roots are $0.33847/0.34670$. The growth-rate difference survives these numerical refinements; absolute PIC rates are lower by roughly 1–2%.
 
 ![Matched two-stream growth, saturation, energy and phase space](_static/figures/two_stream_saturation/figure.png)
 
@@ -89,7 +91,7 @@ The RMS of $|E_{k_1}|$ on $40\leq\omega_pt\leq80$ is $69.84/67.60$, $70.95/67.97
 
 At fixed $\Delta t\omega_p=0.0125$, the $2\times2$ cell/particle comparison is revealing: doubling from 4,000 to 8,000 **quiet cold particles per beam** changes the maximum fractional dark total-energy error by less than $10^{-9}$ at either grid size. Doubling cells from 64 to 128 changes it from **{{ saturation_short_coarse_drift_percent }}%** to **{{ saturation_short_refined_drift_percent }}%**. The first-mode RMS changes by 0.1–0.7% under particle doubling at fixed grid. This isolates grid spacing as the main tested limitation for this quiet loading; it does not determine the best spline order or the particle count required by a warm/noisy plasma. The [$\omega_pt=80$ record](_static/figures/two_stream_saturation/run.json) and [arrays](_static/figures/two_stream_saturation/data.npz) keep all five cases. All energy maxima use the same $0.5/\omega_p$ output spacing.
 
-`python examples/dark_saturation.py --extended` takes four matched cases through $\omega_pt=200$ at that **same output spacing**: the base run, the jointly-refined run, that same 128-cell run with half its timestep, and a 256-cell run at the same smaller timestep with twice as many particles. On $120\leq\omega_pt\leq200$, dark $k_1$ RMS is **{{ saturation_long_coarse_mode_drop_percent }}%** lower than the parent on 64 cells, but **{{ saturation_long_refined_mode_drop_percent }}%** lower on 128 cells. The time-averaged electric energy in *all nonzero spatial modes* is **{{ saturation_long_coarse_field_drop_percent }}%** and **{{ saturation_long_refined_field_drop_percent }}%** lower, respectively, normalized against the same initial parent total. These late amplitudes are visibly grid-sensitive; the run establishes neither a converged suppression factor nor a new long-time law. The largest stored-sample dark total-energy changes remain **{{ saturation_long_coarse_drift_percent }}%** and **{{ saturation_long_refined_drift_percent }}%**, with no secular increase beyond the early nonlinear peak in this diagnostic. The [$\omega_pt=200$ record](_static/figures/two_stream_extended/run.json) and [arrays](_static/figures/two_stream_extended/data.npz) preserve the matched traces.
+[dark_saturation.py](../examples/dark_saturation.py) with `extended=True` takes four matched cases through $\omega_pt=200$ at that **same output spacing**: the base run, the jointly-refined run, that same 128-cell run with half its timestep, and a 256-cell run at the same smaller timestep with twice as many particles. On $120\leq\omega_pt\leq200$, dark $k_1$ RMS is **{{ saturation_long_coarse_mode_drop_percent }}%** lower than the parent on 64 cells, but **{{ saturation_long_refined_mode_drop_percent }}%** lower on 128 cells. The time-averaged electric energy in *all nonzero spatial modes* is **{{ saturation_long_coarse_field_drop_percent }}%** and **{{ saturation_long_refined_field_drop_percent }}%** lower, respectively, normalized against the same initial parent total. These late amplitudes are visibly grid-sensitive; the run establishes neither a converged suppression factor nor a new long-time law. The largest stored-sample dark total-energy changes remain **{{ saturation_long_coarse_drift_percent }}%** and **{{ saturation_long_refined_drift_percent }}%**, with no secular increase beyond the early nonlinear peak in this diagnostic. The [$\omega_pt=200$ record](_static/figures/two_stream_extended/run.json) and [arrays](_static/figures/two_stream_extended/data.npz) preserve the matched traces.
 
 At 128 cells, halving $\Delta t\omega_p$ from 0.0125 to 0.00625 leaves the late dark-minus-parent first-mode RMS at **{{ saturation_long_halfstep_mode_change_percent }}%**, versus **−{{ saturation_long_refined_mode_drop_percent }}%** before the step change. At the **same** $0.00625$ step, 256 cells and 16,000 particles per beam give **{{ saturation_long_fine_mode_change_percent }}%**. For all nonzero electric modes, those 128/256-cell differences are **{{ saturation_long_halfstep_field_change_percent }}%** and **{{ saturation_long_fine_field_change_percent }}%**. The finest run improves the largest sampled closed-energy change to **{{ saturation_long_fine_drift_percent }}%**, but reverses the direction of the late field difference. The measured late effect is therefore **not spatially converged**, even in sign.
 
@@ -171,7 +173,7 @@ The coherent energy plotted below combines the mean electric field and a relativ
 
 ## A finite dark reservoir in the pair plasma
 
-`python examples/dark_reservoir.py --pair-dark --full` starts the **same neutral pair loading and finite-$k$ velocity seed** with a bare homogeneous Proca field. Here $\eta=0.5$, $\Omega_D/\omega_0=1$, $E_0=0$, and $E_{D0}/(m_ec\omega_0/e)=0.1$. Thus the initial effective force has a $0.05c$ quiver scale. The dark reservoir initially contains four times the electric energy of an ordinary run with the **same force**; these are deliberately large numerical-validation parameters, not a dark-matter constraint. Both runs use the relativistic Boris pusher. The independently dynamical dark field differs from a prescribed sinusoidal force: its ordinary field, massive potential and pair current exchange energy from the first step.
+[dark_reservoir.py](../examples/dark_reservoir.py) with `study='pair_dark', full=True` starts the **same neutral pair loading and finite-$k$ velocity seed** with a bare homogeneous Proca field. Here $\eta=0.5$, $\Omega_D/\omega_0=1$, $E_0=0$, and $E_{D0}/(m_ec\omega_0/e)=0.1$. Thus the initial effective force has a $0.05c$ quiver scale. The dark reservoir initially contains four times the electric energy of an ordinary run with the **same force**; these are deliberately large numerical-validation parameters, not a dark-matter constraint. Both runs use the relativistic Boris pusher. The independently dynamical dark field differs from a prescribed sinusoidal force: its ordinary field, massive potential and pair current exchange energy from the first step.
 
 In units $c=\omega_0=\epsilon_0=1$, the homogeneous reference advances $(E_0,D_0,A_0,P)$ with $\dot E_0=-U(P)$, $\dot D_0=\widehat\mu^2A_0-\eta U(P)$, $\dot A_0=-D_0$, and $\dot P=E_0+\eta D_0$. Here $U(P)$ averages the relativistic velocity of the shifted waterbag. The bare initial dark field excites **two coupled normal frequencies**; this background has no single prescribed pump period. For the seeded spatial mode, 64 velocity quadrature nodes evolve linearized displacement $\xi_s$ and momentum $\pi_s$ along each orbit:
 
@@ -203,7 +205,7 @@ The [reported SHARP setup, Appendix B](https://arxiv.org/html/2510.13956v1) uses
 
 ### Early paper-geometry pilot
 
-`python examples/dark_reservoir.py --paper-pilot --output artifacts/paper_pilot` runs the stronger prescribed force and a matched zero-drive control on the reported 1,000-cell, $40c/\omega_p$ grid through $\omega_pt=80$. It repeats both with 20,000 and 40,000 quiet particles **per species**, seeded with the same $0.01v_{\rm th,e}$ velocity mode. The drive and mobile-ion mean field follow the independent two-fluid solution to within $0.031F$; the largest energy/work balance error is $0.0026$ of the initial particle energy. At 20,000 particles per species, the peak nonzero-$k$ electric energy is $0.0161$ of initial particle energy without the drive and $0.0166$ with it. At 40,000, those fractions fall to $0.00472$ and $0.00444$. The drive-minus-zero difference changes sign under loading refinement, so this pilot resolves **no pump-induced higher-mode growth** by $\omega_pt=80$. The cell-local random kinetic measure falls slightly in both controls; it gives no heating evidence here.
+[dark_reservoir.py](../examples/dark_reservoir.py) with `study='paper_pilot', output='artifacts/paper_pilot'` runs the stronger prescribed force and a matched zero-drive control on the reported 1,000-cell, $40c/\omega_p$ grid through $\omega_pt=80$. It repeats both with 20,000 and 40,000 quiet particles **per species**, seeded with the same $0.01v_{\rm th,e}$ velocity mode. The drive and mobile-ion mean field follow the independent two-fluid solution to within $0.031F$; the largest energy/work balance error is $0.0026$ of the initial particle energy. At 20,000 particles per species, the peak nonzero-$k$ electric energy is $0.0161$ of initial particle energy without the drive and $0.0166$ with it. At 40,000, those fractions fall to $0.00472$ and $0.00444$. The drive-minus-zero difference changes sign under loading refinement, so this pilot resolves **no pump-induced higher-mode growth** by $\omega_pt=80$. The cell-local random kinetic measure falls slightly in both controls; it gives no heating evidence here.
 
 ![Early strong-drive response and loading-sensitive nonzero-mode energy](_static/figures/paper_geometry_pilot/figure.png)
 
@@ -211,7 +213,7 @@ The [run record](_static/figures/paper_geometry_pilot/run.json) and [plotted arr
 
 ### Replay of the attached Hook–Huang–Shalaby Figure 2
 
-`python examples/dark_reservoir.py --paper` uses the original [October 2025 preprint](https://arxiv.org/abs/2510.13956v1), Figure 2 and Appendix B. The target is a **prescribed spatially uniform electric force**, not an independently evolved dark reservoir. Electrons and mobile ions have $m_i/m_e=1836$, $T_e=T_i=10^{-3}m_ec^2$, $L=40c/\omega_p$, and 1,000 cells. Both species start at the same equally spaced positions, with independent Gaussian longitudinal velocities and no added spatial perturbation. Each draw is conditioned to zero mean and exactly the specified variance; the seed and this conditioning are recorded. The replay uses relativistic Boris, which gives the same electric-only momentum kick as Vay in this 1V setting. Its quadratic parent shapes differ from the paper's fifth-order shapes.
+[dark_reservoir.py](../examples/dark_reservoir.py) with `study='paper'` uses the original [October 2025 preprint](https://arxiv.org/abs/2510.13956v1), Figure 2 and Appendix B. The target is a **prescribed spatially uniform electric force**, not an independently evolved dark reservoir. Electrons and mobile ions have $m_i/m_e=1836$, $T_e=T_i=10^{-3}m_ec^2$, $L=40c/\omega_p$, and 1,000 cells. Both species start at the same equally spaced positions, with independent Gaussian longitudinal velocities and no added spatial perturbation. Each draw is conditioned to zero mean and exactly the specified variance; the seed and this conditioning are recorded. The replay uses relativistic Boris, which gives the same electric-only momentum kick as Vay in this 1V setting. Its quadratic parent shapes differ from the paper's fifth-order shapes.
 
 The paper defines $\sigma_s^2=\langle(v_x-\langle v_x\rangle)^2\rangle=T_s/m_s$ in Eq. B2. This is $v_{th,s}/\sqrt2$ in the parent API. With $r=v_q^D/\sigma_e$,
 
@@ -223,7 +225,7 @@ $$
 
 The default $r=0.03$ matches the upper panel of Figure 2. `--drive-ratio 0.001` selects the lower-panel force, and `--drive-ratio 0` supplies the matched no-drive control. The earlier seeded pilot above used $0.03$ times the **parent** thermal-speed convention, making its force $\sqrt2$ larger than the upper-panel force. It remains a separate short control and is not Figure 2 evidence.
 
-`--paper --full` selects 103,000 markers **per species** and $\omega_pt=5000$; `--particles`, `--cells`, `--dt`, `--horizon`, and `--seed` override the numerical controls. The total count follows the paper's Eq. B5 noise-onset estimate,
+`study="paper", full=True` selects 103,000 markers **per species** and $\omega_pt=5000$; `particles`, `cells`, `dt`, `horizon`, and `seed` set the numerical controls. The total count follows the paper's Eq. B5 noise-onset estimate,
 
 $$
 \overline t_{\rm noise}=\frac{40}{a_0\sqrt{3N_pN_x/2}}.
@@ -315,12 +317,14 @@ The third trace halves the timestep to $0.005$ at the same horizon, cadence, phy
 
 All-step continuity and Gauss residuals remain at roundoff; particle charge is unchanged. A diagnostic periodic longitudinal projection of each final state would change $E/E_{\star}$ by at most **{{ hook_fixed_projection_field }}** and energy by at most **{{ hook_fixed_projection_energy }} $nm_ec^2L$**. The audit retains the incompatible mean residual and applies no correction. These endpoint sizes do not bound earlier dynamical amplification, but give no evidence of a large accumulated constraint defect requiring cleaning. The [native records, exact hashes, both smoothing lengths and projection audit](_static/figures/replay_controls/run.json) and [compressed scalar arrays](_static/figures/replay_controls/data.npz) retain the evidence. Faint electric-energy curves are raw; thick energy/density curves average 13 samples with trimmed endpoints. The local spread curves and all tabulated metrics use raw samples.
 
-```sh
-python examples/dark_reservoir.py --paper --full --dt 0.01 --horizon 1000 --block-horizon 100 --local-moments --output artifacts/paper_fixed_first
-python examples/dark_reservoir.py --paper --full --dt 0.01 --horizon 1000 --block-horizon 100 --local-moments --initial-state artifacts/paper_fixed_first/initial_state.npz --output artifacts/paper_fixed_repeat
-python examples/dark_reservoir.py --paper --full --dt 0.005 --horizon 1000 --block-horizon 100 --local-moments --output artifacts/paper_fixed_fine
-python docs/scripts/compare_replays.py artifacts/paper_fixed_first artifacts/paper_fixed_repeat --constraints --refined artifacts/paper_fixed_fine --publish docs/_static/figures/replay_controls
-```
+Edit the named inputs in each linked script, then run it with Python.
+
+| Script | Inputs |
+|---|---|
+| [dark_reservoir.py](../examples/dark_reservoir.py) | `study='paper', full=True, dt=0.01, horizon=1000, block_horizon=100, local_moments=True, output='artifacts/paper_fixed_first'` |
+| [dark_reservoir.py](../examples/dark_reservoir.py) | `study='paper', full=True, dt=0.01, horizon=1000, block_horizon=100, local_moments=True, initial_state='artifacts/paper_fixed_first/initial_state.npz', output='artifacts/paper_fixed_repeat'` |
+| [dark_reservoir.py](../examples/dark_reservoir.py) | `study='paper', full=True, dt=0.005, horizon=1000, block_horizon=100, local_moments=True, output='artifacts/paper_fixed_fine'` |
+| [compare_replays.py](../docs/scripts/compare_replays.py) | `first='artifacts/paper_fixed_first', second='artifacts/paper_fixed_repeat', constraints=True, refined='artifacts/paper_fixed_fine', destination='docs/_static/figures/replay_controls'` |
 
 #### Isolated mesh, particles and seed controls
 
@@ -341,23 +345,27 @@ Doubling particles at the finer grid changes nonzero-energy $L^2$ by **{{ hook_l
 
 The [record](_static/figures/replay_resolution/run.json) retains exact input hashes, each clean native computation record, raw norms, endpoints' Gauss/projection audits and both smoothing lengths. The [compressed scalar histories](_static/figures/replay_resolution/data.npz) support the plot and tables, including the unplotted higher-count repeat. Line styles identify controls; purple/green in species panels identify electrons/ions. The mesh and particle controls follow the separate error mechanisms identified by [SHARP, §§6.2–6.4](https://arxiv.org/html/1702.04732v2), and [Adams, Werner and Cary, §I/§VIII](https://arxiv.org/html/2503.13697v2). Their interpolation/noise analysis supplies numerical context, rather than a diagnosis of this run's nonlinear broadening. All four controls use quadratic shapes; matching the original paper's fifth-order discretization remains an independent comparison.
 
-```sh
-python examples/dark_reservoir.py --paper --cells 2000 --particles 103000 --dt .005 --horizon 1000 --block-horizon 100 --local-moments --output artifacts/paper_fixed_mesh
-python examples/dark_reservoir.py --paper --cells 1000 --particles 103000 --seed 1 --dt .005 --horizon 1000 --block-horizon 100 --local-moments --output artifacts/paper_fixed_seed
-python examples/dark_reservoir.py --paper --cells 2000 --particles 206000 --dt .005 --horizon 1000 --block-horizon 100 --local-moments --output artifacts/paper_fixed_particles
-python examples/dark_reservoir.py --paper --cells 2000 --particles 206000 --dt .005 --horizon 1000 --block-horizon 100 --local-moments --initial-state artifacts/paper_fixed_particles/initial_state.npz --output artifacts/paper_fixed_particles_repeat
-python docs/scripts/compare_replays.py artifacts/paper_fixed_fine artifacts/paper_fixed_mesh --variant mesh --constraints --refined artifacts/paper_fixed_seed --refined-variant seed --loading-refined artifacts/paper_fixed_particles --loading-repeat artifacts/paper_fixed_particles_repeat --publish docs/_static/figures/replay_resolution
-```
+Edit the named inputs in each linked script, then run it with Python.
+
+| Script | Inputs |
+|---|---|
+| [dark_reservoir.py](../examples/dark_reservoir.py) | `study='paper', cells=2000, particles=103000, dt=0.005, horizon=1000, block_horizon=100, local_moments=True, output='artifacts/paper_fixed_mesh'` |
+| [dark_reservoir.py](../examples/dark_reservoir.py) | `study='paper', cells=1000, particles=103000, seed=1, dt=0.005, horizon=1000, block_horizon=100, local_moments=True, output='artifacts/paper_fixed_seed'` |
+| [dark_reservoir.py](../examples/dark_reservoir.py) | `study='paper', cells=2000, particles=206000, dt=0.005, horizon=1000, block_horizon=100, local_moments=True, output='artifacts/paper_fixed_particles'` |
+| [dark_reservoir.py](../examples/dark_reservoir.py) | `study='paper', cells=2000, particles=206000, dt=0.005, horizon=1000, block_horizon=100, local_moments=True, initial_state='artifacts/paper_fixed_particles/initial_state.npz', output='artifacts/paper_fixed_particles_repeat'` |
+| [compare_replays.py](../docs/scripts/compare_replays.py) | `first='artifacts/paper_fixed_fine', second='artifacts/paper_fixed_mesh', variant='mesh', constraints=True, refined='artifacts/paper_fixed_seed', refined_variant='seed', loading_refined='artifacts/paper_fixed_particles', loading_repeat='artifacts/paper_fixed_particles_repeat', destination='docs/_static/figures/replay_resolution'` |
 
 Run the following cases **sequentially**. The final complete restart is compressed and retained in each computational output; the public summary keeps compressed scalar curves and provenance.
 
-```sh
-python examples/dark_reservoir.py --paper --full --output artifacts/paper_full_drive
-python examples/dark_reservoir.py --paper --full --drive-ratio 0 --output artifacts/paper_full_zero
-python examples/dark_reservoir.py --paper --full --dt 0.01 --output artifacts/paper_dt_half
-python examples/dark_reservoir.py --paper --full --dt 0.005 --horizon 1000 --output artifacts/paper_dt_quarter_transition
-python examples/dark_reservoir.py --paper --full --dt 0.01 --horizon 1000 --output artifacts/paper_dt_half_prefix_replay
-python docs/scripts/make_paper_replay.py --refined artifacts/paper_dt_half --refined artifacts/paper_dt_quarter_transition --repeat artifacts/paper_dt_half_prefix_replay --output docs/_static/figures/paper_replay
-```
+Edit the named inputs in each linked script, then run it with Python.
+
+| Script | Inputs |
+|---|---|
+| [dark_reservoir.py](../examples/dark_reservoir.py) | `study='paper', full=True, output='artifacts/paper_full_drive'` |
+| [dark_reservoir.py](../examples/dark_reservoir.py) | `study='paper', full=True, drive_ratio=0, output='artifacts/paper_full_zero'` |
+| [dark_reservoir.py](../examples/dark_reservoir.py) | `study='paper', full=True, dt=0.01, output='artifacts/paper_dt_half'` |
+| [dark_reservoir.py](../examples/dark_reservoir.py) | `study='paper', full=True, dt=0.005, horizon=1000, output='artifacts/paper_dt_quarter_transition'` |
+| [dark_reservoir.py](../examples/dark_reservoir.py) | `study='paper', full=True, dt=0.01, horizon=1000, output='artifacts/paper_dt_half_prefix_replay'` |
+| [make_paper_replay.py](../docs/scripts/make_paper_replay.py) | `refined='artifacts/paper_dt_half', refined='artifacts/paper_dt_quarter_transition', repeat='artifacts/paper_dt_half_prefix_replay', output='docs/_static/figures/paper_replay'` |
 
 The fixed-block controls above now separate timestep, grid, particle count and independent-seed effects through $\tau=1000$. Extending the finer grid/loading to $5000$ needs another timestep level and several seeds, with the same physical diagnostic scales. The [matched four/eight-iteration and independent orbit checks](performance.md#independent-implicit-orbit-and-iteration-checks) verify the early implicit impulse. [Two/four substeps and three mesh levels](performance.md#mesh-and-particle-substep-controls) leave momentum sensitive to the mesh, with unresolved nonzero fields; a mesh-phase/force-map audit is the next implicit accuracy gate. The new output also retains initial/final local spread at fixed physical Gaussian smoothing lengths $2\lambda_{D0}$ and $4\lambda_{D0}$, with $\lambda_{D0}=\sqrt{10^{-3}}c/\omega_p$. These lab-frame moments remove resolved local flow; they remain distinct from a relativistic thermodynamic temperature. The original stored long runs precede those additional endpoint diagnostics. The weak-drive panel, Appendix C's much longer evolution and the cosmological conclusion remain open reproduction targets.

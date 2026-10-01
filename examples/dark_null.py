@@ -6,7 +6,6 @@ can be removed by an accelerating-frame change of coordinates. A finite-grid
 difference should shrink on refinement; no instability is claimed here.
 """
 
-import argparse
 from pathlib import Path
 
 import jax.numpy as jnp
@@ -19,6 +18,13 @@ from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
                        epsilon_0, mass_electron, quiet_start, save_run,
                        speed_of_light as c)
 from darkjaxincell import DarkSimulation, PrescribedDrive, midnight
+
+
+# Each row is (cells, particles, steps) at the same physical horizon.
+full = globals().get("full", False)
+output = Path(globals().get("output", "artifacts/dark_null"))
+pairs = globals().get(
+    "pairs", ((64, 4000, 300), (128, 16000, 600)) if full else ((32, 1000, 150),))
 
 
 def mode_history(cells, particles, steps, drive):
@@ -36,19 +42,14 @@ def mode_history(cells, particles, steps, drive):
     model = PrescribedDrive(eta=0.1 if drive else 0.0,
                             amplitude=jnp.array([effective_amplitude / 0.1, 0.0, 0.0]),
                             omega=wp)
-    result = DarkSimulation(plasma, model).run(steps, store_every=steps // 100,
-                                               store_particles=False)
+    result = DarkSimulation(plasma, model).run(steps, store_every=max(1, steps // 100),
+                                               store_particles=False, verbose=True)
     t = np.asarray(result.ordinary.t) * wp
     mode = np.fft.rfft(np.asarray(result.ordinary.E[:, :, 0]), axis=1)[:, 1] / cells
     return t, np.abs(mode), float(effective_amplitude)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Test a homogeneous pump's false haunting")
-    parser.add_argument("--full", action="store_true", help="two matched physical refinements")
-    parser.add_argument("--output", type=Path, default=Path("artifacts/dark_null"))
-    args = parser.parse_args()
-    pairs = ((64, 4000, 300), (128, 16000, 600)) if args.full else ((32, 1000, 150),)
+if __name__ == "__main__":
     histories, errors = [], []
     for cells, particles, steps in pairs:
         t, zero, amplitude = mode_history(cells, particles, steps, False)
@@ -68,7 +69,7 @@ def main():
                    title=f"{cells} cells, {particles} particles: Δ={error:.2e}")
             ax.grid(alpha=0.4)
             ax.legend(facecolor="#FFFFFF", edgecolor="#6B7280")
-        settings = {"preset": "full" if args.full else "quick", "refinements": pairs,
+        settings = {"preset": "full" if full else "quick", "refinements": pairs,
                     "omega_p_rad_s": 0.05 * c * 64, "k_lambda_D": 0.5,
                     "seed_displacement_over_1_k": 0.01,
                     "effective_drive_E_V_m": amplitude,
@@ -77,12 +78,8 @@ def main():
         results = {"max_mode_amplitude_difference_over_initial": errors,
                    "refinement_ratio": errors[0] / errors[-1] if len(errors) > 1 else None,
                    "claim": "restricted accelerating-frame null, not nonlinear reproduction"}
-        save_run(args.output, "dark_null", settings, results, fig,
+        save_run(output, "dark_null", settings, results, fig,
                  t=histories[0][0], zero=histories[0][1], driven=histories[0][2],
                  fine_zero=histories[-1][1], fine_driven=histories[-1][2])
         plt.close(fig)
     print(f"🦇 FALSE HAUNTING: mode differences {[f'{value:.3e}' for value in errors]}")
-
-
-if __name__ == "__main__":
-    main()

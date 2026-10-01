@@ -1,10 +1,10 @@
 """Isolated-process native/SOLVAX recurrence timings for one PIC objective.
 
-Run ``python docs/scripts/benchmark_recurrence.py --all`` after installing
-SOLVAX 0.27.0. This benchmark never changes the package's default backend.
+Set all_cases=True after installing SOLVAX 0.27.0 to compare all methods.
+This benchmark never changes the package's default backend.
 """
 
-import argparse
+from importlib import metadata
 import json
 import os
 import platform
@@ -19,8 +19,14 @@ import jax
 import numpy as np
 
 HERE = Path(__file__).resolve()
-OUT = HERE.parents[1] / "_static" / "figures" / "recurrence_benchmark.json"
+OUT = Path("artifacts/recurrence/recurrence_benchmark.json")
 METHODS = ("scan", "remat", "segmented", "solvax")
+
+# Editable inputs also accept runpy.run_path(..., init_globals={...}) batch overrides.
+method = globals().get("method", "scan")
+case = globals().get("case", "exact")
+all_cases = globals().get("all_cases", False)
+output = Path(globals().get("output", OUT))
 
 
 def synchronized(call):
@@ -40,10 +46,16 @@ def one(method, case):
     stop = 256 * dt_bar if case == "exact" else 75.0
     start = 0.6 * stop
     objective, value_grad, steps = build_objective(16, 64, start, stop, method, 32)
+    print(f"Compiling {method}/{case}: {steps} steps", file=sys.stderr, flush=True)
     primal, primal_first = synchronized(lambda: objective(0.97))
     pair, gradient_first = synchronized(lambda: value_grad(0.97))
-    primal_times = [synchronized(lambda: objective(0.97))[1] for _ in range(5)]
-    gradient_times = [synchronized(lambda: value_grad(0.97))[1] for _ in range(5)]
+    primal_times, gradient_times = [], []
+    for _ in range(5):
+        primal_times.append(synchronized(lambda: objective(0.97))[1])
+        print(f"{method}/{case}: warm primal {len(primal_times)}/5", file=sys.stderr, flush=True)
+    for _ in range(5):
+        gradient_times.append(synchronized(lambda: value_grad(0.97))[1])
+        print(f"{method}/{case}: warm gradient {len(gradient_times)}/5", file=sys.stderr, flush=True)
     memory = value_grad.lower(0.97).compile().memory_analysis()
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return {"case": case, "method": method, "steps": steps, "checkpoint_size": 32,
@@ -60,20 +72,19 @@ def one(method, case):
             "host_load_1m": os.getloadavg()[0]}
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--all", action="store_true")
-    parser.add_argument("--method", choices=METHODS)
-    parser.add_argument("--case", choices=("exact", "tail"))
-    args = parser.parse_args()
-    if args.all:
-        import importlib.metadata as metadata
+def isolated(method, case):
+    """One method/loading case per fresh process."""
+    command = (f"import runpy; runpy.run_path({str(HERE)!r}, run_name='__main__', "
+               f"init_globals={dict(method=method, case=case)!r})")
+    return json.loads(subprocess.check_output([sys.executable, "-c", command], text=True))
 
-        rows = []
-        for case in ("exact", "tail"):
-            for method in METHODS:
-                command = [sys.executable, str(HERE), "--method", method, "--case", case]
-                rows.append(json.loads(subprocess.check_output(command, text=True)))
+
+if __name__ == "__main__":
+    if method not in METHODS or case not in ("exact", "tail"):
+        raise ValueError("choose scan/remat/segmented/solvax and exact/tail")
+    print("Starting recurrence cost benchmark", file=sys.stderr, flush=True)
+    if all_cases:
+        rows = [isolated(method, case) for case in ("exact", "tail") for method in METHODS]
         for case in ("exact", "tail"):
             baseline = next(row for row in rows if row["case"] == case and row["method"] == "scan")
             for row in rows:
@@ -85,15 +96,10 @@ def main():
         sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
         result = {"git": sha, "jax": jax.__version__, "solvax": metadata.version("solvax"),
                   "equinox": metadata.version("equinox"), "platform": platform.platform(),
-                  "backend": rows[0]["backend"], "precision_x64": rows[0]["precision_x64"],
-                  "rows": rows}
-        OUT.write_text(json.dumps(result, indent=2) + "\n")
-        print(f"🦇 wrote {OUT}: {len(rows)} isolated-process comparisons")
-    elif args.method and args.case:
-        print(json.dumps(one(args.method, args.case)))
+                  "backend": rows[0]["backend"], "precision_x64": rows[0]["precision_x64"], "rows": rows}
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(result, indent=2) + "\n")
+        print(f"wrote {output}: {len(rows)} isolated-process comparisons", file=sys.stderr, flush=True)
     else:
-        parser.error("choose --all or both --method and --case")
-
-
-if __name__ == "__main__":
-    main()
+        print(json.dumps(one(method, case)))
+    print("Finished recurrence cost benchmark", file=sys.stderr, flush=True)

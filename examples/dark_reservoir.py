@@ -3,9 +3,12 @@
 This bounded-time, seeded control is not the long SHARP reproduction.  The
 prescribed case has an external reservoir; the Proca cases start with the
 same force but different finite field energies.  All share one loading.
+
+Edit the inputs below or supply them with ``runpy.run_path(...,
+run_name='__main__', init_globals={...})``. ``full=True`` selects the full
+study preset; the paper preset uses 103,000 markers per species through 5,000.
 """
 
-import argparse
 import hashlib
 from pathlib import Path
 import resource
@@ -33,6 +36,24 @@ from pair_reference import (coupled_response, growth, relativistic_response,
                             seeded_response)  # noqa: E402
 from conservation import coarse_spread, measured_run, snapshot  # noqa: E402
 from drive_reference import forced_cold, homogeneous  # noqa: E402
+
+
+# Inputs: the default is a small mobile-ion comparison.
+study = globals().get('study', 'mobile_ions')  # paper, pair, pair_dark or paper_pilot
+full = globals().get('full', False)
+output = Path(globals().get('output', 'artifacts/dark_reservoir'))
+# Paper controls use omega_p time units and markers per species.
+cells = globals().get('cells', 1000)
+particles = globals().get('particles', 103000 if full else 20000)
+dt = globals().get('dt', 0.02)
+horizon = globals().get('horizon', 5000 if full else 40)
+seed = globals().get('seed', 0)
+drive_ratio = globals().get('drive_ratio', 0.03)
+coupling = globals().get('coupling', None)  # None selects the prescribed drive.
+block_horizon = globals().get('block_horizon', min(100, horizon))  # None preserves a single full scan.
+local_moments = globals().get('local_moments', False)
+initial_state = globals().get('initial_state', None)
+initial_state = None if initial_state is None else Path(initial_state)
 
 
 def pair_plasma(cells, particles_per_cell, dtau, seed, relativistic=False):
@@ -89,7 +110,7 @@ def pair_experiment(cells, particles_per_cell, dtau, horizon, seed=2e-4,
     steps = round(horizon / dtau)
     stride = max(1, round(0.2 / dtau))
     steps = stride * round(steps / stride)
-    out = sim.run(steps, state=start, store_every=stride, store_particles=False)
+    out = sim.run(steps, state=start, store_every=stride, store_particles=False, verbose=True)
     t = np.asarray(out.ordinary.t) * omega_0
     field = np.asarray(out.ordinary.E[:, :, 0]) / field_scale
     faces = np.asarray(domain.faces)
@@ -188,7 +209,7 @@ def pair_dark_experiment(cells, particles_per_cell, dtau, horizon,
     start, _ = sim.initial_state(random.PRNGKey(0))
     stride = max(1, round(0.2 / dtau))
     steps = stride * round(horizon / dtau / stride)
-    out = sim.run(steps, state=start, store_every=stride, store_particles=False)
+    out = sim.run(steps, state=start, store_every=stride, store_particles=False, verbose=True)
     t = np.asarray(out.ordinary.t) * omega_0
     ordinary = np.asarray(out.ordinary.E[:, :, 0]) / field_scale
     dark = np.asarray(out.E[:, :, 0]) / field_scale
@@ -464,7 +485,7 @@ def run_case(plasma, model, steps, store_every, force, wp):
     """Run matched particles and compare their mean with a cold-fluid oracle."""
     sim = DarkSimulation(plasma, model)
     start, _ = sim.initial_state(random.PRNGKey(0))
-    out = sim.run(steps, state=start, store_every=store_every, store_particles=False)
+    out = sim.run(steps, state=start, store_every=store_every, store_particles=False, verbose=True)
     end = out.state
     t = np.asarray(out.ordinary.t) * wp
     mass_ratio = mass_proton / mass_electron
@@ -669,10 +690,12 @@ def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder):
         raise ValueError('paper blocks must divide the run and contain complete output intervals')
     reference = snapshot(sim, start)
     save_compressed_state(Path(folder) / 'initial_state.npz', start, sim)
+    print(f'🦇 Compiling {block_steps} paper steps per block', flush=True)
     before = time.perf_counter()
     executable = measured_run.lower(sim, start, block_steps, stride, reference, scales).compile()
     compile_seconds = time.perf_counter() - before
     memory = executable.memory_analysis()
+    print(f'🦇 Compiled in {compile_seconds:.2f} s; advancing {steps // block_steps} blocks', flush=True)
     before = time.perf_counter()
     final, maxima, chunks = start, jnp.zeros(9), []
     for index in range(steps // block_steps):
@@ -822,106 +845,78 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
     return history, settings, results
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Follow a mobile-ion ghost and its finite reservoir")
-    preset = parser.add_mutually_exclusive_group()
-    parser.add_argument("--full", action="store_true", help="full validation preset")
-    preset.add_argument("--paper-pilot", action="store_true", help="short paper-geometry loading check")
-    preset.add_argument("--paper", action="store_true", help="corrected unseeded Fig. 2 parameter replay")
-    parser.add_argument("--cells", type=int, default=1000)
-    parser.add_argument("--particles", type=int, help="markers per species for the paper replay")
-    parser.add_argument("--dt", type=float, default=0.02, help="paper timestep in 1/omega_p")
-    parser.add_argument("--horizon", type=float, help="paper horizon in 1/omega_p")
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--drive-ratio", type=float, default=0.03, help="paper v_quiver / RMS sigma_e")
-    parser.add_argument("--coupling", type=float, help="replace prescribed drive with a finite Proca reservoir")
-    parser.add_argument("--block-horizon", type=float, help="fixed compiled interval in 1/omega_p")
-    parser.add_argument("--local-moments", action="store_true", help="sample fixed physical Gaussian moments")
-    parser.add_argument("--initial-state", type=Path, help="repeat a complete zero-time paper state")
-    pair_mode = parser.add_mutually_exclusive_group()
-    pair_mode.add_argument("--pair", action="store_true", help="ordinary oscillating pair-plasma bridge")
-    pair_mode.add_argument("--pair-dark", action="store_true", help="finite Proca pair-plasma bridge")
-    parser.add_argument("--output", type=Path, default=Path("artifacts/dark_reservoir"))
-    args = parser.parse_args()
-    if args.paper:
-        paper_case(args.output, args.cells,
-                   args.particles if args.particles is not None else (103000 if args.full else 20000),
-                   args.dt, args.horizon if args.horizon is not None else (5000 if args.full else 40),
-                   args.seed, args.drive_ratio, args.coupling, args.block_horizon,
-                   args.local_moments, args.initial_state)
-        return
-    if args.pair:
-        pair_figure(args.output, args.full)
-        return
-    if args.pair_dark:
-        pair_dark_figure(args.output, args.full)
-        return
-    if args.paper_pilot:
-        paper_geometry_pilot(args.output)
-        return
-    presets = ((64, 4000, 0.04, 40), (128, 8000, 0.02, 40)) if args.full else (
-        (32, 1000, 0.08, 20),)
-    runs = [experiment(*preset) for preset in presets]
-    histories, settings = runs[-1]
-    t = histories["external"]["t"]
-    zero = histories["zero"]["mode"]
-    curves = ("t", "pump", "mean_E", "mode", "nonzero_energy", "cold_mean")
-    results = {"cases": {name: {key: value for key, value in record.items() if key not in curves}
-                         for name, record in histories.items()},
-               "refinements": [{name: record["mean_error"] for name, record in cases.items()}
-                               for cases, _ in runs],
-               "claim": "bounded-time mobile-ion control; long SHARP reproduction unverified"}
-    results["finite_vs_external"] = {
-        name: {"pump_error_early_over_initial_force": float(np.max(np.abs(
-                    record["pump"][t <= 5] - histories["external"]["pump"][t <= 5]))),
-               "pump_error_full_over_initial_force": float(np.max(np.abs(
-                    record["pump"] - histories["external"]["pump"]))),
-               "initial_dark_over_initial_particle_energy": (
-                   record["initial_energy"][2] / record["initial_energy"][0]),
-               "dark_depletion_fraction": (
-                   1 - record["final_energy"][2] / record["initial_energy"][2])}
-        for name, record in histories.items() if name.endswith("reservoir")}
-    with midnight():
-        fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout="constrained")
-        colors = {"zero": "#6B7280", "external": "#B03568",
-                  "small_reservoir": "#6A3D9A", "large_reservoir": "#0072B2"}
-        for name, record in histories.items():
-            color = colors[name]
-            if name != "zero":
-                axes[0, 0].plot(t, record["pump"], color=color, label=name.replace("_", " "))
-            axes[0, 1].plot(t, record["mean_E"], color=color, label=name.replace("_", " "))
-            axes[1, 0].semilogy(t, record["mode"] / max(zero[0], 1e-30), color=color)
-        axes[1, 1].bar(range(len(histories)),
-                       [record["local_random_final"] / record["local_random_initial"]
-                        for record in histories.values()], color=list(colors.values()))
-        axes[0, 1].plot(t, histories["small_reservoir"]["cold_mean"], "--", color="#202124",
-                        lw=1, label="small reservoir cold oracle")
-        axes[0, 0].set(xlabel=r"$\omega_p t$", ylabel="effective pump / F",
-                       title="An imposed haunting versus finite reservoirs")
-        axes[0, 1].set(xlabel=r"$\omega_p t$", ylabel="mean ordinary E / initial force",
-                       title="Mobile-ion mean response")
-        axes[1, 0].set(xlabel=r"$\omega_p t$", ylabel="seeded $|E_{x,k}|$ / initial",
-                       title="Nonzero-k mode; no growth claim")
-        axes[1, 1].set(ylabel="local random kinetic / initial",
-                       title="Final one-cell thermal measure")
-        axes[1, 1].set_xticks(range(len(histories)),
-                              [name.replace("_", "\n") for name in histories], fontsize="small")
-        axes[1, 1].set_ylim(0.98, 1.01)
-        for ax in axes.flat:
-            ax.grid(alpha=0.35)
-        axes[0, 0].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize="small")
-        axes[0, 1].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize="small")
-        settings = {**settings, "preset": "full" if args.full else "quick",
-                    "refinements": [setting.copy() for _, setting in runs]}
-        save_run(args.output, "dark_reservoir", settings, results, fig, t=t,
-                 **{f"{name}_{key}": record[key] for name, record in histories.items()
-                    for key in ("pump", "mean_E", "mode", "cold_mean")})
-        plt.close(fig)
-    print("🦇 MOBILE IONS: mean-oracle errors", results["refinements"],
-          "; finite-reservoir energy balances",
-          [results["cases"][name]["balance_over_scale"]
-           for name in ("small_reservoir", "large_reservoir")])
-
-
 if __name__ == "__main__":
-    main()
+    if study == 'paper':
+        paper_case(output, cells, particles, dt, horizon, seed, drive_ratio,
+                   coupling, block_horizon, local_moments, initial_state)
+    elif study == 'pair':
+        pair_figure(output, full)
+    elif study == 'pair_dark':
+        pair_dark_figure(output, full)
+    elif study == 'paper_pilot':
+        paper_geometry_pilot(output)
+    elif study != 'mobile_ions':
+        raise ValueError('study must be mobile_ions, paper, pair, pair_dark or paper_pilot')
+    else:
+        presets = ((64, 4000, 0.04, 40), (128, 8000, 0.02, 40)) if full else (
+            (32, 1000, 0.08, 20),)
+        runs = [experiment(*preset) for preset in presets]
+        histories, settings = runs[-1]
+        t = histories["external"]["t"]
+        zero = histories["zero"]["mode"]
+        curves = ("t", "pump", "mean_E", "mode", "nonzero_energy", "cold_mean")
+        results = {"cases": {name: {key: value for key, value in record.items() if key not in curves}
+                             for name, record in histories.items()},
+                   "refinements": [{name: record["mean_error"] for name, record in cases.items()}
+                                   for cases, _ in runs],
+                   "claim": "bounded-time mobile-ion control; long SHARP reproduction unverified"}
+        results["finite_vs_external"] = {
+            name: {"pump_error_early_over_initial_force": float(np.max(np.abs(
+                        record["pump"][t <= 5] - histories["external"]["pump"][t <= 5]))),
+                   "pump_error_full_over_initial_force": float(np.max(np.abs(
+                        record["pump"] - histories["external"]["pump"]))),
+                   "initial_dark_over_initial_particle_energy": (
+                       record["initial_energy"][2] / record["initial_energy"][0]),
+                   "dark_depletion_fraction": (
+                       1 - record["final_energy"][2] / record["initial_energy"][2])}
+            for name, record in histories.items() if name.endswith("reservoir")}
+        with midnight():
+            fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout="constrained")
+            colors = {"zero": "#6B7280", "external": "#B03568",
+                      "small_reservoir": "#6A3D9A", "large_reservoir": "#0072B2"}
+            for name, record in histories.items():
+                color = colors[name]
+                if name != "zero":
+                    axes[0, 0].plot(t, record["pump"], color=color, label=name.replace("_", " "))
+                axes[0, 1].plot(t, record["mean_E"], color=color, label=name.replace("_", " "))
+                axes[1, 0].semilogy(t, record["mode"] / max(zero[0], 1e-30), color=color)
+            axes[1, 1].bar(range(len(histories)),
+                           [record["local_random_final"] / record["local_random_initial"]
+                            for record in histories.values()], color=list(colors.values()))
+            axes[0, 1].plot(t, histories["small_reservoir"]["cold_mean"], "--", color="#202124",
+                            lw=1, label="small reservoir cold oracle")
+            axes[0, 0].set(xlabel=r"$\omega_p t$", ylabel="effective pump / F",
+                           title="An imposed haunting versus finite reservoirs")
+            axes[0, 1].set(xlabel=r"$\omega_p t$", ylabel="mean ordinary E / initial force",
+                           title="Mobile-ion mean response")
+            axes[1, 0].set(xlabel=r"$\omega_p t$", ylabel="seeded $|E_{x,k}|$ / initial",
+                           title="Nonzero-k mode; no growth claim")
+            axes[1, 1].set(ylabel="local random kinetic / initial",
+                           title="Final one-cell thermal measure")
+            axes[1, 1].set_xticks(range(len(histories)),
+                                  [name.replace("_", "\n") for name in histories], fontsize="small")
+            axes[1, 1].set_ylim(0.98, 1.01)
+            for ax in axes.flat:
+                ax.grid(alpha=0.35)
+            axes[0, 0].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize="small")
+            axes[0, 1].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize="small")
+            settings = {**settings, "preset": "full" if full else "quick",
+                        "refinements": [setting.copy() for _, setting in runs]}
+            save_run(output, "dark_reservoir", settings, results, fig, t=t,
+                     **{f"{name}_{key}": record[key] for name, record in histories.items()
+                        for key in ("pump", "mean_E", "mode", "cold_mean")})
+            plt.close(fig)
+        print("🦇 MOBILE IONS: mean-oracle errors", results["refinements"],
+              "; finite-reservoir energy balances",
+              [results["cases"][name]["balance_over_scale"]
+               for name in ("small_reservoir", "large_reservoir")])

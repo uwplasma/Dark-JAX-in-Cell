@@ -1,6 +1,5 @@
 """Measure parent, configured zero-coupling, and active Proca on matched PIC work."""
 
-import argparse
 import json
 import os
 import platform
@@ -19,8 +18,18 @@ from darkjaxincell import DarkField, DarkSimulation
 
 
 ROOT = Path(__file__).resolve().parents[2]
-OUTPUT = ROOT / "docs" / "_static" / "figures" / "field_cost.json"
-STORAGE_OUTPUT = ROOT / "docs" / "_static" / "figures" / "storage_cost.json"
+OUTPUT = Path("artifacts/field_cost/field_cost.json")
+STORAGE_OUTPUT = Path("artifacts/field_cost/storage_cost.json")
+
+# Edit inputs here; runpy.run_path(..., run_name="__main__", init_globals={...}) overrides them for batches.
+case = globals().get("case", "parent")
+all_cases = globals().get("all_cases", False)
+storage = globals().get("storage", None)
+storage_all = globals().get("storage_all", False)
+particles = globals().get("particles", 128)
+steps = globals().get("steps", 16)
+stride = globals().get("stride", 4)
+output = Path(globals().get("output", OUTPUT))
 
 
 def measure(case, particles, steps):
@@ -44,6 +53,7 @@ def measure(case, particles, steps):
         final_E.block_until_ready()
         return float(jnp.sum(final_E[-1] ** 2))
 
+    print(f"Compiling {case}: {particles} particles, {steps} steps", file=sys.stderr, flush=True)
     start = perf_counter()
     checksum = run()
     first = perf_counter() - start
@@ -52,6 +62,8 @@ def measure(case, particles, steps):
         start = perf_counter()
         checksum = run()
         samples.append(perf_counter() - start)
+        print(f"{case}: warm execution {len(samples)} finished in {samples[-1]:.3f} s",
+              file=sys.stderr, flush=True)
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return {"case": case, "first_call_s": first, "warm_s": samples,
             "warm_median_s": median(samples), "peak_rss_bytes": int(
@@ -83,6 +95,7 @@ def measure_storage(case, particles, steps, stride):
                 values.block_until_ready()
         return float(final), float(maximum)
 
+    print(f"Compiling {case} storage: {particles} particles, {steps} steps", file=sys.stderr, flush=True)
     start = perf_counter()
     final, maximum = run()
     first = perf_counter() - start
@@ -91,6 +104,8 @@ def measure_storage(case, particles, steps, stride):
         start = perf_counter()
         final, maximum = run()
         samples.append(perf_counter() - start)
+        print(f"{case}: warm execution {len(samples)} finished in {samples[-1]:.3f} s",
+              file=sys.stderr, flush=True)
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return {"case": case, "first_call_s": first, "warm_s": samples,
             "warm_median_s": median(samples), "peak_rss_bytes": int(
@@ -99,61 +114,42 @@ def measure_storage(case, particles, steps, stride):
             "all_step_max_balance_J_m2": maximum}
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Count the ghost's matched field-step bill")
-    parser.add_argument("--case", choices=("parent", "eta_zero", "active"))
-    parser.add_argument("--all", action="store_true")
-    parser.add_argument("--storage", choices=("sparse", "full"))
-    parser.add_argument("--storage-all", action="store_true")
-    parser.add_argument("--particles", type=int, default=8192)
-    parser.add_argument("--steps", type=int, default=256)
-    parser.add_argument("--stride", type=int, default=8)
-    parser.add_argument("--output", type=Path, default=OUTPUT)
-    args = parser.parse_args()
-    if args.storage:
-        print(json.dumps(measure_storage(args.storage, args.particles, args.steps, args.stride)))
-        return
-    if args.storage_all:
-        rows = [json.loads(subprocess.check_output(
-            [sys.executable, str(Path(__file__).resolve()), "--storage", case,
-             "--particles", str(args.particles), "--steps", str(args.steps),
-             "--stride", str(args.stride)], cwd=ROOT, text=True))
-            for case in ("sparse", "full")]
-        record = {"settings": {"cells": 128, "particles": args.particles,
-                               "steps": args.steps, "store_every": args.stride,
+def isolated(inputs):
+    """Keep each timing row in a fresh process, with editable-input overrides."""
+    command = (f"import runpy; runpy.run_path({str(Path(__file__).resolve())!r}, "
+               f"run_name='__main__', init_globals={inputs!r})")
+    return json.loads(subprocess.check_output([sys.executable, "-c", command], cwd=ROOT, text=True))
+
+
+if __name__ == "__main__":
+    if min(particles, steps, stride) < 1 or ((storage or storage_all) and steps % stride):
+        raise ValueError("positive particles/steps/stride and steps divisible by stride are required")
+    if case not in (None, "parent", "eta_zero", "active") or storage not in (None, "sparse", "full"):
+        raise ValueError("choose parent/eta_zero/active or sparse/full storage")
+    print("Starting matched field/storage cost benchmark", file=sys.stderr, flush=True)
+    if storage:
+        print(json.dumps(measure_storage(storage, particles, steps, stride)))
+    elif storage_all or all_cases:
+        names = ("sparse", "full") if storage_all else ("parent", "eta_zero", "active")
+        rows = [isolated(dict(storage=name, particles=particles, steps=steps, stride=stride)
+                         if storage_all else dict(case=name, particles=particles, steps=steps)) for name in names]
+        record = {"settings": {"cells": 128, "particles": particles, "steps": steps,
                                "precision": "float64", "backend": jax.default_backend(),
                                "jax": jax.__version__, "platform": platform.platform(),
                                "python": platform.python_version(),
                                "git": subprocess.check_output(["git", "rev-parse", "HEAD"],
                                                               cwd=ROOT, text=True).strip(),
-                               "samples_per_case": 3,
-                               "note": "fresh process per case; final total and all-step balance consumed"},
-                  "rows": rows}
-        path = args.output if args.output != OUTPUT else STORAGE_OUTPUT
+                               "samples_per_case": 3 if storage_all else 5,
+                               "note": "fresh process per case; first call includes compile"}, "rows": rows}
+        if storage_all:
+            record["settings"].update(store_every=stride,
+                                      note="fresh process per case; final total and all-step balance consumed")
+        path = STORAGE_OUTPUT if storage_all and output == OUTPUT else output
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(record, indent=2) + "\n")
-        print(f"wrote {path}")
-        return
-    if args.case:
-        print(json.dumps(measure(args.case, args.particles, args.steps)))
-        return
-    if not args.all:
-        parser.error("choose --all or --case")
-    rows = [json.loads(subprocess.check_output(
-        [sys.executable, str(Path(__file__).resolve()), "--case", case,
-         "--particles", str(args.particles), "--steps", str(args.steps)],
-        cwd=ROOT, text=True)) for case in ("parent", "eta_zero", "active")]
-    record = {"settings": {"cells": 128, "particles": args.particles, "steps": args.steps,
-                           "precision": "float64", "backend": jax.default_backend(),
-                           "jax": jax.__version__, "platform": platform.platform(),
-                           "python": platform.python_version(),
-                           "git": subprocess.check_output(["git", "rev-parse", "HEAD"],
-                                                          cwd=ROOT, text=True).strip(),
-                           "samples_per_case": 5,
-                           "note": "fresh process per case; first call includes compile"},
-              "rows": rows}
-    args.output.write_text(json.dumps(record, indent=2) + "\n")
-    print(f"wrote {args.output}")
-
-
-if __name__ == "__main__":
-    main()
+        print(f"wrote {path}", file=sys.stderr, flush=True)
+    elif case:
+        print(json.dumps(measure(case, particles, steps)))
+    else:
+        raise ValueError("choose a case or set all_cases/storage_all")
+    print("Finished matched field/storage cost benchmark", file=sys.stderr, flush=True)

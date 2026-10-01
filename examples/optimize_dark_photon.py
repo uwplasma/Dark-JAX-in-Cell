@@ -1,11 +1,11 @@
 """Find the cold ghost's best density with a known independent answer.
 
 The reduced objective calls the production PIC transition; it stores a scalar,
-not a particle history. ``--quick`` is only a short smoke preset. ``--full``
-uses the fixed physical window in the reference problem.
+not a particle history. The default is a short smoke preset; ``full=True``
+uses the fixed [45,75] reference window with 16 cells and 64 particles.
+Edit the inputs below or pass them through ``runpy.run_path``.
 """
 
-import argparse
 import math
 from pathlib import Path
 from time import perf_counter
@@ -23,6 +23,19 @@ from scipy.optimize import minimize, minimize_scalar
 from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
                        epsilon_0, mass_electron, speed_of_light as c, save_run)
 from darkjaxincell import DarkField, DarkSimulation, midnight
+
+
+# Inputs: full=True selects the fixed physical calibration window.
+full = globals().get('full', False)
+output = Path(globals().get('output', 'artifacts/optimize_dark_photon'))
+cells = globals().get('cells', 16 if full else 8)
+particles = globals().get('particles', 64 if full else 32)
+start = globals().get('start', 45.0 if full else 5.0)
+stop = globals().get('stop', 75.0 if full else 12.0)
+recurrence = globals().get('recurrence', 'scan')
+checkpoint_size = globals().get('checkpoint_size', 32)
+courant = globals().get('courant', 0.2)
+refined_courant = globals().get('refined_courant', courant / 2)
 
 
 def cold_reference(p, start, stop, eta=0.05, nodes=128):
@@ -107,17 +120,13 @@ def build_objective(cells, particles, start, stop, recurrence="scan", checkpoint
     return jax.jit(objective), jax.jit(jax.value_and_grad(objective)), steps
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Calibrate the ghost's density")
-    preset = parser.add_mutually_exclusive_group()
-    preset.add_argument("--quick", action="store_true", help="short smoke preset")
-    preset.add_argument("--full", action="store_true", help="fixed [45,75] validation window")
-    parser.add_argument("--output", type=Path, default=Path("artifacts/optimize_dark_photon"))
-    args = parser.parse_args()
-    quick = not args.full
-    start, stop = (5.0, 12.0) if quick else (45.0, 75.0)
-    cells, particles = (8, 32) if quick else (16, 64)
-    objective, value_grad, steps = build_objective(cells, particles, start, stop)
+if __name__ == "__main__":
+    if not np.isfinite([start, stop]).all() or start < 0 or stop <= start:
+        raise ValueError('the objective window must be finite with 0 <= start < stop')
+    quick = not full
+    objective, value_grad, steps = build_objective(
+        cells, particles, start, stop, recurrence, checkpoint_size, courant)
+    print(f"🦇 Compiling {steps} steps and their density gradient", flush=True)
     compile_start = perf_counter()
     objective(1.0).block_until_ready()
     primal_compile = perf_counter() - compile_start
@@ -125,6 +134,7 @@ def main():
     value_grad(1.0)[0].block_until_ready()
     gradient_compile = perf_counter() - compile_start
     samples = np.linspace(0.5, 1.5, 101)
+    print("🦇 Scanning the density objective and independent cold reference", flush=True)
     start_time = perf_counter()
     values = np.array([float(objective(p)) for p in samples])
     scan_time = perf_counter() - start_time
@@ -136,6 +146,7 @@ def main():
 
     trials = []
     for initial in (0.75, 1.0, 1.25):
+        print(f"🦇 Gradient optimization from density {initial:g}", flush=True)
         trace = []
 
         def loss(x):
@@ -156,7 +167,9 @@ def main():
     cold_value, cold_gradient = cold_reference(p_test, start, stop)
     refined = None
     if not quick:
-        refined_objective, refined_value_grad, _ = build_objective(cells, particles, start, stop, courant=0.1)
+        print("🦇 Checking the finer timestep", flush=True)
+        refined_objective, refined_value_grad, _ = build_objective(
+            cells, particles, start, stop, recurrence, checkpoint_size, refined_courant)
         refined_opt = minimize_scalar(lambda p: -float(refined_objective(p)),
                                       bounds=(0.98, 1.02), method="bounded",
                                       options={"xatol": 1e-10})
@@ -181,6 +194,8 @@ def main():
             ax.grid(alpha=0.4)
         settings = {"preset": "quick" if quick else "full", "window": [start, stop],
                     "steps": steps, "cells": cells, "particles": particles,
+                    "recurrence": recurrence, "checkpoint_size": checkpoint_size, "courant": courant,
+                    "refined_courant": refined_courant if full else None,
                     "eta": 0.05, "omega0_rad_s": 1e9, "dark_E0_V_m": 1e-5}
         results = {"pic_best_p": best["p"], "pic_best_objective": best["objective"],
                    "pic_scan_best_p": float(samples[int(np.argmax(values))]),
@@ -190,14 +205,10 @@ def main():
                    "cold_objective_at_0p97": cold_value, "gradient_fd_min_error": float(min(abs(finite - ad_gradient))),
                    "primal_compile_s": primal_compile, "gradient_compile_s": gradient_compile,
                    "scan_101_s": scan_time, "trials": trials}
-        save_run(args.output, "optimize_dark_photon", settings, results, fig,
+        save_run(output, "optimize_dark_photon", settings, results, fig,
                  p=samples, pic_objective=values, cold_objective=reference,
                  fd_h=h, fd_gradient=finite)
         plt.close(fig)
     print(f"🦇 {'SMOKE' if quick else 'CALIBRATION'}: PIC p={best['p']:.7f}, "
           f"cold p={reference_opt.x:.7f}; PIC C={best['objective']:.6f}, "
           f"cold C={-reference_opt.fun:.6f}")
-
-
-if __name__ == "__main__":
-    main()

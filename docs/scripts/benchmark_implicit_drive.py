@@ -8,7 +8,6 @@ additionally needs the orbit/field iteration to converge. This is a prescribed
 external force, with work supplied externally, not implicit Proca evolution.
 """
 
-import argparse
 from functools import partial
 import hashlib
 import json
@@ -44,6 +43,26 @@ from docs.scripts.drive_reference import homogeneous  # noqa: E402
 WP, MASS_RATIO = 1e9, 1836.
 N = epsilon_0 * m * WP**2 / e**2
 FIELD = m * c * WP / e
+
+# Editable inputs also accept runpy.run_path(..., init_globals={...}) batch overrides.
+# Full Gaussian studies explicitly set cells=1000, particles=103000 and their required horizon.
+cells = globals().get("cells", 8)
+nodes = globals().get("nodes", 4)
+rings = globals().get("rings", 1)
+dt = globals().get("dt", .04)
+iterations = globals().get("iterations", 8)
+substeps = globals().get("substeps", 2)
+horizon = globals().get("horizon", 8.)
+amplitude = globals().get("amplitude", .03 * np.sqrt(.001))
+temperature = globals().get("temperature", .001)
+samples = globals().get("samples", 1)
+gradient_horizon = globals().get("gradient_horizon", 0.)
+newtonian = globals().get("newtonian", False)
+paper_loading = globals().get("paper_loading", False)
+particles = globals().get("particles", 64)
+initial_state = globals().get("initial_state", None)
+audit_state = globals().get("audit_state", None)
+output = Path(globals().get("output", "artifacts/implicit_drive"))
 
 
 def drive_state(plasma, ordinary):
@@ -501,50 +520,32 @@ def benchmark(args):
     print(json.dumps(result, indent=2))
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cells", type=int, help="grid cells (default: 32, or 1000 with --paper-loading)")
-    parser.add_argument("--nodes", type=int, default=32)
-    parser.add_argument("--rings", type=int, default=1)
-    parser.add_argument("--dt", type=float, default=.02)
-    parser.add_argument("--iterations", type=int, default=8)
-    parser.add_argument("--substeps", type=int, default=2, help="particle substeps per field step with --paper-loading")
-    parser.add_argument("--horizon", type=float, default=80.)
-    parser.add_argument("--amplitude", type=float, default=.03 * np.sqrt(.001))
-    parser.add_argument("--temperature", type=float, default=.001)
-    parser.add_argument("--samples", type=int, default=3)
-    parser.add_argument("--gradient-horizon", type=float, default=0.)
-    parser.add_argument("--newtonian", action="store_true")
-    parser.add_argument("--paper-loading", action="store_true", help="reuse the paper example's Gaussian plasma")
-    parser.add_argument("--particles", type=int, default=103000, help="markers per species with --paper-loading")
-    parser.add_argument("--initial-state", type=Path, help="reuse a complete zero-time, zero-work native archive")
-    parser.add_argument("--audit-state", type=Path, help="probe one archived 1V step against independent orbits")
-    parser.add_argument("--output", type=Path, default=Path("artifacts/implicit_drive"))
-    args = parser.parse_args()
-    args.cells = args.cells if args.cells is not None else (1000 if args.paper_loading else 32)
-    finite = np.all(np.isfinite([args.dt, args.horizon, args.amplitude, args.temperature, args.gradient_horizon]))
-    if (not finite or min(args.cells, args.nodes, args.rings, args.iterations, args.samples, args.substeps) < 1
-            or args.dt <= 0 or args.dt > args.horizon
-            or args.horizon < 2 * np.pi or args.temperature < 0 or args.gradient_horizon < 0
-            or (args.gradient_horizon and args.gradient_horizon < args.dt)):
-        parser.error("positive resolution/time controls, nonnegative temperature and horizon >= 2π required")
-    if args.paper_loading and (args.cells < 4 or args.particles < 2 or args.newtonian
-                               or args.temperature != .001 or args.gradient_horizon):
-        parser.error("paper loading requires cells >= 4, particles >= 2, relativistic T=0.001 and no gradient study")
-    if not args.paper_loading and args.substeps != 2:
-        parser.error("changing particle substeps requires --paper-loading")
-    if (not args.paper_loading and not args.newtonian
-            and 2 * args.temperature * max(abs(hermgauss(args.nodes)[0]))**2 >= 1 - 1e-5):
-        parser.error("quadrature velocities exceed the parent's relativistic input margin")
-    if args.newtonian and args.gradient_horizon:
-        parser.error("gradient prototype uses the relativistic solver")
+if __name__ == "__main__":
+    args = SimpleNamespace(**{key: globals()[key] for key in (
+        "cells", "nodes", "rings", "dt", "iterations", "substeps", "horizon", "amplitude", "temperature",
+        "samples", "gradient_horizon", "newtonian", "paper_loading", "particles", "output")},
+        initial_state=Path(initial_state) if initial_state is not None else None,
+        audit_state=Path(audit_state) if audit_state is not None else None)
+    finite = np.all(np.isfinite([dt, horizon, amplitude, temperature, gradient_horizon]))
+    counts = (cells, nodes, rings, iterations, samples, substeps, particles)
+    if (not finite or not all(isinstance(value, (int, np.integer)) for value in counts) or min(counts) < 1
+            or dt <= 0 or dt > horizon or horizon < 2 * np.pi or temperature < 0 or gradient_horizon < 0
+            or (gradient_horizon and gradient_horizon < dt)):
+        raise ValueError("positive integer counts/time controls, nonnegative temperature and horizon >= 2π required")
+    if paper_loading and (cells < 4 or particles < 2 or newtonian or temperature != .001 or gradient_horizon):
+        raise ValueError("paper loading requires cells >= 4, particles >= 2, relativistic T=0.001 "
+                         "and no gradient study")
+    if not paper_loading and substeps != 2:
+        raise ValueError("changing particle substeps requires paper_loading=True")
+    if not paper_loading and not newtonian and 2 * temperature * max(abs(hermgauss(nodes)[0]))**2 >= 1 - 1e-5:
+        raise ValueError("quadrature velocities exceed the parent's relativistic input margin")
+    if newtonian and gradient_horizon:
+        raise ValueError("gradient prototype uses the relativistic solver")
+    print(f"Starting implicit drive benchmark: {cells} cells, dtωₚ={dt:g}, horizon={horizon:g}", flush=True)
     if args.audit_state is not None:
-        if args.newtonian or args.gradient_horizon:
-            parser.error('orbit audit requires relativistic dynamics without a gradient study')
+        if newtonian or gradient_horizon:
+            raise ValueError("orbit audit requires relativistic dynamics without a gradient study")
         audit_orbits(args)
     else:
         benchmark(args)
-
-
-if __name__ == "__main__":
-    main()
+    print(f"Finished implicit drive benchmark; wrote {output}", flush=True)

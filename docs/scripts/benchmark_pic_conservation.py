@@ -4,7 +4,6 @@ The ordinary implicit rows call the pinned parent's discrete-gradient method.
 The Proca row is explicit; a vacuum midpoint clock is not an implicit dark PIC.
 """
 
-import argparse
 import hashlib
 import json
 import os
@@ -34,6 +33,20 @@ from examples.dark_kinetic import longitudinal_root  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 WP = 1e9
+METHODS = ("explicit", "implicit1", "implicit2", "implicit4", "implicit8", "implicit12", "proca")
+
+# Editable inputs also accept runpy.run_path(..., init_globals={...}) batch overrides.
+full = globals().get("full", False)
+case = globals().get("case", None if full else "explicit")
+overhead_case = globals().get("overhead_case", None)
+compare_overhead = globals().get("compare_overhead", False)
+render_only = globals().get("render_only", False)
+cells = globals().get("cells", 128 if full else 16)
+particles = globals().get("particles", 8192 if full else 64)
+dt = globals().get("dt", .002 if full else .01)
+horizon = globals().get("horizon", 40. if full else 16.)
+samples = globals().get("samples", 1)
+output = Path(globals().get("output", "artifacts/pic_conservation"))
 
 
 def fit_mode(t, mode, window=(8., 16.)):
@@ -88,6 +101,7 @@ def measure(case, cells, particles, dtau, horizon, samples):
     start = perf_counter()
     executable = measured_run.lower(sim, initial, steps, stride).compile()
     compile_seconds = perf_counter() - start
+    print(f"Compiled {case} in {compile_seconds:.3f} s", file=sys.stderr, flush=True)
     start = perf_counter()
     final, history, maxima = executable(sim, initial)
     jax.block_until_ready((final, history, maxima))
@@ -98,6 +112,7 @@ def measure(case, cells, particles, dtau, horizon, samples):
         final, history, maxima = executable(sim, initial)
         jax.block_until_ready((final, history, maxima))
         warm.append(perf_counter() - start)
+        print(f"{case}: warm execution {len(warm)}/{samples} in {warm[-1]:.3f} s", file=sys.stderr, flush=True)
     history = jax.tree.map(np.asarray, history)
     scale = p.species[0].density * 2 * m * c**2 * p.domain.length
     charge_scale = 2 * e * p.species[0].density * p.domain.length
@@ -226,12 +241,15 @@ def overhead(case, cells, particles, dtau, samples):
     executable = (production.lower(sim, initial).compile() if case == "production"
                   else measured_run.lower(sim, initial, 256, 8).compile())
     compile_seconds = perf_counter() - start
+    print(f"Compiled {case} in {compile_seconds:.3f} s", file=sys.stderr, flush=True)
     timings = []
     for _ in range(samples + 1):
         start = perf_counter()
         output = executable(sim, initial)
         jax.block_until_ready(output)
         timings.append(perf_counter() - start)
+        print(f"{case}: execution {len(timings)}/{samples + 1} in {timings[-1]:.3f} s",
+              file=sys.stderr, flush=True)
     if case == "production":
         final, balance_error = output.energy()["total_with_dark"][-1], output.state.max_balance_error
     else:
@@ -246,75 +264,63 @@ def overhead(case, cells, particles, dtau, samples):
                 backend=jax.default_backend(), jax=jax.__version__, host_load=os.getloadavg())
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    methods = ("explicit", "implicit1", "implicit2", "implicit4", "implicit8", "implicit12", "proca")
-    parser.add_argument("--case", choices=methods)
-    parser.add_argument("--overhead-case", choices=("production", "reduced"))
-    parser.add_argument("--overhead", action="store_true")
-    parser.add_argument("--render", action="store_true", help="refit and plot saved scalar arrays; no simulation")
-    parser.add_argument("--full", action="store_true")
-    parser.add_argument("--cells", type=int)
-    parser.add_argument("--particles", type=int)
-    parser.add_argument("--dt", type=float, default=.002)
-    parser.add_argument("--horizon", type=float)
-    parser.add_argument("--samples", type=int, default=3)
-    parser.add_argument("--output", type=Path, default=Path("artifacts/pic_conservation"))
-    args = parser.parse_args()
-    if args.render:
-        reanalyse(args.output)
-        return
-    cells = args.cells if args.cells is not None else (128 if args.full else 64)
-    particles = args.particles if args.particles is not None else (8192 if args.full else 1024)
-    horizon = args.horizon if args.horizon is not None else (40 if args.full else 20)
-    if min(cells, particles, args.samples) < 1 or args.dt <= 0 or horizon < 16:
-        parser.error("positive resolution/time step/samples and horizon >= 16 are required")
-    if args.overhead_case:
-        print(json.dumps(overhead(args.overhead_case, cells, particles, args.dt, args.samples)))
-        return
-    if args.overhead:
-        rows = [json.loads(subprocess.check_output(
-            [sys.executable, str(Path(__file__).resolve()), "--overhead-case", case,
-             "--cells", str(cells), "--particles", str(particles), "--dt", str(args.dt),
-             "--samples", str(args.samples)], text=True, cwd=ROOT)) for case in ("production", "reduced")]
-        scale = abs(rows[0]["final_energy_J_m2"])
-        for key in ("final_energy_J_m2", "all_step_balance_J_m2"):
-            np.testing.assert_allclose(rows[0][key], rows[1][key], rtol=1e-13, atol=1e-14 * scale)
-        args.output.mkdir(parents=True, exist_ok=True)
-        revision = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, cwd=ROOT).strip()
-        record = dict(source_revision=revision,
-                      source_status=subprocess.check_output(["git", "describe", "--always", "--dirty"],
-                                                            text=True, cwd=ROOT).strip(),
-                      parent_revision="83d327118163833f93e2588edcb5029241f6ba2a", rows=rows)
-        (args.output / "overhead.json").write_text(json.dumps(record, indent=2) + "\n")
-        print(json.dumps(rows, indent=2))
-        return
-    if args.case:
-        row, data = measure(args.case, cells, particles, args.dt, horizon, args.samples)
-        print(json.dumps(dict(row=row, data=data)))
-        return
-    rows, histories = [], []
-    cases = [(case, args.dt, cells) for case in methods]
-    if args.full:
-        cases += [(case, args.dt / 2, cells) for case in ("explicit", "implicit8", "proca")]
-        cases += [("proca", args.dt, cells * 2)]
-        cases += [("implicit8", .02, cells)]
-    for case, dtau, grid in cases:
-        print(f"measuring {case}, {grid} cells, Δtωₚ={dtau:g}", flush=True)
-        output = subprocess.check_output([sys.executable, str(Path(__file__).resolve()), "--case", case,
-                                          "--cells", str(grid), "--particles", str(particles), "--dt", str(dtau),
-                                          "--horizon", str(horizon), "--samples", str(args.samples)],
-                                         text=True, cwd=ROOT)
-        result = json.loads(output)
-        rows.append(result["row"])
-        histories.append(result["data"])
-    render(args.output, dict(preset="full" if args.full else "quick", particles_per_species=particles,
-                             thermal_sigma_over_c=.003, electron_drift_over_c=.05, mass_ratio=1836,
-                             ku_over_omega_p=.5, perturbation_density_fraction=1e-4,
-                             parent_revision="83d327118163833f93e2588edcb5029241f6ba2a",
-                             samples_per_case=args.samples, precision="float64", note="fresh process per row"),
-           rows, histories)
+def isolated(inputs):
+    """Keep compiler/runtime memory and timings in a fresh process per row."""
+    command = (f"import runpy; runpy.run_path({str(Path(__file__).resolve())!r}, "
+               f"run_name='__main__', init_globals={inputs!r})")
+    return json.loads(subprocess.check_output([sys.executable, "-c", command], text=True, cwd=ROOT))
+
+
+def validate_inputs():
+    """Reject invalid edited resolutions and method names before compilation."""
+    if (min(cells, particles, samples) < 1 or not np.isfinite(dt) or dt <= 0
+            or not np.isfinite(horizon) or horizon < 16):
+        raise ValueError("positive resolution/time step/samples and horizon >= 16 are required")
+    if case not in (None, *METHODS) or overhead_case not in (None, "production", "reduced"):
+        raise ValueError("unknown method or overhead case")
 
 
 if __name__ == "__main__":
-    main()
+    print("Starting coupled PIC method benchmark", file=sys.stderr, flush=True)
+    if render_only:
+        reanalyse(output)
+    else:
+        validate_inputs()
+        if overhead_case:
+            print(json.dumps(overhead(overhead_case, cells, particles, dt, samples)))
+        elif compare_overhead:
+            rows = [isolated(dict(overhead_case=name, cells=cells, particles=particles, dt=dt, samples=samples))
+                    for name in ("production", "reduced")]
+            scale = abs(rows[0]["final_energy_J_m2"])
+            for key in ("final_energy_J_m2", "all_step_balance_J_m2"):
+                np.testing.assert_allclose(rows[0][key], rows[1][key], rtol=1e-13, atol=1e-14 * scale)
+            output.mkdir(parents=True, exist_ok=True)
+            revision = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, cwd=ROOT).strip()
+            record = dict(source_revision=revision,
+                          source_status=subprocess.check_output(["git", "describe", "--always", "--dirty"],
+                                                                text=True, cwd=ROOT).strip(),
+                          parent_revision="83d327118163833f93e2588edcb5029241f6ba2a", rows=rows)
+            (output / "overhead.json").write_text(json.dumps(record, indent=2) + "\n")
+            print(json.dumps(rows, indent=2))
+        elif case:
+            row, data = measure(case, cells, particles, dt, horizon, samples)
+            print(json.dumps(dict(row=row, data=data)))
+        else:
+            rows, histories = [], []
+            cases = [(name, dt, cells) for name in METHODS]
+            if full:
+                cases += [(name, dt / 2, cells) for name in ("explicit", "implicit8", "proca")]
+                cases += [("proca", dt, cells * 2), ("implicit8", .02, cells)]
+            for name, dtau, grid in cases:
+                print(f"Measuring {name}, {grid} cells, Δtωₚ={dtau:g}", file=sys.stderr, flush=True)
+                result = isolated(dict(case=name, cells=grid, particles=particles, dt=dtau,
+                                       horizon=horizon, samples=samples))
+                rows.append(result["row"])
+                histories.append(result["data"])
+            render(output, dict(preset="full" if full else "quick", particles_per_species=particles,
+                                thermal_sigma_over_c=.003, electron_drift_over_c=.05, mass_ratio=1836,
+                                ku_over_omega_p=.5, perturbation_density_fraction=1e-4,
+                                parent_revision="83d327118163833f93e2588edcb5029241f6ba2a",
+                                samples_per_case=samples, precision="float64", note="fresh process per row"),
+                   rows, histories)
+    print("Finished coupled PIC method benchmark", file=sys.stderr, flush=True)

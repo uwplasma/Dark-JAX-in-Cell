@@ -10,7 +10,8 @@ from jax import lax, random
 from jaxincell import Simulation, energies, epsilon_0, speed_of_light as c
 from jaxincell._config import pytree_dataclass
 from jaxincell._core import E_x_from_rho, curl_E, wrap_positions
-from jaxincell._simulation import Output
+from jaxincell._progress import reporter
+from jaxincell._simulation import Output, _groups, _join
 
 from ._proca import divergence, drift, energy, gauss, kick
 
@@ -332,12 +333,29 @@ class DarkSimulation:
             max_dark_gauss=jnp.maximum(state.max_dark_gauss, dark_gauss))
         return next_state, (x_next, v_new, o.w, E, B, (J1 + J2) / 2, rho_next, kinetic)
 
-    def run(self, steps, seed=0, store_every=1, store_particles=True, state=None):
-        """Run the same discrete transition with sparse parent and dark histories."""
+    def run(self, steps, seed=0, store_every=1, store_particles=True, state=None, verbose=False):
+        """Run sparse histories; ``verbose`` uses the parent's host progress meter.
+
+        Progress groups share the complete state and turn off under JAX tracing,
+        leaving differentiated runs silent and the default path a single scan.
+        """
         if steps < 1 or store_every < 1 or steps % store_every:
             raise ValueError("steps must be positive and divisible by store_every")
         carry, extra = self.initial_state(random.PRNGKey(seed)) if state is None else (state, self.plasma.per_particle)
-        carry, history = _advance(self, carry, extra, steps // store_every, store_every, store_particles)
+        traced = any(isinstance(leaf, jax.core.Tracer) for leaf in jax.tree.leaves((self, state, seed)))
+        meter = None if traced else reporter(verbose, steps)
+        histories, done = [], 0
+        try:
+            for count in _groups(steps // store_every, meter):
+                carry, history = _advance(self, carry, extra, count, store_every, store_particles)
+                histories.append(history)
+                if meter is not None:
+                    jax.block_until_ready(carry.ordinary.E)
+                    done += count * store_every
+                    meter(done, steps)
+        finally:
+            getattr(meter, "close", lambda: None)()
+        history = _join(histories)
         x, v, w, E, B, J, rho, kinetic, wall, t, n, sigma, E_D, B_D, A, phi, work = history
         d, (m, q) = self.plasma.domain, extra
         ordinary = Output(t=t, steps=n, sigma=sigma, x=x, v=v, E=E, B=B, J=J, rho=rho,

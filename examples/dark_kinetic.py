@@ -4,7 +4,6 @@ The full preset is a seeded kinetic measurement. The quick preset only checks
 that the configuration runs; its noise floor is too high for a damping fit.
 """
 
-import argparse
 from pathlib import Path
 
 import jax.numpy as jnp
@@ -21,6 +20,18 @@ from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
                        speed_of_light as c)
 from jaxincell.theory import damped_mode, electrostatic_epsilon
 from darkjaxincell import DarkField, DarkSimulation, midnight
+
+
+# Physical holds density, thermal speed and mass fixed under grid refinement.
+full = globals().get("full", False)
+physical = globals().get("physical", False)
+output = Path(globals().get("output", "artifacts/dark_kinetic"))
+cells = globals().get("cells", 32 if physical else 64)
+particles = globals().get("particles", (80000 if physical else 150000) if full else 20000)
+steps = globals().get("steps", (3000 if physical else 1200) if full
+                      else (500 if physical else 300))
+length = globals().get("length", 1.0)
+eta = globals().get("eta", 0.3)
 
 
 def longitudinal_root(k, populations, omega_dark, eta, guess, model="full"):
@@ -77,27 +88,9 @@ def fixed_window_mode(time, amplitude, window=(2.0, 12.0)):
     return regression.slope, frequency, peaks, regression.stderr, frequency_se
 
 
-def main():
-    parser = argparse.ArgumentParser(description="A mixed kinetic mode in the crypt")
-    parser.add_argument("--full", action="store_true", help="150k-particle kinetic fit")
-    parser.add_argument("--physical", action="store_true",
-                        help="small thermal speed with fixed physical scales under refinement")
-    parser.add_argument("--cells", type=int, help="grid cells (physical preset only)")
-    parser.add_argument("--particles", type=int, help="electron markers (physical preset only)")
-    parser.add_argument("--steps", type=int, help="field steps (physical preset only)")
-    parser.add_argument("--output", type=Path, default=Path("artifacts/dark_kinetic"))
-    args = parser.parse_args()
-    if not args.physical and any(value is not None for value in
-                                 (args.cells, args.particles, args.steps)):
-        parser.error("resolution overrides require --physical")
-    length, eta = 1.0, 0.3
-    cells = (args.cells or 32) if args.physical else 64
-    particles = ((args.particles or 80000) if args.full else (args.particles or 20000)) \
-        if args.physical else (150000 if args.full else 20000)
-    steps = ((args.steps or 3000) if args.full else (args.steps or 500)) \
-        if args.physical else (1200 if args.full else 300)
+if __name__ == "__main__":
     k = 2 * np.pi / length
-    wp = (k * c / 10) if args.physical else (0.05 * c * cells / length)
+    wp = (k * c / 10) if physical else (0.05 * c * cells / length)
     density = wp**2 * epsilon_0 * mass_electron / e**2
     vth = 0.5 / k * np.sqrt(2) * wp  # k lambda_D = 0.5; parent vth = sqrt(2) sigma
     x, v = quiet_start(particles, length, vth=(vth, 0.0, 0.0))
@@ -106,13 +99,14 @@ def main():
     x = x.at[:, 0].add(0.01 / k * jnp.sin(k * x[:, 0]))
     electrons = Species.electrons(particles, density=density, vth=(vth, 0.0, 0.0)).replace(x=x, v=v)
     plasma = Simulation(Domain(length=length, cells=cells, dt_over_dx_c=0.5), (electrons,))
-    parent = plasma.run(steps, store_particles=False)
-    output = DarkSimulation(plasma, DarkField(wp, eta)).run(steps, store_particles=False)
-    time = np.asarray(output.ordinary.t) * wp
+    parent = plasma.run(steps, store_particles=False, verbose=True)
+    model = DarkField(k * c if physical else wp, eta)
+    mu = model.omega
+    result = DarkSimulation(plasma, model).run(steps, store_particles=False, verbose=True)
+    time = np.asarray(result.ordinary.t) * wp
     parent_amplitude = np.abs(np.fft.rfft(np.asarray(parent.E[:, :, 0]), axis=1)[:, 1]) / cells
-    amplitude = np.abs(np.fft.rfft(np.asarray(output.ordinary.E[:, :, 0]), axis=1)[:, 1]) / cells
-    dark_amplitude = np.abs(np.fft.rfft(np.asarray(output.E[:, :, 0]), axis=1)[:, 1]) / cells
-    mu = k * c if args.physical else wp
+    amplitude = np.abs(np.fft.rfft(np.asarray(result.ordinary.E[:, :, 0]), axis=1)[:, 1]) / cells
+    dark_amplitude = np.abs(np.fft.rfft(np.asarray(result.E[:, :, 0]), axis=1)[:, 1]) / cells
     analytic, residual = mixed_root(k * c / wp, vth / (np.sqrt(2) * c), eta, mu / wp)
     ordinary_root, ordinary_residual = mixed_root(k * c / wp, vth / (np.sqrt(2) * c), 0.0, mu / wp)
     populations = ({"wp": wp, "u": 0.0, "vth": float(vth)},)
@@ -131,14 +125,14 @@ def main():
                "maximum_initial_speed_over_c": max_speed_over_c,
                "fit_status": "smoke only"}
     peaks = np.array([], dtype=int)
-    total_energy = np.asarray(output.energy()["total_with_dark"])
+    total_energy = np.asarray(result.energy()["total_with_dark"])
     results["maximum_sampled_closed_energy_drift"] = float(
         np.max(np.abs(total_energy - total_energy[0])) / total_energy[0])
     results["maximum_all_step_balance_over_initial"] = float(
-        output.state.max_balance_error / (output.state.initial_ordinary
-                                          + output.state.initial_dark))
-    if args.full:
-        if args.physical:
+        result.state.max_balance_error / (result.state.initial_ordinary
+                                          + result.state.initial_dark))
+    if full:
+        if physical:
             gamma, frequency, peaks, slope_se, frequency_se = fixed_window_mode(time, amplitude)
             parent_gamma, parent_frequency, parent_peaks, _, _ = fixed_window_mode(
                 time, parent_amplitude)
@@ -163,7 +157,7 @@ def main():
                         "damping_relative_error": abs(gamma / analytic.imag - 1),
                         "damping_slope_stderr": slope_se,
                         "frequency_estimated_stderr": frequency_se,
-                        "linear_window_wp_t": [2.0, 12.0] if args.physical
+                        "linear_window_wp_t": [2.0, 12.0] if physical
                         else [time[peaks[0]], time[peaks[-1]]],
                         "fitted_maxima_interval_wp_t": [time[peaks[0]], time[peaks[-1]]],
                         "maxima_used": int(peaks.size), "late_mode_floor_V_m": floor})
@@ -175,7 +169,7 @@ def main():
                         "parent_damping_relative_error": abs(parent_gamma / ordinary_root.imag - 1)})
 
     with midnight():
-        if args.physical:
+        if physical:
             fig, (ax, energy_ax) = plt.subplots(1, 2, figsize=(11, 4.5),
                                                 layout="constrained")
         else:
@@ -196,13 +190,13 @@ def main():
                title="Matched loading: ordinary and mixed Landau modes")
         ax.grid(alpha=0.4)
         ax.legend(facecolor="#FFFFFF", edgecolor="#6B7280")
-        if args.physical:
+        if physical:
             energy_ax.plot(time, (total_energy - total_energy[0]) / total_energy[0])
             energy_ax.set(xlabel=r"$\omega_p t$", ylabel=r"$(U(t)-U(0))/U(0)$",
                           title="Complete particle + Maxwell + Proca energy")
             energy_ax.grid(alpha=0.4)
-        settings = {"preset": "physical-full" if args.physical and args.full else
-                    "physical-quick" if args.physical else "full" if args.full else "quick",
+        settings = {"preset": "physical-full" if physical and full else
+                    "physical-quick" if physical else "full" if full else "quick",
                     "cells": cells,
                     "particles": particles, "steps": steps, "length_m": length,
                     "omega_p_rad_s": wp, "eta": eta, "mu_over_wp": mu / wp,
@@ -210,24 +204,20 @@ def main():
                     "k_lambda_D": 0.5, "seed_displacement_over_1_k": 0.01,
                     "background": "uniform fixed neutralizer",
                     "comparison": "same species arrays, grid, timestep, seed and ordinary initial field"}
-        save_run(args.output, "dark_kinetic", settings, results, fig,
+        save_run(output, "dark_kinetic", settings, results, fig,
                  t=time, parent_amplitude=parent_amplitude,
                  ordinary_amplitude=amplitude, dark_amplitude=dark_amplitude,
                  parent_Ek=np.fft.rfft(np.asarray(parent.E[:, :, 0]), axis=1)[:, 1] / cells,
-                 ordinary_Ek=np.fft.rfft(np.asarray(output.ordinary.E[:, :, 0]), axis=1)[:, 1] / cells,
-                 dark_Ek=np.fft.rfft(np.asarray(output.E[:, :, 0]), axis=1)[:, 1] / cells,
-                 effective_Ek=(np.fft.rfft(np.asarray(output.ordinary.E[:, :, 0]), axis=1)[:, 1]
-                               + eta * np.fft.rfft(np.asarray(output.E[:, :, 0]), axis=1)[:, 1]) / cells,
+                 ordinary_Ek=np.fft.rfft(np.asarray(result.ordinary.E[:, :, 0]), axis=1)[:, 1] / cells,
+                 dark_Ek=np.fft.rfft(np.asarray(result.E[:, :, 0]), axis=1)[:, 1] / cells,
+                 effective_Ek=(np.fft.rfft(np.asarray(result.ordinary.E[:, :, 0]), axis=1)[:, 1]
+                               + eta * np.fft.rfft(np.asarray(result.E[:, :, 0]), axis=1)[:, 1]) / cells,
                  total_energy=total_energy,
                  fitted_maxima=peaks)
         plt.close(fig)
-    label = "MIXED KINETIC CHECK" if args.full else "SMOKE"
+    label = "MIXED KINETIC CHECK" if full else "SMOKE"
     print(f"🦇 {label}: root {analytic.real:.5f}{analytic.imag:+.5f}i", end="")
-    if args.full:
+    if full:
         print(f"; PIC {frequency:.5f}{gamma:+.5f}i, {len(peaks)} maxima")
     else:
         print("; fit deferred to full preset")
-
-
-if __name__ == "__main__":
-    main()

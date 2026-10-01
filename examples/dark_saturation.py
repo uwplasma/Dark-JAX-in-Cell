@@ -4,7 +4,6 @@ Both runs start from the same cold beams and ordinary field. The full preset
 separates timestep, grid and particle-count refinement.
 """
 
-import argparse
 from pathlib import Path
 
 import jax.numpy as jnp
@@ -23,6 +22,20 @@ if __package__:
     from .dark_instabilities import two_stream_growth
 else:
     from dark_instabilities import two_stream_growth
+
+
+# Each row is (cells, particles per beam, dt * omega_p, horizon * omega_p).
+full = globals().get("full", False)
+extended = globals().get("extended", False)
+output = Path(globals().get("output", "artifacts/dark_saturation"))
+eta = globals().get("eta", 0.3)
+cases = globals().get(
+    "cases",
+    ((64, 4000, 0.025, 200), (128, 8000, 0.0125, 200),
+     (128, 8000, 0.00625, 200), (256, 16000, 0.00625, 200)) if extended else
+    ((64, 4000, 0.025, 80), (64, 4000, 0.0125, 80), (64, 8000, 0.0125, 80),
+     (128, 4000, 0.0125, 80), (128, 8000, 0.0125, 80)) if full else
+    ((32, 500, 0.025, 30),))
 
 
 def trapping_frequency(ordinary_mode, dark_mode, eta, k):
@@ -56,9 +69,9 @@ def experiment(cells, particles, dtau, horizon, eta):
     # output can otherwise hide peaks in the energy-error history.
     stride = max(1, round(0.5 / dtau)) if horizon > 30 else max(1, steps // 80)
     steps = stride * round(steps / stride)
-    parent = plasma.run(steps, store_every=stride)
+    parent = plasma.run(steps, store_every=stride, verbose=True)
     dark = DarkSimulation(plasma, DarkField(0.7 * wp, eta)).run(
-        steps, store_every=stride, store_particles=False)
+        steps, store_every=stride, store_particles=False, verbose=True)
     time = np.asarray(parent.t) * wp
 
     def mode(field):
@@ -124,23 +137,7 @@ def experiment(cells, particles, dtau, horizon, eta):
                          "horizon_omega_p": steps * dtau}}
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Watch two matched streams meet the dark")
-    preset = parser.add_mutually_exclusive_group()
-    preset.add_argument("--full", action="store_true", help="factorial check through ωp t=80")
-    preset.add_argument("--extended", action="store_true", help="matched grid/time replay through ωp t=200")
-    parser.add_argument("--output", type=Path, default=Path("artifacts/dark_saturation"))
-    args = parser.parse_args()
-    eta = 0.3
-    if args.extended:
-        cases = ((64, 4000, 0.025, 200), (128, 8000, 0.0125, 200),
-                 (128, 8000, 0.00625, 200), (256, 16000, 0.00625, 200))
-    elif args.full:
-        cases = ((64, 4000, 0.025, 80), (64, 4000, 0.0125, 80),
-                 (64, 8000, 0.0125, 80), (128, 4000, 0.0125, 80),
-                 (128, 8000, 0.0125, 80))
-    else:
-        cases = ((32, 500, 0.025, 30),)
+if __name__ == "__main__":
     runs = [experiment(*case, eta) for case in cases]
     reference = two_stream_growth(2 * np.pi / (0.05 * 64), 0.25 * 2 * np.pi / (0.05 * 64), 0.7, eta)[0]
     parent_reference = two_stream_growth(2 * np.pi / (0.05 * 64), 0.25 * 2 * np.pi / (0.05 * 64), 0.7, 0)[0]
@@ -158,7 +155,7 @@ def main():
         t = runs[0]["t"]
         axes[0, 0].semilogy(t, runs[0]["parent_mode"], color="#0072B2", label="parent")
         axes[0, 0].semilogy(t, runs[0]["mixed_mode"], color="#6A3D9A", label="dark")
-        if args.full or args.extended:
+        if full or extended:
             window = (t >= 10) & (t <= 20)
             for rate, mode, color in ((parent_reference, "parent_mode", "#0072B2"),
                                       (reference, "mixed_mode", "#6A3D9A")):
@@ -174,7 +171,7 @@ def main():
         axes[0, 1].set(xlabel=r"$\omega_p t$", ylabel="energy / initial closed total",
                        yscale="log", ylim=(1e-5, 2), title="Where the energy goes")
         axes[0, 1].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
-        shown = (0, 1, 4) if args.full else range(len(runs))
+        shown = (0, 1, 4) if full and len(runs) >= 5 else range(len(runs))
         for i in shown:
             run = runs[i]
             label = (f"{run['settings']['cells']} cells, {run['settings']['particles_per_beam']} / beam, "
@@ -198,7 +195,7 @@ def main():
         axes[1, 2].legend(facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=8)
         for ax in axes.flat:
             ax.grid(alpha=0.25)
-        settings = {"preset": "extended" if args.extended else "full" if args.full else "quick",
+        settings = {"preset": "extended" if extended else "full" if full else "quick",
                     "eta": eta,
                     "mu_over_wp": 0.7, "cases": [run["settings"] for run in runs],
                     "matched_loading": "same species x, v, weights and ordinary initial field"}
@@ -219,10 +216,6 @@ def main():
                               "kinetic", "ordinary_field", "dark_field")}
         curves.update({f"case_{i}_{key}": run[key] for i, run in enumerate(runs)
                        for key in ("dark_source_work", "dark_work_residual")})
-        save_run(args.output, "dark_saturation", settings, results, fig, **curves)
+        save_run(output, "dark_saturation", settings, results, fig, **curves)
         plt.close(fig)
     print("🦇 TWO-STREAM SATURATION:", results["cases"])
-
-
-if __name__ == "__main__":
-    main()

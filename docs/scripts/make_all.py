@@ -11,13 +11,19 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[2]
+# True refreshes documentation from archived full records without launching physics.
+records_only = globals().get("records_only", True)
 EVIDENCE = ROOT / "docs" / "_static" / "figures" / "cold_exchange"
+print("Refreshing archived measurements" if records_only else "Running full studies sequentially", flush=True)
 
 
-def run_example(*args, **kwargs):
-    """Reuse measured full records without rerunning PIC when requested."""
-    if "--records-only" not in sys.argv[1:]:
-        subprocess.run(*args, **kwargs)
+def run_example(script, **inputs):
+    """Run one parameter-first script per fresh process; keep physics sequential."""
+    if not records_only:
+        code = ("import runpy; from pathlib import PosixPath; "
+                f"runpy.run_path({str(ROOT / script)!r}, run_name='__main__', init_globals={inputs!r})")
+        print(f"Running {script}", flush=True)
+        subprocess.run([sys.executable, "-u", "-c", code], cwd=ROOT, check=True)
 
 
 def provenance(record, folder):
@@ -46,8 +52,7 @@ def replay_measurements(record, labels):
                     measured[f"{label}_{suffix}_{species}_mean_change_percent"] = f"{change[species, 0]:.3f}"
 
 
-run_example([sys.executable, str(ROOT / "examples" / "dark_photon.py"), "--full",
-             "--output", str(EVIDENCE)], cwd=ROOT, check=True)
+run_example('examples/dark_photon.py', full=True, output=EVIDENCE)
 record = json.loads((EVIDENCE / "run.json").read_text())
 cold_record = record
 results = record["results"]
@@ -57,15 +62,13 @@ measured = {"cold_mean_error": f"{results['max_mean_field_error_over_D0']:.3e}",
             "cold_work_error": f"{results['ordinary_energy_vs_dark_work_relative_error']:.3e}",
             "_provenance": record}
 drive = EVIDENCE.parent / "prescribed_drive"
-run_example([sys.executable, str(ROOT / "examples" / "dark_drive.py"), "--full",
-             "--output", str(drive)], cwd=ROOT, check=True)
+run_example('examples/dark_drive.py', full=True, output=drive)
 drive_record = json.loads((drive / "run.json").read_text())
 drive_results = drive_record["results"]
 measured.update({"drive_wave_error": f"{drive_results['max_waveform_error_over_D0']:.3e}",
                  "drive_work_error": f"{drive_results['ordinary_energy_vs_external_work_relative_error']:.3e}"})
 calibration = EVIDENCE.parent / "density_calibration"
-run_example([sys.executable, str(ROOT / "examples" / "optimize_dark_photon.py"), "--full",
-             "--output", str(calibration)], cwd=ROOT, check=True)
+run_example('examples/optimize_dark_photon.py', full=True, output=calibration)
 calibration_record = json.loads((calibration / "run.json").read_text())
 cal = calibration_record["results"]
 measured.update({"calibration_pic_p": f"{cal['pic_best_p']:.7f}",
@@ -79,13 +82,11 @@ measured.update({"calibration_pic_p": f"{cal['pic_best_p']:.7f}",
                  "calibration_refined_gradient_error": (
                      f"{abs(cal['refined_pic']['gradient_at_0p97'] - cal['gradient_cold_at_0p97']):.3e}")})
 oblique = EVIDENCE.parent / "oblique_3v"
-run_example([sys.executable, str(ROOT / "examples" / "dark_plasma.py"), "--full",
-             "--output", str(oblique)], cwd=ROOT, check=True)
+run_example('examples/dark_plasma.py', full=True, output=oblique)
 oblique_record = json.loads((oblique / "run.json").read_text())
 measured["oblique_six_field_error"] = f"{oblique_record['results']['max_all_six_field_error_over_D0']:.3e}"
 kinetic = EVIDENCE.parent / "mixed_kinetic"
-run_example([sys.executable, str(ROOT / "examples" / "dark_kinetic.py"), "--full",
-             "--output", str(kinetic)], cwd=ROOT, check=True)
+run_example('examples/dark_kinetic.py', full=True, output=kinetic)
 kinetic_record = json.loads((kinetic / "run.json").read_text())
 kin = kinetic_record["results"]
 measured.update({"kinetic_pic_real": f"{kin['measured_real_over_wp']:.5f}",
@@ -100,10 +101,8 @@ for cells, particles, steps in ((32, 40000, 3000), (64, 80000, 6000),
                                 (128, 160000, 12000)):
     folder = f"physical_kinetic_{cells}"
     path = EVIDENCE.parent / folder
-    run_example([sys.executable, str(ROOT / "examples" / "dark_kinetic.py"),
-                 "--physical", "--full", "--cells", str(cells), "--particles",
-                 str(particles), "--steps", str(steps), "--output", str(path)],
-                cwd=ROOT, check=True)
+    run_example('examples/dark_kinetic.py', physical=True, full=True, cells=int(cells), particles=int(particles),
+                steps=int(steps), output=path)
     record = json.loads((path / "run.json").read_text())
     physical_records[folder] = provenance(record, folder)
     result = record["results"]
@@ -119,8 +118,7 @@ measured["physical_reference_screened"] = (
     f"{result['screened_root_over_wp'][0]:.5f}"
     f"{result['screened_root_over_wp'][1]:+.5f}i")
 bump = EVIDENCE.parent / "bump_on_tail"
-run_example([sys.executable, str(ROOT / "examples" / "dark_bump.py"), "--full",
-             "--output", str(bump)], cwd=ROOT, check=True)
+run_example('examples/dark_bump.py', full=True, output=bump)
 bump_record = json.loads((bump / "run.json").read_text())
 selected = bump_record["results"]["reference_scan"]["selected_roots_over_wp"]
 for model in ("ordinary", "full", "quasistatic", "effective_charge"):
@@ -134,13 +132,10 @@ for i, name in enumerate(("base", "refined")):
 instability_records = {}
 for mode, folder in (("two-stream", "mixed_two_stream"), ("weibel", "mixed_weibel")):
     path = EVIDENCE.parent / folder
-    run_example([sys.executable, str(ROOT / "examples" / "dark_instabilities.py"), mode,
-                 "--full", "--output", str(path)], cwd=ROOT, check=True)
+    run_example('examples/dark_instabilities.py', mode=mode, full=True, output=path)
     instability_records[folder] = json.loads((path / "run.json").read_text())
 warm_path = EVIDENCE.parent / "warm_two_stream"
-run_example([sys.executable, str(ROOT / "examples" / "dark_instabilities.py"),
-             "warm-two-stream", "--full", "--output", str(warm_path)], cwd=ROOT,
-            check=True)
+run_example('examples/dark_instabilities.py', mode='warm-two-stream', full=True, output=warm_path)
 warm_record = json.loads((warm_path / "run.json").read_text())
 warm = warm_record["results"]
 for model, root in warm["references"]["unstable"].items():
@@ -167,11 +162,9 @@ measured["weibel_cutoff_kc_over_wp"] = (
 measured["weibel_stable_late_over_early"] = (
     f"{weibel['stable_mode_2']['late_over_early_magnetic_rms']:.3f}")
 saturation = {}
-for preset, folder in (("--full", "two_stream_saturation"),
-                       ("--extended", "two_stream_extended")):
+for extended, folder in ((False, "two_stream_saturation"), (True, "two_stream_extended")):
     path = EVIDENCE.parent / folder
-    run_example([sys.executable, str(ROOT / "examples" / "dark_saturation.py"), preset,
-                 "--output", str(path)], cwd=ROOT, check=True)
+    run_example('examples/dark_saturation.py', full=not extended, extended=extended, output=path)
     saturation[folder] = json.loads((path / "run.json").read_text())
 short = saturation["two_stream_saturation"]["results"]["cases"]
 long = saturation["two_stream_extended"]["results"]["cases"]
@@ -195,14 +188,12 @@ for i, name in ((2, "halfstep"), (3, "fine")):
         f"{100 * (fields['mixed'] / fields['parent'] - 1):+.1f}")
 measured["saturation_long_fine_drift_percent"] = f"{100 * long[3]['mixed_max_energy_drift']:.3f}"
 null = EVIDENCE.parent / "homogeneous_null"
-run_example([sys.executable, str(ROOT / "examples" / "dark_null.py"), "--full",
-             "--output", str(null)], cwd=ROOT, check=True)
+run_example('examples/dark_null.py', full=True, output=null)
 null_record = json.loads((null / "run.json").read_text())
 measured["null_coarse_error"] = f"{null_record['results']['max_mode_amplitude_difference_over_initial'][0]:.3e}"
 measured["null_fine_error"] = f"{null_record['results']['max_mode_amplitude_difference_over_initial'][1]:.3e}"
 mobile = EVIDENCE.parent / "mobile_ions"
-run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--full",
-             "--output", str(mobile)], cwd=ROOT, check=True)
+run_example('examples/dark_reservoir.py', full=True, output=mobile)
 mobile_record = json.loads((mobile / "run.json").read_text())
 m = mobile_record["results"]
 measured.update({"mobile_external_oracle_error": f"{m['cases']['external']['mean_error']:.3e}",
@@ -219,8 +210,7 @@ measured.update({"mobile_external_oracle_error": f"{m['cases']['external']['mean
                      f"{100 * m['finite_vs_external']['large_reservoir']['dark_depletion_fraction']:.1f}"),
                  "mobile_max_balance": f"{max(abs(v['balance_over_scale']) for v in m['cases'].values()):.3e}"})
 pair = EVIDENCE.parent / "oscillating_pair"
-run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--pair", "--full",
-             "--output", str(pair)], cwd=ROOT, check=True)
+run_example('examples/dark_reservoir.py', study='pair', full=True, output=pair)
 pair_record = json.loads((pair / "run.json").read_text())
 pair_result = pair_record["results"]
 pair_refined = pair_result["refinements"]
@@ -240,8 +230,7 @@ measured.update({"pair_pic_growth": f"{pair_result['pic_cycle_fit']['growth_over
                      f"{math.log(5) / pair_result['floquet_growth_over_omega0']:.1f}"),
                  "pair_energy_drift": f"{pair_result['max_total_energy_drift']:.3e}"})
 dark_pair = EVIDENCE.parent / "oscillating_dark_pair"
-run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"),
-             "--pair-dark", "--full", "--output", str(dark_pair)], cwd=ROOT, check=True)
+run_example('examples/dark_reservoir.py', study='pair_dark', full=True, output=dark_pair)
 dark_pair_record = json.loads((dark_pair / "run.json").read_text())
 dark_pair_result = dark_pair_record["results"]
 dark_pair_gauss = max(dark_pair_result["max_ordinary_gauss_over_scale"],
@@ -281,8 +270,7 @@ measured.update({"dark_pair_ordinary_error": (
                  "dark_pair_final_speed": f"{dark_pair_result['max_final_speed_over_c']:.3f}",
                  "dark_pair_energy_drift": f"{dark_pair_result['max_closed_energy_drift']:.3e}"})
 design = EVIDENCE.parent / "profile_design"
-run_example([sys.executable, str(ROOT / "examples" / "dark_profile.py"), "--full",
-             "--output", str(design)], cwd=ROOT, check=True)
+run_example('examples/dark_profile.py', full=True, output=design)
 design_record = json.loads((design / "run.json").read_text())
 p = design_record["results"]
 high = p["finite_amplitude"]
@@ -374,22 +362,16 @@ if storage_cost.exists():
     measured["_provenance"]["storage_cost"] = data["settings"]
 paper = EVIDENCE.parent / "paper_replay"
 for name, ratio in (("drive", ".03"), ("zero", "0")):
-    run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
-                 "--drive-ratio", ratio, "--output", str(ROOT / "artifacts" / f"paper_full_{name}")],
-                cwd=ROOT, check=True)
+    run_example('examples/dark_reservoir.py', study='paper', full=True, drive_ratio=float(ratio),
+                output=ROOT / 'artifacts' / f'paper_full_{name}')
 halfstep = ROOT / "artifacts" / "paper_dt_half"
-run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
-             "--dt", ".01", "--output", str(halfstep)], cwd=ROOT, check=True)
+run_example('examples/dark_reservoir.py', study='paper', full=True, dt=0.01, output=halfstep)
 transition = ROOT / "artifacts" / "paper_dt_quarter_transition"
-run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
-             "--dt", ".005", "--horizon", "1000", "--output", str(transition)], cwd=ROOT, check=True)
+run_example('examples/dark_reservoir.py', study='paper', full=True, dt=0.005, horizon=1000.0, output=transition)
 repeat = ROOT / "artifacts" / "paper_dt_half_prefix_replay"
-run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
-             "--dt", ".01", "--horizon", "1000", "--output", str(repeat)], cwd=ROOT, check=True)
-run_example([sys.executable, str(ROOT / "docs" / "scripts" / "make_paper_replay.py"),
-             "--records", str(ROOT / "artifacts"), "--refined", str(halfstep),
-             "--refined", str(transition), "--repeat", str(repeat), "--output", str(paper)],
-            cwd=ROOT, check=True)
+run_example('examples/dark_reservoir.py', study='paper', full=True, dt=0.01, horizon=1000.0, output=repeat)
+run_example('docs/scripts/make_paper_replay.py', records=ROOT / 'artifacts', refined=(halfstep, transition),
+            repeat=repeat, output=paper)
 paper_record = json.loads((paper / "run.json").read_text())
 hook = paper_record["results"]
 budget = hook["all_step_conservation"]
@@ -432,19 +414,15 @@ for window in hook["repeat_comparison"]["windows"]:
 controls = EVIDENCE.parent / "replay_controls"
 fixed_first, fixed_repeat = [ROOT / "artifacts" / name for name in ("paper_fixed_first", "paper_fixed_repeat")]
 for folder in (fixed_first, fixed_repeat):
-    command = [sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
-               "--dt", ".01", "--horizon", "1000", "--block-horizon", "100", "--local-moments",
-               "--output", str(folder)]
-    if folder == fixed_repeat:
-        command.extend(("--initial-state", str(fixed_first / "initial_state.npz")))
-    run_example(command, cwd=ROOT, check=True)
+    run_example('examples/dark_reservoir.py', study='paper', full=True, dt=.01, horizon=1000.,
+                block_horizon=100., local_moments=True, output=folder,
+                initial_state=fixed_first / 'initial_state.npz' if folder == fixed_repeat else None)
+
 fixed_fine = ROOT / "artifacts" / "paper_fixed_fine"
-run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
-             "--dt", ".005", "--horizon", "1000", "--block-horizon", "100", "--local-moments",
-             "--output", str(fixed_fine)], cwd=ROOT, check=True)
-run_example([sys.executable, str(ROOT / "docs" / "scripts" / "compare_replays.py"),
-             str(fixed_first), str(fixed_repeat), "--constraints", "--refined", str(fixed_fine),
-             "--publish", str(controls)], cwd=ROOT, check=True)
+run_example('examples/dark_reservoir.py', study='paper', full=True, dt=0.005, horizon=1000.0, block_horizon=100.0,
+            local_moments=True, output=fixed_fine)
+run_example('docs/scripts/compare_replays.py', first=fixed_first, second=fixed_repeat, constraints=True,
+            refined=fixed_fine, destination=controls)
 control_record = json.loads((controls / "run.json").read_text())
 replay_measurements(control_record, (("hook_fixed", "comparison", ".6g"),
                                      ("hook_fixed_dt", "refinement_comparison", ".4f")))
@@ -458,20 +436,16 @@ mesh, seed, loading = [ROOT / "artifacts" / name for name in
 for folder, cells, loading_seed, particles in ((mesh, "2000", "0", "103000"),
                                                (seed, "1000", "1", "103000"),
                                                (loading, "2000", "0", "206000")):
-    run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
-                 "--cells", cells, "--seed", loading_seed, "--particles", particles, "--dt", ".005",
-                 "--horizon", "1000",
-                 "--block-horizon", "100", "--local-moments", "--output", str(folder)], cwd=ROOT, check=True)
+    run_example('examples/dark_reservoir.py', study='paper', full=True, cells=int(cells), seed=int(loading_seed),
+                particles=int(particles), dt=0.005, horizon=1000.0, block_horizon=100.0, local_moments=True,
+                output=folder)
 loading_repeat = ROOT / "artifacts" / "paper_fixed_particles_repeat"
-run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--cells", "2000",
-             "--particles", "206000", "--dt", ".005", "--horizon", "1000", "--block-horizon", "100",
-             "--local-moments", "--initial-state", str(loading / "initial_state.npz"),
-             "--output", str(loading_repeat)], cwd=ROOT, check=True)
-run_example([sys.executable, str(ROOT / "docs" / "scripts" / "compare_replays.py"), str(fixed_fine),
-             str(mesh), "--variant", "mesh", "--constraints", "--refined", str(seed),
-             "--refined-variant", "seed", "--loading-refined", str(loading),
-             "--loading-repeat", str(loading_repeat), "--publish", str(resolution)],
-            cwd=ROOT, check=True)
+run_example('examples/dark_reservoir.py', study='paper', cells=2000, particles=206000, dt=0.005, horizon=1000.0,
+            block_horizon=100.0, local_moments=True, initial_state=loading / 'initial_state.npz',
+            output=loading_repeat)
+run_example('docs/scripts/compare_replays.py', first=fixed_fine, second=mesh, variant='mesh', constraints=True,
+            refined=seed, refined_variant='seed', loading_refined=loading, loading_repeat=loading_repeat,
+            destination=resolution)
 resolution_record = json.loads((resolution / "run.json").read_text())
 replay_measurements(resolution_record, (("hook_mesh", "comparison", ".4f"),
                                         ("hook_seed", "refinement_comparison", ".4f"),
@@ -483,8 +457,7 @@ for index, label in enumerate(("fine", "mesh", "seed", "loading")):
     measured[f"hook_resolution_{label}_momentum"] = f"{native['max_momentum_defect_over_nmecL']:.2e}"
 measured["_provenance"]["replay_resolution"] = provenance(resolution_record, resolution.name)
 pic = EVIDENCE.parent / "pic_conservation"
-run_example([sys.executable, str(ROOT / "docs" / "scripts" / "benchmark_pic_conservation.py"),
-             "--full", "--samples", "1", "--output", str(pic)], cwd=ROOT, check=True)
+run_example('docs/scripts/benchmark_pic_conservation.py', full=True, samples=1, output=pic)
 pic_record = json.loads((pic / "run.json").read_text())
 rows = pic_record["results"]["rows"]
 for label, case, cells, dt in (("explicit", "explicit", 128, .002),
@@ -508,11 +481,10 @@ measured["_provenance"]["pic_conservation"] = provenance(pic_record, "pic_conser
 for label in ("dt04", "dt02"):
     folder = EVIDENCE.parent / f"implicit_drive_{label}"
     computational = ROOT / "artifacts" / f"implicit_{label}"
-    run_example([sys.executable, str(ROOT / "docs" / "scripts" / "benchmark_implicit_drive.py"),
-                 "--cells", "256", "--nodes", "8", "--dt", str(.04 if label == "dt04" else .02),
-                 "--iterations", "8", "--horizon", "1000", "--samples", "2", "--gradient-horizon", "8",
-                 "--output", str(computational)], cwd=ROOT, check=True)
-    if "--records-only" not in sys.argv[1:]:
+    run_example('docs/scripts/benchmark_implicit_drive.py', cells=256, nodes=8,
+                dt=0.04 if label == 'dt04' else 0.02, iterations=8, horizon=1000.0, samples=2,
+                gradient_horizon=8.0, output=computational)
+    if not records_only:
         folder.mkdir(exist_ok=True)
         for name in ("run.json", "data.npz", "figure.png"):
             copyfile(computational / name, folder / name)
@@ -540,12 +512,10 @@ for label in ("dt04", "dt02"):
     measured["_provenance"][prefix] = provenance(record, folder.name)
 implicit_paper = ROOT / "artifacts" / "implicit_paper"
 method = EVIDENCE.parent / "paper_implicit_comparison"
-run_example([sys.executable, str(ROOT / "docs" / "scripts" / "benchmark_implicit_drive.py"),
-             "--paper-loading", "--dt", ".01", "--iterations", "4", "--horizon", "1000", "--samples", "1",
-             "--output", str(implicit_paper)], cwd=ROOT, check=True)
-run_example([sys.executable, str(ROOT / "docs" / "scripts" / "compare_replays.py"), str(fixed_first),
-             str(implicit_paper), "--implicit", "--refined", str(fixed_fine), "--publish", str(method)],
-            cwd=ROOT, check=True)
+run_example('docs/scripts/benchmark_implicit_drive.py', paper_loading=True, dt=0.01, iterations=4, horizon=1000.0,
+            samples=1, output=implicit_paper, cells=1000, particles=103000)
+run_example('docs/scripts/compare_replays.py', first=fixed_first, second=implicit_paper, implicit=True,
+            refined=fixed_fine, destination=method)
 method_record = json.loads((method / "run.json").read_text())
 implicit_result = method_record["results"]["native_runs"][1]["results"]
 for suffix, key, fmt in (("balance", "max_balance_over_nmc2L", ".2e"),
@@ -562,20 +532,19 @@ for suffix, key in (("mean_E", "mean_E"), ("nonzero", "nonzero_electric")):
 iterations_folder = EVIDENCE.parent / "implicit_iteration_control"
 iteration_runs = [ROOT / "artifacts" / f"implicit_picard{count}_exact_40" for count in (4, 8)]
 for count, folder in zip((4, 8), iteration_runs):
-    run_example([sys.executable, str(ROOT / "docs/scripts/benchmark_implicit_drive.py"), "--paper-loading",
-                 "--dt", ".01", "--iterations", str(count), "--horizon", "40", "--samples", "1",
-                 "--initial-state", str(implicit_paper / "initial_state.npz"), "--output", str(folder)],
-                cwd=ROOT, check=True)
+    run_example('docs/scripts/benchmark_implicit_drive.py', paper_loading=True, dt=0.01, iterations=int(count),
+                horizon=40.0, samples=1, initial_state=implicit_paper / 'initial_state.npz', output=folder,
+                cells=1000, particles=103000)
 orbit_folders = []
 for stage in ("initial", "final"):
     for count in (4, 8):
         folder = ROOT / "artifacts" / f"orbit_{stage}_{count}"
         orbit_folders.append(folder)
-        run_example([sys.executable, str(ROOT / "docs/scripts/benchmark_implicit_drive.py"), "--paper-loading",
-                     "--dt", ".01", "--iterations", str(count), "--audit-state",
-                     str(iteration_runs[0] / f"{stage}_state.npz"), "--output", str(folder)], cwd=ROOT, check=True)
-run_example([sys.executable, str(ROOT / "docs/scripts/compare_replays.py"), *map(str, iteration_runs), "--picard",
-             "--orbit-audits", *map(str, orbit_folders), "--publish", str(iterations_folder)], cwd=ROOT, check=True)
+        run_example('docs/scripts/benchmark_implicit_drive.py', paper_loading=True, dt=0.01, iterations=int(count),
+                    audit_state=iteration_runs[0] / f'{stage}_state.npz', output=folder, cells=1000,
+                    particles=103000)
+run_example('docs/scripts/compare_replays.py', first=iteration_runs[0], second=iteration_runs[1],
+            picard=True, orbit_audits=orbit_folders, destination=iterations_folder)
 iteration_record = json.loads((iterations_folder / "run.json").read_text())
 for count, native in zip((4, 8), iteration_record["results"]["native_runs"]):
     values = native["results"]
@@ -595,16 +564,11 @@ control_runs = []
 for cells, substeps in ((1000, 2), (1000, 4), (2000, 2), (4000, 2)):
     folder = ROOT / "artifacts" / f"implicit_mesh{cells}_sub{substeps}"
     control_runs.append(folder)
-    command = [sys.executable, str(ROOT / "docs/scripts/benchmark_implicit_drive.py"), "--paper-loading",
-               "--cells", str(cells), "--substeps", str(substeps), "--dt", ".01", "--iterations", "4",
-               "--horizon", "40", "--samples", "1", "--output", str(folder)]
-    if cells == 1000:
-        command += ["--initial-state", str(iteration_runs[0] / "initial_state.npz")]
-    run_example(command, cwd=ROOT, check=True)
-run_example([sys.executable, str(ROOT / "docs/scripts/compare_replays.py"), *map(str, control_runs[:2]),
-             "--method-controls", "--refined", str(control_runs[2]), "--finer-mesh", str(control_runs[3]),
-             "--publish", str(controls_folder)],
-            cwd=ROOT, check=True)
+    run_example('docs/scripts/benchmark_implicit_drive.py', paper_loading=True, cells=cells, substeps=substeps,
+                dt=0.01, iterations=4, horizon=40.0, samples=1, output=folder,
+                initial_state=iteration_runs[0] / 'initial_state.npz' if cells == 1000 else None, particles=103000)
+run_example('docs/scripts/compare_replays.py', first=control_runs[0], second=control_runs[1],
+            method_controls=True, refined=control_runs[2], finer_mesh=control_runs[3], destination=controls_folder)
 controls_record = json.loads((controls_folder / "run.json").read_text())
 for native in controls_record["results"]["native_runs"]:
     s, values = native["settings"], native["results"]
@@ -620,3 +584,5 @@ for control in ("substep", "mesh", "refined_mesh"):
         measured[f"implicit_method_{control}_{suffix}_percent"] = f"{100 * value:.4g}"
 measured["_provenance"]["implicit_method_controls"] = provenance(controls_record, controls_folder.name)
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")
+
+print("Saved measured documentation substitutions", flush=True)

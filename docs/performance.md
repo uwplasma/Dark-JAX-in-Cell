@@ -31,9 +31,9 @@ With 128 cells, 8,192 electrons, 256 steps, float64 CPU, one final diagnostic an
 | Proca configured, $\eta=0$ | {{ field_eta_zero_warm_ms }} | {{ field_eta_zero_first_s }} | {{ field_eta_zero_rss_mib }} |
 | Proca active, $\eta=0.05$ | {{ field_active_warm_ms }} | {{ field_active_first_s }} | {{ field_active_rss_mib }} |
 
-The **dark-disabled route is the parent `Simulation` itself**, so its source and execution path are unchanged. A configured $\eta=0$ model still evolves a free massive field, costs time and memory, and must not be called disabled. Its ordinary-field checksum agrees with the parent; the active case differs physically. Process peaks include imports and compilation. These are one-device measurements, not a portable overhead factor or a GPU claim. Reproduce them on an otherwise quiet host with `python docs/scripts/benchmark_field_cost.py --all`, then `python docs/scripts/make_all.py` to refresh the MyST numbers.
+The **dark-disabled route is the parent `Simulation` itself**, so its source and execution path are unchanged. A configured $\eta=0$ model still evolves a free massive field, costs time and memory, and must not be called disabled. Its ordinary-field checksum agrees with the parent; the active case differs physically. Process peaks include imports and compilation. These are one-device measurements, not a portable overhead factor or a GPU claim. Reproduce them on an otherwise quiet host with [benchmark_field_cost.py](../docs/scripts/benchmark_field_cost.py) with `all_cases=True`, then [make_all.py](../docs/scripts/make_all.py) to refresh the MyST numbers.
 
-The same isolated script also has a [131,072-particle CPU run](_static/figures/field_cost_large.json) on 128 cells for 256 steps. Five warm runs in each fresh process give median times of **{{ large_parent_warm_s }} s** for the parent, **{{ large_eta_zero_warm_s }} s** for configured $\eta=0$, and **{{ large_active_warm_s }} s** for active Proca. First-call times are {{ large_parent_first_s }}, {{ large_eta_zero_first_s }} and {{ large_active_first_s }} s; process peaks are {{ large_parent_rss_mib }}, {{ large_eta_zero_rss_mib }} and {{ large_active_rss_mib }} MiB. System load rose from 11.9 to 32.3 across the cases, so these measurements establish that the larger loading executes within the recorded memory but **do not give a reliable fractional overhead**. The first call includes compilation or executable-cache loading. Reproduce with `python docs/scripts/benchmark_field_cost.py --all --particles 131072 --steps 256 --output docs/_static/figures/field_cost_large.json` on a quiet host. This is a timing workload; the kinetic runs above provide physics-resolution checks.
+The same isolated script also has a [131,072-particle CPU run](_static/figures/field_cost_large.json) on 128 cells for 256 steps. Five warm runs in each fresh process give median times of **{{ large_parent_warm_s }} s** for the parent, **{{ large_eta_zero_warm_s }} s** for configured $\eta=0$, and **{{ large_active_warm_s }} s** for active Proca. First-call times are {{ large_parent_first_s }}, {{ large_eta_zero_first_s }} and {{ large_active_first_s }} s; process peaks are {{ large_parent_rss_mib }}, {{ large_eta_zero_rss_mib }} and {{ large_active_rss_mib }} MiB. System load rose from 11.9 to 32.3 across the cases, so these measurements establish that the larger loading executes within the recorded memory but **do not give a reliable fractional overhead**. The first call includes compilation or executable-cache loading. Reproduce with [benchmark_field_cost.py](../docs/scripts/benchmark_field_cost.py) with `all_cases=True, particles=131072, steps=256, output='docs/_static/figures/field_cost_large.json'` on a quiet host. This is a timing workload; the kinetic runs above provide physics-resolution checks.
 
 ## Sparse particle histories
 
@@ -44,7 +44,7 @@ The reduced run keeps both field histories, per-species kinetic energy and all-s
 | Sparse particle history | {{ storage_sparse_warm_s }} | {{ storage_sparse_first_s }} | {{ storage_sparse_rss_mib }} |
 | Full particle history | {{ storage_full_warm_s }} | {{ storage_full_first_s }} | {{ storage_full_rss_mib }} |
 
-The final complete energy and all-step maximum balance agree exactly between these runs. The memory and timing figures include compilation and shared-host load, so they characterize this workload and machine, not a universal speedup. Reproduce with `python docs/scripts/benchmark_field_cost.py --storage-all --particles 120000 --steps 128 --stride 8`, then refresh substitutions with `python docs/scripts/make_all.py --records-only`.
+The final complete energy and all-step maximum balance agree exactly between these runs. The memory and timing figures include compilation and shared-host load, so they characterize this workload and machine, not a universal speedup. Reproduce with [benchmark_field_cost.py](../docs/scripts/benchmark_field_cost.py) with `storage_all=True, particles=120000, steps=128, stride=8`, then refresh substitutions with [make_all.py](../docs/scripts/make_all.py) with `records_only=True`.
 
 ## Which clock to trust
 
@@ -60,7 +60,7 @@ The source-free [time-step experiment](scripts/benchmark_time_integrators.py) us
 | Implicit midpoint, sparse LU | 0.1 | $6.6\times10^{-14}$ | 0.633 | $3.9\times10^{-15}$ |
 | Adaptive DOP853, $10^{-9}$ relative tolerance | output every 0.2 | $1.3\times10^{-9}$ | $3.0\times10^{-8}$ | $2.7\times10^{-15}$ |
 
-The split method's energy error is bounded and falls about fourfold when the step halves. Midpoint keeps this **quadratic vacuum-field energy** to roundoff because the discrete generator is skew symmetric, but has *larger phase error* than the split at either tested step. DOP853 accurately follows this smooth source-free system; it needed 20,129 right-hand-side evaluations. The exploratory SciPy wall times include sparse factorization and NumPy-loop overhead, so they are **incomparable with the compiled JAX PIC path**. The [record](_static/figures/time_integrators/run.json) and [arrays](_static/figures/time_integrators/data.npz) include the measured times; `--quick` shortens the horizon to 20.
+The split method's energy error is bounded and falls about fourfold when the step halves. Midpoint keeps this **quadratic vacuum-field energy** to roundoff because the discrete generator is skew symmetric, but has *larger phase error* than the split at either tested step. DOP853 accurately follows this smooth source-free system; it needed 20,129 right-hand-side evaluations. The exploratory SciPy wall times include sparse factorization and NumPy-loop overhead, so they are **incomparable with the compiled JAX PIC path**. The [record](_static/figures/time_integrators/run.json) and [arrays](_static/figures/time_integrators/data.npz) include the measured times; `quick=True` shortens the horizon to 20.
 
 For the **coupled** two-stream problem, halving $\Delta t\omega_p$ from 0.025 to 0.0125 at the same 64 cells and loading changes the largest sampled total-energy drift from 0.677% to 0.680%. At fixed $\Delta t\omega_p=0.0125$, independently doubling quiet-start particles and grid cells shows where the error lies: particle doubling changes dark total drift by less than $10^{-9}$ in fractional units, while grid doubling reduces it from **{{ saturation_short_coarse_drift_percent }}%** to **{{ saturation_short_refined_drift_percent }}%**. The dark-field source-work residual falls from $1.91\times10^{-5}$ to $4.65\times10^{-6}$ of the maximum dark work transfer on time refinement. The 200/$\omega_p$ replay keeps the same $0.5/\omega_p$ sampling interval; its largest sampled dark total-energy changes are **{{ saturation_long_coarse_drift_percent }}%** and **{{ saturation_long_refined_drift_percent }}%**. A different vacuum field integrator would address the already small dark-field work error, not the dominant coupled spatial error in this case. Exact field-only conservation does **not** imply exact PIC conservation: the current deposit and particle work must use conjugate space-time weights. The [factorial record](_static/figures/two_stream_saturation/run.json) and [extended record](_static/figures/two_stream_extended/run.json) support this narrower conclusion.
 
@@ -111,13 +111,15 @@ Time refinement from $\Delta t\omega_p=0.002$ to 0.001 changes the ordinary expl
 
 Each row ran in a fresh process with JAX 0.6.2, float64 and one synchronized warm sample on an RTX A4000 GPU. Compilation is separated from execution, and the entire reduced diagnostic run is consumed. Other device activity and one timing sample limit performance conclusions: the large-step implicit and small-step explicit times are similar here, without an established speed advantage. Compiler temporaries exclude the runtime, imports and allocator; process peak includes them. Complete timings, first executions, memory, constraints and all twelve rows are in the [computation record](_static/figures/pic_conservation/run.json) and [compressed scalar histories](_static/figures/pic_conservation/data.npz).
 
-Reproduce the campaign serially, or refit and render its saved arrays without running dynamics. The default full benchmark takes three warm samples; this evidence used one. A separate overhead mode compares the reduced validation runner against production sparse particle output and checks the final energy and all-step energy maximum agree:
+Reproduce the campaign serially, or refit and render its saved arrays without running dynamics. The default full benchmark takes one warm sample; increase `samples` for timing statistics. A separate overhead mode compares the reduced validation runner against production sparse particle output and checks the final energy and all-step energy maximum agree:
 
-```sh
-python docs/scripts/benchmark_pic_conservation.py --full --samples 1
-python docs/scripts/benchmark_pic_conservation.py --render --output docs/_static/figures/pic_conservation
-python docs/scripts/benchmark_pic_conservation.py --overhead --particles 40000
-```
+Edit inputs in each linked script, then run it with Python.
+
+| Script | Inputs |
+|---|---|
+| [benchmark_pic_conservation.py](../docs/scripts/benchmark_pic_conservation.py) | `full=True, samples=1` |
+| [benchmark_pic_conservation.py](../docs/scripts/benchmark_pic_conservation.py) | `render_only=True, output='docs/_static/figures/pic_conservation'` |
+| [benchmark_pic_conservation.py](../docs/scripts/benchmark_pic_conservation.py) | `compare_overhead=True, particles=40000` |
 
 The [long resonant-drive replay](kinetic.md#time-refinement-through-the-nonlinear-transition) recovers early second-order behavior but fails the nonlinear field-convergence check. A same-step prefix replay also develops finite trajectory differences. Those gates remain necessary before transferring this short benchmark's timestep or cost conclusions to a late driven result.
 
@@ -148,10 +150,12 @@ At $\tau=8$, gradients of final mean-field energy with respect to drive amplitud
 
 Both rows used float64 JAX 0.6.2 on one RTX A4000, with compilation separated and two synchronized warm samples. The primal temporary estimates are {{ implicit_drive_dt04_temp_mib }} / {{ implicit_drive_dt02_temp_mib }} MiB; process peaks are {{ implicit_drive_dt04_rss_mib }} / {{ implicit_drive_dt02_rss_mib }} MiB. [Coarser](_static/figures/implicit_drive_dt04/run.json) and [finer](_static/figures/implicit_drive_dt02/run.json) native records retain the scalar arrays, gradient checks and Gauss maxima. This prescribed-force prototype does not evolve a Proca reservoir.
 
-```sh
-python docs/scripts/benchmark_implicit_drive.py --cells 256 --nodes 8 --dt .04 --iterations 8 --horizon 1000 --samples 2 --gradient-horizon 8 --output artifacts/implicit_dt04
-python docs/scripts/benchmark_implicit_drive.py --cells 256 --nodes 8 --dt .02 --iterations 8 --horizon 1000 --samples 2 --gradient-horizon 8 --output artifacts/implicit_dt02
-```
+Edit inputs in each linked script, then run it with Python.
+
+| Script | Inputs |
+|---|---|
+| [benchmark_implicit_drive.py](../docs/scripts/benchmark_implicit_drive.py) | `cells=256, nodes=8, dt=0.04, iterations=8, horizon=1000, samples=2, gradient_horizon=8, output='artifacts/implicit_dt04'` |
+| [benchmark_implicit_drive.py](../docs/scripts/benchmark_implicit_drive.py) | `cells=256, nodes=8, dt=0.02, iterations=8, horizon=1000, samples=2, gradient_horizon=8, output='artifacts/implicit_dt02'` |
 
 #### Gaussian loading and a fixed compiled solver
 
@@ -175,10 +179,12 @@ Compilation takes **{{ implicit_paper_compile }} s**; the first and single warm 
 
 The [record](_static/figures/paper_implicit_comparison/run.json) retains native clean computation revisions `7d149ce` and `8acc513`, input hashes, common-clock checks, raw window norms and final implicit-call conservation maxima. [Compressed scalar arrays](_static/figures/paper_implicit_comparison/data.npz) retain both implicit executions at their original 0.1 cadence. Faint nonzero-energy curves are raw and thick curves average approximately one plasma period; metrics use raw samples. This legacy implicit run stores fields, work and momentum; species broadening needs the newer species/restart outputs. It remains a prescribed-force control.
 
-```sh
-python docs/scripts/benchmark_implicit_drive.py --paper-loading --dt .01 --iterations 4 --horizon 1000 --samples 1 --output artifacts/implicit_paper
-python docs/scripts/compare_replays.py artifacts/paper_fixed_first artifacts/implicit_paper --implicit --refined artifacts/paper_fixed_fine --publish docs/_static/figures/paper_implicit_comparison
-```
+Edit inputs in each linked script, then run it with Python.
+
+| Script | Inputs |
+|---|---|
+| [benchmark_implicit_drive.py](../docs/scripts/benchmark_implicit_drive.py) | `paper_loading=True, dt=0.01, iterations=4, horizon=1000, samples=1, output='artifacts/implicit_paper', cells=1000, particles=103000` |
+| [compare_replays.py](../docs/scripts/compare_replays.py) | `first='artifacts/paper_fixed_first', second='artifacts/implicit_paper', implicit=True, refined='artifacts/paper_fixed_fine', destination='docs/_static/figures/paper_implicit_comparison'` |
 
 #### Independent implicit orbit and iteration checks
 
@@ -205,11 +211,13 @@ At the latter checkpoint the accepted momentum increment is $1.435\times10^{-8}n
 
 The [record](_static/figures/implicit_iteration_control/run.json) retains both native computations, complete initial hashes, raw norms and four independently produced orbit audits; [compressed arrays](_static/figures/implicit_iteration_control/data.npz) retain both executions and species traces. Native producers are `bc59e5e` and `cc2c1ad`, with the parent pinned above. Both short runs reuse the initial archive produced by the preceding Gaussian example:
 
-```sh
-python docs/scripts/benchmark_implicit_drive.py --paper-loading --dt .01 --iterations 4 --horizon 40 --samples 1 --initial-state artifacts/implicit_paper/initial_state.npz --output artifacts/implicit_picard4_exact_40
-python docs/scripts/benchmark_implicit_drive.py --paper-loading --dt .01 --iterations 8 --horizon 40 --samples 1 --initial-state artifacts/implicit_paper/initial_state.npz --output artifacts/implicit_picard8_exact_40
-python docs/scripts/benchmark_implicit_drive.py --paper-loading --dt .01 --iterations 4 --audit-state artifacts/implicit_picard4_exact_40/final_state.npz --output artifacts/orbit_final_4
-```
+Edit inputs in each linked script, then run it with Python.
+
+| Script | Inputs |
+|---|---|
+| [benchmark_implicit_drive.py](../docs/scripts/benchmark_implicit_drive.py) | `paper_loading=True, dt=0.01, iterations=4, horizon=40, samples=1, initial_state='artifacts/implicit_paper/initial_state.npz', output='artifacts/implicit_picard4_exact_40', cells=1000, particles=103000` |
+| [benchmark_implicit_drive.py](../docs/scripts/benchmark_implicit_drive.py) | `paper_loading=True, dt=0.01, iterations=8, horizon=40, samples=1, initial_state='artifacts/implicit_paper/initial_state.npz', output='artifacts/implicit_picard8_exact_40', cells=1000, particles=103000` |
+| [benchmark_implicit_drive.py](../docs/scripts/benchmark_implicit_drive.py) | `paper_loading=True, dt=0.01, iterations=4, audit_state='artifacts/implicit_picard4_exact_40/final_state.npz', output='artifacts/orbit_final_4', cells=1000, particles=103000` |
 
 #### Mesh and particle-substep controls
 
@@ -234,13 +242,15 @@ Particle charge is unchanged. Maximum continuity and Gauss residuals across thes
 
 The [native records](_static/figures/implicit_method_controls/run.json) retain exact loading hashes, first/warm variability, all-step constraints, timing and memory. [Compressed scalar histories](_static/figures/implicit_method_controls/data.npz) retain all four controls, both timed executions and species traces. Complete initial/final restarts were validated separately. This short method study does not establish late heating or conversion convergence.
 
-```sh
-python docs/scripts/benchmark_implicit_drive.py --paper-loading --cells 1000 --dt .01 --iterations 4 --substeps 2 --horizon 40 --samples 1 --initial-state artifacts/implicit_paper/initial_state.npz --output artifacts/implicit_mesh1000_sub2
-python docs/scripts/benchmark_implicit_drive.py --paper-loading --cells 1000 --dt .01 --iterations 4 --substeps 4 --horizon 40 --samples 1 --initial-state artifacts/implicit_mesh1000_sub2/initial_state.npz --output artifacts/implicit_mesh1000_sub4
-python docs/scripts/benchmark_implicit_drive.py --paper-loading --cells 2000 --dt .01 --iterations 4 --substeps 2 --horizon 40 --samples 1 --output artifacts/implicit_mesh2000_sub2
-python docs/scripts/benchmark_implicit_drive.py --paper-loading --cells 4000 --dt .01 --iterations 4 --substeps 2 --horizon 40 --samples 1 --output artifacts/implicit_mesh4000_sub2
-python docs/scripts/compare_replays.py artifacts/implicit_mesh1000_sub2 artifacts/implicit_mesh1000_sub4 --method-controls --refined artifacts/implicit_mesh2000_sub2 --finer-mesh artifacts/implicit_mesh4000_sub2 --publish docs/_static/figures/implicit_method_controls
-```
+Edit inputs in each linked script, then run it with Python.
+
+| Script | Inputs |
+|---|---|
+| [benchmark_implicit_drive.py](../docs/scripts/benchmark_implicit_drive.py) | `paper_loading=True, cells=1000, dt=0.01, iterations=4, substeps=2, horizon=40, samples=1, initial_state='artifacts/implicit_paper/initial_state.npz', output='artifacts/implicit_mesh1000_sub2', particles=103000` |
+| [benchmark_implicit_drive.py](../docs/scripts/benchmark_implicit_drive.py) | `paper_loading=True, cells=1000, dt=0.01, iterations=4, substeps=4, horizon=40, samples=1, initial_state='artifacts/implicit_mesh1000_sub2/initial_state.npz', output='artifacts/implicit_mesh1000_sub4', particles=103000` |
+| [benchmark_implicit_drive.py](../docs/scripts/benchmark_implicit_drive.py) | `paper_loading=True, cells=2000, dt=0.01, iterations=4, substeps=2, horizon=40, samples=1, output='artifacts/implicit_mesh2000_sub2', particles=103000` |
+| [benchmark_implicit_drive.py](../docs/scripts/benchmark_implicit_drive.py) | `paper_loading=True, cells=4000, dt=0.01, iterations=4, substeps=2, horizon=40, samples=1, output='artifacts/implicit_mesh4000_sub2', particles=103000` |
+| [compare_replays.py](../docs/scripts/compare_replays.py) | `first='artifacts/implicit_mesh1000_sub2', second='artifacts/implicit_mesh1000_sub4', method_controls=True, refined='artifacts/implicit_mesh2000_sub2', finer_mesh='artifacts/implicit_mesh4000_sub2', destination='docs/_static/figures/implicit_method_controls'` |
 
 #### Coupling an implicit dark field
 

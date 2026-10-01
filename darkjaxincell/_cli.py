@@ -85,7 +85,7 @@ def main(argv=None):
     settings = dict(run)
     settings["steps"] = args.steps if args.steps is not None else settings.get("steps", 100)
     settings["seed"] = args.seed if args.seed is not None else settings.get("seed", 0)
-    out = sim.run(**settings)
+    out = sim.run(**settings, verbose=True)
     ledger = out.energy()
     balance = (ledger["closed_energy_error"] if isinstance(sim.dark, DarkField)
                else ledger["closed_balance_error"])

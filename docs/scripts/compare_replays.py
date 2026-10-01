@@ -1,10 +1,27 @@
 """Compare native paper replays at equal horizons without shifting or interpolating."""
-import argparse
 import hashlib
 import json
 from pathlib import Path
 
 import numpy as np
+
+# Edit these inputs; batch studies may pass the same names through runpy.init_globals.
+first = Path(globals().get('first', 'artifacts/paper_fixed_first'))
+second = Path(globals().get('second', 'artifacts/paper_fixed_repeat'))
+variant = globals().get('variant', 'repeat')
+implicit = globals().get('implicit', False)
+picard = globals().get('picard', False)
+method_controls = globals().get('method_controls', False)
+constraints = globals().get('constraints', False)
+legacy = globals().get('legacy', False)
+refined = globals().get('refined', None)
+finer_mesh = globals().get('finer_mesh', None)
+refined_variant = globals().get('refined_variant', 'dt')
+loading_refined = globals().get('loading_refined', None)
+loading_repeat = globals().get('loading_repeat', None)
+orbit_audits = globals().get('orbit_audits', ())
+destination = globals().get('destination', None)  # folder for figure, arrays and record
+output = Path(globals().get('output', 'artifacts/replay_comparison.json'))
 
 WINDOWS = ((0, 100), (0, 250), (0, 500), (0, 1000), (800, 1000))
 SERIES = ('mean_E', 'rms', 'electric', 'nonzero_electric', 'density_rms')
@@ -600,70 +617,37 @@ def publish_implicit(explicit, implicit, folder, refined=None):
         plt.close(fig)
 
 
-def _publish_controls(args, parser):
-    if args.method_controls:
-        if (not args.publish or not args.refined or args.picard or args.implicit or args.orbit_audits
-                or args.loading_refined or args.loading_repeat or args.constraints or args.legacy
-                or args.variant != 'repeat'):
-            parser.error('--method-controls requires a substep record, --refined mesh record and --publish')
-        publish_method_controls(args.first, args.second, args.refined, args.publish, args.finer_mesh)
-        return True
-    if args.picard:
-        if (not args.publish or args.implicit or args.refined or args.loading_refined or args.loading_repeat
-                or args.constraints or args.legacy or args.finer_mesh or args.variant != 'repeat'):
-            parser.error('--picard requires two iteration records and --publish')
-        publish_iterations(args.first, args.second, args.publish, args.orbit_audits)
-        return True
-    return False
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('first', type=Path)
-    parser.add_argument('second', type=Path)
-    parser.add_argument('--implicit', action='store_true', help='second record is a Gaussian implicit drive')
-    parser.add_argument('--picard', action='store_true', help='compare two exact-input implicit iteration counts')
-    parser.add_argument('--method-controls', action='store_true', help='second varies substeps, --refined varies mesh')
-    parser.add_argument('--orbit-audits', type=Path, nargs='+', default=(), help='retain independent orbit records')
-    parser.add_argument('--variant', choices=VARIANTS, default='repeat')
-    parser.add_argument('--legacy', action='store_true', help='retain explicit missing-fingerprint status')
-    parser.add_argument('--constraints', action='store_true', help='audit endpoint closure without applying it')
-    parser.add_argument('--refined', type=Path, help='add a controlled refinement to a published figure')
-    parser.add_argument('--finer-mesh', type=Path, help='second mesh refinement for --method-controls')
-    parser.add_argument('--refined-variant', choices=VARIANTS, default='dt')
-    parser.add_argument('--loading-refined', type=Path, help='change particle count relative to the second record')
-    parser.add_argument('--loading-repeat', type=Path, help='retain a scalar repeat of --loading-refined')
-    destination = parser.add_mutually_exclusive_group(required=True)
-    destination.add_argument('--output', type=Path, help='write comparison JSON only')
-    destination.add_argument('--publish', type=Path, help='render a compact figure, arrays and native run records')
-    args = parser.parse_args()
-    if _publish_controls(args, parser):
-        return
-    if args.finer_mesh:
-        parser.error('--finer-mesh requires --method-controls')
-    if args.orbit_audits:
-        parser.error('--orbit-audits requires --picard')
-    if (args.refined or args.loading_refined or args.loading_repeat) and not args.publish:
-        parser.error('refinements require --publish')
-    if args.loading_repeat and not args.loading_refined:
-        parser.error('--loading-repeat requires --loading-refined')
-    if args.implicit:
-        if args.constraints or args.legacy or args.variant != 'repeat' or args.loading_refined or args.loading_repeat:
-            parser.error('--implicit uses its own physical-loading and native-clock contract')
-        if args.publish:
-            publish_implicit(args.first, args.second, args.publish, args.refined)
+if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
+    print(f"Comparing {first} and {second}", flush=True)
+    if sum((implicit, picard, method_controls)) > 1:
+        raise ValueError('select one comparison mode')
+    if (refined or loading_refined or loading_repeat) and destination is None:
+        raise ValueError('refinements require a publish folder')
+    if loading_repeat and loading_refined is None:
+        raise ValueError('a loading repeat requires its first record')
+    if finer_mesh and not method_controls or orbit_audits and not picard:
+        raise ValueError('finer_mesh requires method_controls; orbit_audits requires picard')
+    if method_controls:
+        if destination is None or refined is None:
+            raise ValueError('method_controls requires substep, mesh and publish folders')
+        publish_method_controls(first, second, refined, destination, finer_mesh)
+    elif picard:
+        if destination is None:
+            raise ValueError('iteration figures require a publish folder')
+        publish_iterations(first, second, destination, orbit_audits)
+    elif implicit:
+        if constraints or legacy or variant != 'repeat' or loading_refined or loading_repeat:
+            raise ValueError('implicit uses the matched physical-loading and native-clock contract')
+        if destination is not None:
+            publish_implicit(first, second, destination, refined)
         else:
-            args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(json.dumps(implicit_comparison(args.first, args.second)[0], indent=2))
-        return
-    result = compare_replays(args.first, args.second, args.variant, legacy=args.legacy, constraints=args.constraints)
-    if args.publish:
-        publish(args.first, args.second, args.publish, result, args.refined, args.refined_variant,
-                args.loading_refined, args.loading_repeat)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(json.dumps(implicit_comparison(first, second)[0], indent=2))
     else:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(result, indent=2))
-
-
-if __name__ == '__main__':
-    main()
+        result = compare_replays(first, second, variant, legacy=legacy, constraints=constraints)
+        if destination is not None:
+            publish(first, second, destination, result, refined, refined_variant, loading_refined, loading_repeat)
+        else:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(json.dumps(result, indent=2))
+    print(f"Saved comparison to {destination or output}", flush=True)

@@ -1,4 +1,4 @@
-"""Regenerate the README loops with ``python docs/scripts/make_movies.py [name]``."""
+"""Generate compact matched PIC movies; edit the inputs below before running."""
 
 import json
 from pathlib import Path
@@ -24,7 +24,13 @@ sys.path.insert(0, str(ROOT))
 from examples.dark_profile import make_simulation, packet, slab_basis  # noqa: E402
 from examples.dark_bump import build_plasma  # noqa: E402
 
-MOVIES = ROOT / "docs" / "_static" / "movies"
+# Full presets reproduce the README illustrations; defaults are short smoke movies.
+full = globals().get("full", False)
+movies = globals().get("movies", ("two_stream",))  # two_stream, bump_on_tail, slab_packet
+MOVIES = Path(globals().get("output", ROOT / "artifacts/movies"))
+two_stream_case = globals().get("two_stream_case", (128, 131072, 120., 1.) if full else (32, 512, 2., .2))
+bump_case = globals().get("bump_case", (128, 80000, 40000, 45., .5) if full else (64, 512, 256, 2., .2))
+packet_case = globals().get("packet_case", (512, 256, 960, 12) if full else (128, 16, 96, 12))
 VIOLET, BLUE, ORANGE = "#6A3D9A", "#0072B2", "#D55E00"
 
 
@@ -32,6 +38,8 @@ def _encode(fig, update, count, path):
     """Encode a short, browser-looping WebP without an ffmpeg/runtime dependency."""
     frames = []
     for index in range(count):
+        if index % 10 == 0:
+            print(f"Encoding frame {index + 1}/{count}", flush=True)
         update(index)
         fig.canvas.draw()
         frames.append(Image.fromarray(np.asarray(fig.canvas.buffer_rgba())[:, :, :3]))
@@ -98,8 +106,8 @@ def _pair_history(plasma, dark_sim, frames, stride, chunk_frames, plot_indices, 
     max_gauss = 0.0
     for first in range(0, frames, chunk_frames):
         count = min(chunk_frames, frames - first)
-        parent = plasma.run(count * stride, store_every=stride, state=parent_state)
-        out = dark_sim.run(count * stride, store_every=stride, state=dark_state)
+        parent = plasma.run(count * stride, store_every=stride, state=parent_state, verbose=True)
+        out = dark_sim.run(count * stride, store_every=stride, state=dark_state, verbose=True)
         parent_state, dark_state = parent.state, out.state
         for key, values in (("time", out.ordinary.t * wp),
                             ("parent_E", parent.E[:, :, 0]),
@@ -187,7 +195,7 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
                "max_dark_gauss_V_m2": max_gauss,
                "all_step_max_dark_gauss_V_m2": float(final_state.max_dark_gauss),
                "all_step_max_balance_J_m2": float(final_state.max_balance_error)}
-    if name == "two_stream":
+    if name == "two_stream" and full:
         reference = np.load(ROOT / "docs/_static/figures/two_stream_extended/data.npz")
         check = {"reference": "two_stream_extended case_1: 128 cells, 8000 particles/beam, same step"}
         for i, branch in enumerate(("parent", "mixed")):
@@ -205,7 +213,7 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
                              "mode_rms_difference_over_high": windows}
         results["particle_refinement"] = check
     save_run(folder, f"dark_movie_{name}",
-             {"preset": "illustration", "source_git": SOURCE_SHA, "cells": cells,
+             {"preset": "illustration" if full else "smoke", "source_git": SOURCE_SHA, "cells": cells,
               "particles_per_species": [s.n for s in plasma.species],
               "steps": steps, "store_every": stride, "eta": eta, "mu_over_wp": 0.7,
               "mode": mode, "horizon_omega_p": float(time[-1]),
@@ -227,7 +235,7 @@ def _paired_movie(plasma, wp, mode, scale_v, name, horizon, frame_dt, subtitle,
 
 def two_stream():
     """Follow matched cold counterstreams through trapping and late roll-up."""
-    cells, particles = 128, 131072
+    cells, particles, horizon, frame_dt = two_stream_case
     wp, length, drift = 0.05 * c * 64, 1.0, 0.25 * c
     density = wp**2 * epsilon_0 * mass_electron / e**2
     x1, v1 = quiet_start(particles, length, drift=(drift, 0, 0))
@@ -236,19 +244,21 @@ def two_stream():
     species = (Species.electrons(particles, density / 2, name="moonward").replace(x=x1, v=v1),
                Species.electrons(particles, density / 2, name="cryptward").replace(x=x2, v=v2))
     plasma = Simulation(Domain(length, cells, time_step=0.0125 / wp), species)
-    _paired_movie(plasma, wp, 1, drift, "two_stream", 120, 1.0,
+    _paired_movie(plasma, wp, 1, drift, "two_stream", horizon, frame_dt,
                   "Two streams meet the dark", chunk_frames=10)
 
 
 def bump_on_tail():
     """A warm tail perturbs the same loaded bulk in both field systems."""
-    plasma, wp, vth = build_plasma(128, 80000, 40000)
-    _paired_movie(plasma, wp, 5, vth, "bump_on_tail", 45, 0.5, "A bump haunts the tail")
+    cells, bulk, beam, horizon, frame_dt = bump_case
+    plasma, wp, vth = build_plasma(cells, bulk, beam)
+    _paired_movie(plasma, wp, 5, vth, "bump_on_tail", horizon, frame_dt, "A bump haunts the tail")
 
 
 def transverse():
     """A Proca packet crosses the fixed-column slab from the full design example."""
-    cells, particles_per_basis, steps, stride, omega0 = 512, 256, 960, 12, 1e9
+    cells, particles_per_basis, steps, stride = packet_case
+    omega0 = 1e9
     ell, mu, eta = c / omega0, 0.6 * omega0, 0.05
     domain = Domain(length=80 * ell, cells=cells, dt_over_dx_c=0.4)
     initial_E, initial_A, incident, _, _ = packet(domain, mu, 0.8 / ell, -16 * ell,
@@ -258,7 +268,7 @@ def transverse():
     nref = epsilon_0 * mass_electron * omega0**2 / e**2
     sim = make_simulation(theta, cells, particles_per_basis, eta, mu, 1.5 * nref * ell,
                           positions, initial_E, initial_A, length_units=80)
-    out = sim.run(steps, store_every=stride)
+    out = sim.run(steps, store_every=stride, verbose=True)
     time = np.asarray(out.ordinary.t) * omega0
     centres = np.asarray(out.ordinary.grid) / ell
     faces = np.asarray(out.ordinary.faces) / ell
@@ -293,7 +303,7 @@ def transverse():
         size = _encode(fig, update, len(time), folder / "figure.webp")
     ledger = np.asarray(out.energy()["total_with_dark"])
     save_run(folder, "dark_movie_slab_packet",
-             {"preset": "illustration", "source_git": SOURCE_SHA, "cells": cells,
+             {"preset": "illustration" if full else "smoke", "source_git": SOURCE_SHA, "cells": cells,
               "particles_per_basis_per_species": particles_per_basis,
               "steps": steps, "store_every": stride, "eta": eta, "mu_over_omega0": 0.6,
               "cells_across_slab": 4 * ell / domain.dx,
@@ -311,7 +321,9 @@ def transverse():
 if __name__ == "__main__":
     options = {"two_stream": two_stream, "bump_on_tail": bump_on_tail,
                "slab_packet": transverse}
-    for name in sys.argv[1:] or options:
+    for name in movies:
         if name not in options:
             raise SystemExit(f"choose from: {', '.join(options)}")
+        print(f"Simulating {name}: {'full illustration' if full else 'smoke'}", flush=True)
         options[name]()
+        print(f"Saved {MOVIES / name}", flush=True)

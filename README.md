@@ -10,6 +10,8 @@
 
 <img src="docs/_static/movies/two_stream/figure.webp" width="900" alt="Matched two-stream phase-space roll-up, ordinary and dark electric fields, and energy">
 
+[Movie script](docs/scripts/make_movies.py) · `full=True`, `movies=("two_stream",)`.
+
 *Two cold electron streams start from identical particle arrays in both solvers. This 128-cell [movie](docs/_static/movies/two_stream/run.json) advances 262,144 particles (2,048 per cell) through ωₚt = 120, plots 8,192 per panel, and stores 6.3 frames per plasma period. Its 120-frame WebP is 2.9 MB. It illustrates trapping; the growth fit and long-time convergence limits use the separate runs below.*
 
 *The two-stream and bump movies are longitudinal, so their magnetic fields vanish by symmetry. The [slab movie](#a-finite-dark-packet-crosses-a-designed-slab) shows the evolving ordinary and dark electric **and** magnetic waves.*
@@ -29,7 +31,11 @@ python -m pip install -e .
 darkjaxincell examples/input.toml --steps 160 --save artifacts/cold_run
 ```
 
-The default JAX installation runs on a CPU. For a GPU, install the appropriate accelerator-enabled [JAX wheel](https://docs.jax.dev/en/latest/installation.html) first; `jax.devices()` shows the selected backend. The forward solver and a density gradient have been exercised on an NVIDIA RTX A4000 ([device smoke record](docs/_static/figures/gpu_smoke/run.json)). The [TOML input](examples/input.toml) uses JAX-in-Cell's tables plus `[dark]`; CLI flags override steps, seed, mixing and mass frequency. `--save` writes a complete restart and provenance. From Python:
+Companion scripts linked below each result place editable inputs after their imports. Run a script with `python examples/dark_photon.py`; set `full=True` for the published preset. Defaults are short smoke runs, with live progress and output under `artifacts/`. Batch studies pass the same input names through `runpy.run_path(..., run_name="__main__", init_globals={...})` and run one simulation process at a time.
+
+The default JAX installation runs on a CPU. For a GPU, install the appropriate accelerator-enabled [JAX wheel](https://docs.jax.dev/en/latest/installation.html) first; `jax.devices()` shows the selected backend. The forward solver and a density gradient have been exercised on an NVIDIA RTX A4000 ([device smoke record](docs/_static/figures/gpu_smoke/run.json)). The [TOML input](examples/input.toml) uses JAX-in-Cell's tables plus `[dark]`; CLI flags override steps, seed, mixing and mass frequency. `--save` writes a complete restart and provenance. [GPU and gradient companion](examples/optimize_dark_photon.py) · `full=False`, `cells=8`, `particles=32`, `start=5`, `stop=12`.
+
+From Python:
 
 ```python
 from darkjaxincell import load_toml
@@ -74,6 +80,8 @@ The [coupled benchmark](docs/scripts/benchmark_pic_conservation.py) follows iden
 
 <img src="docs/_static/figures/pic_conservation/figure.png" width="800" alt="Complete energy, momentum, electric-mode growth and phase for explicit, implicit and Proca particle-in-cell methods">
 
+[Benchmark script](docs/scripts/benchmark_pic_conservation.py) · `full=True`.
+
 | Method | Cells | $\Delta t\omega_p$ | Maximum $\lvert\Delta U\rvert/U_0$ | Maximum $\lvert\Delta P\rvert/(nm_ecL)$ |
 |---|---:|---:|---:|---:|
 | Ordinary explicit | 128 | 0.002 | $7.46\times10^{-4}$ | $2.94\times10^{-17}$ |
@@ -85,15 +93,21 @@ Charge, continuity and both Gauss residuals remain below $4.6\times10^{-13}$ in 
 
 A [prescribed-drive implicit control](docs/performance.md#energy-balance-and-resolved-phase) follows 4,096 particles through $\omega_pt=1000$ with energy-minus-source-work defects below $3\times10^{-16}nm_ec^2L$. Halving the step reduces early waveform error fourfold. Its discrete velocity beams develop spatial modes, and momentum retains a finite defect; this control validates work balance and short-time derivatives, with late Maxwellian accuracy requiring separate tests.
 
+[Companion benchmark](docs/scripts/benchmark_implicit_drive.py) · `cells=256`, `nodes=8`, `horizon=1000`, `dt=.02`; [full input sets](docs/scripts/make_all.py).
+
 ### Gaussian implicit control
 
 <img src="docs/_static/figures/paper_implicit_comparison/figure.png" width="800" alt="Matched explicit and implicit Gaussian plasma fields, momentum and energy balance">
+
+[Implicit simulation](docs/scripts/benchmark_implicit_drive.py) · `paper_loading=True`; [comparison and plot](docs/scripts/compare_replays.py) · `implicit=True` ([replay inputs](docs/scripts/make_all.py)).
 
 With the **206,000-particle Gaussian loading** of the resonant-drive case, the implicit energy/work defect is $1.90\times10^{-15}nm_ec^2L$, while momentum changes by $1.39\times10^{-4}nm_ecL$. Repeated calls to the same compiled solver differ by **12.3%** in nonzero-mode energy through $\omega_pt=1000$. The [matched fields, momentum, conservation and timings](docs/performance.md#gaussian-loading-and-a-fixed-compiled-solver) guide method selection alongside spatial and particle refinement. A separate [exact-state four/eight-iteration check](docs/performance.md#independent-implicit-orbit-and-iteration-checks) leaves early momentum drift unchanged; independent orbit and charge reconstruction verify the accepted impulse.
 
 ### Mesh and orbit accuracy
 
 <img src="docs/_static/figures/implicit_method_controls/figure.png" width="800" alt="Fixed-particle implicit mesh and orbit refinement: mean field, nonzero modes, momentum and energy balance">
+
+[Implicit simulation](docs/scripts/benchmark_implicit_drive.py) · `paper_loading=True`; [comparison and plot](docs/scripts/compare_replays.py) · `method_controls=True` ([four matched inputs](docs/scripts/make_all.py)).
 
 At fixed **206,000 particles**, $\Delta t\omega_p=0.01$ and $\omega_pt=40$, increasing orbit substeps from two to four doubles runtime while leaving momentum drift unchanged. Refining **1,000→2,000→4,000 cells** reduces its maximum from $4.86\times10^{-5}$ to $7.36\times10^{-6}$ to $3.83\times10^{-6}nm_ecL$; energy/work and Gauss remain near roundoff. Nonzero-mode energy still differs by **31.3% / 18.9%** between successive meshes. Conserved energy/Gauss with finite momentum drift also appears in [variational PIC, Figure 3](https://link.springer.com/article/10.1007/s10915-022-01781-3#Fig3), with different parameters. A converged late conversion curve remains open. [Parameters, raw arrays, independent checks and method limits](docs/performance.md#mesh-and-particle-substep-controls).
 
@@ -103,15 +117,21 @@ A homogeneous transverse dark field drives a cold electron plasma. The full [exa
 
 <img src="docs/_static/figures/cold_exchange/figure.png" width="800" alt="Cold Maxwell–Proca PIC fields against a matrix-exponential solution">
 
+[Companion script](examples/dark_photon.py) · `full=True`.
+
 ## Kinetic Landau response
 
 A seeded Maxwellian tests a damped mode, using the same initial particles in the parent and mixed runs. For $s=\omega^2-c^2k^2$, the independent Vlasov–Proca root solves $(s-\Omega_D^2)(1+\chi_L)+\eta^2s\chi_L=0$. The full PIC fit gives $\omega/\omega_p=1.43207-0.14576i$ against the mixed root $1.43695-0.14186i$; the parent gives $1.41195-0.15338i$ against $1.41566-0.15336i$. The fitted envelope ends at a measured late floor, so it is not extended into the nonlinear/noisy tail. See the [full fit and limits](docs/kinetic.md) and [run record](docs/_static/figures/mixed_kinetic/run.json).
 
 <img src="docs/_static/figures/mixed_kinetic/figure.png" width="800" alt="Matched Landau mode histories and independent kinetic root">
 
-At the smaller thermal speed $\sigma/c=0.05$, a [three-resolution replay](docs/kinetic.md#a-physical-speed-landau-replay) holds the physical plasma and dark mass fixed. The independent parent/mixed roots are $1.41566-0.15336i$ and $1.43243-0.14580i$; the 128-cell, 160,000-particle early-window fits give $1.41008-0.15175i$ and $1.44225-0.13944i$. Complete-energy drift stays below $2.64\times10^{-7}$ there. Fit-window and resolution changes still exceed the precision needed to measure the predicted damping *difference*, so that correction remains unresolved. The [record](docs/_static/figures/physical_kinetic_128/run.json) includes the complex ordinary, dark and effective mode histories.
+[Companion script](examples/dark_kinetic.py) · `full=True`.
+
+The [low-speed replay](docs/kinetic.md#a-physical-speed-landau-replay) fixes $\sigma/c=0.05$ and compares three resolutions. Its previous generator used a different dark mass from its reference and metadata; the dirty producer source was not archived, so the displayed historical curves cannot certify that comparison. The companion script now uses one mass for simulation and theory; a clean-source replay is required before assigning a damping correction.
 
 <img src="docs/_static/figures/physical_kinetic_128/figure.png" width="900" alt="Physical-speed matched Landau histories and complete particle plus field energy">
+
+[Companion script](examples/dark_kinetic.py) · `physical=True`, `full=True`, `cells=128`, `particles=160000`, `steps=12000`.
 
 ## Two streams: growth and a long-time limit
 
@@ -121,11 +141,15 @@ At 128 cells and the same timestep, the 262,144-particle movie loading can be co
 
 <img src="docs/_static/figures/two_stream_extended/figure.png" width="900" alt="Matched two-stream growth, energy and phase space through normalized time 200">
 
+[Companion script](examples/dark_saturation.py) · `extended=True`; [linear growth check](examples/dark_instabilities.py) · `mode="two-stream"`, `full=True`.
+
 ## Warm two streams and a stable loading
 
 Two Maxwellian streams at $\pm0.05c$ grow from the same loaded particles in both solvers; a hotter, single-humped control phase mixes without sustained growth. The [warm example](examples/dark_instabilities.py) compares full kinetic, Yukawa-screened and constant-charge roots. For the growing case, the independent ordinary/full rates are $0.31994/0.33643\,\omega_p$; 64- and 128-cell PIC fits give $0.32846/0.34826$ and $0.32855/0.34856\,\omega_p$. The paired rates are stable across these two grids, but the inferred difference changes with the fit window and remains below the precision gate. The control's late mode RMS is 0.066 of its early RMS in the mixed run. This is a deliberately large-coupling numerical test; the [full setup and limits](docs/kinetic.md#warm-two-streams-and-a-stable-control) give the physical speeds, energy ledger and uncertainties.
 
 <img src="docs/_static/figures/warm_two_stream/figure.png" width="900" alt="Matched warm two-stream growth and a single-humped stable control">
+
+[Companion script](examples/dark_instabilities.py) · `mode="warm-two-stream"`, `full=True`.
 
 ## Bump on tail: a warm kinetic comparison
 
@@ -141,7 +165,11 @@ The fourth panel scans the selected beam pole over beam fraction. At a 0.1% beam
 
 <img src="docs/_static/movies/bump_on_tail/figure.webp" width="900" alt="Matched 120,000-particle bump-on-tail phase spaces and electric fields">
 
+[Movie script](docs/scripts/make_movies.py) · `full=True`, `movies=("bump_on_tail",)`.
+
 <img src="docs/_static/figures/bump_on_tail/figure.png" width="800" alt="Bump-on-tail growth, weighted velocity distribution, complete energy and selected kinetic pole scan">
+
+[Companion script](examples/dark_bump.py) · `full=True`.
 
 ## Transverse anisotropy
 
@@ -149,11 +177,15 @@ The [Weibel example](examples/dark_instabilities.py) seeds a transverse magnetic
 
 <img src="docs/_static/figures/mixed_weibel/figure.png" width="800" alt="Transverse anisotropy growth against the independent kinetic root">
 
+[Companion script](examples/dark_instabilities.py) · `mode="weibel"`, `full=True`.
+
 ## Prescribed drive: a control with external work
 
 The [drive example](examples/dark_drive.py) applies a homogeneous sinusoidal force at the cold plasma resonance. It follows the independently solved forced oscillator to **$7.49\times10^{-5}$** of the force scale; ordinary energy gained and accumulated external work differ by **$2.77\times10^{-4}$** of the transfer. This control has no evolving Proca reservoir. [Settings and data](docs/_static/figures/prescribed_drive/run.json).
 
 <img src="docs/_static/figures/prescribed_drive/figure.png" width="800" alt="Prescribed resonant drive and independent forced-oscillator response">
+
+[Companion script](examples/dark_drive.py) · `full=True`.
 
 ## Homogeneous-drive null check
 
@@ -161,17 +193,23 @@ For a nonrelativistic electron plasma with a fixed neutralizer, a uniform force 
 
 <img src="docs/_static/figures/homogeneous_null/figure.png" width="800" alt="Matched zero-drive and homogeneous-drive nonzero-mode histories">
 
+[Companion script](examples/dark_null.py) · `full=True`.
+
 ## Oblique magnetized 3V response
 
 The [cold oblique example](examples/dark_plasma.py) sets a magnetic field with three nonzero components, exciting all particle velocity and field polarizations. A 12-state cold-fluid matrix exponential gives an independent answer for the six mean electric fields; the largest full-run error is **$4.92\times10^{-4}$** of the initial dark amplitude. [Record](docs/_static/figures/oblique_3v/run.json).
 
 <img src="docs/_static/figures/oblique_3v/figure.png" width="800" alt="Six mean electric fields against an oblique cold-fluid matrix reference">
 
+[Companion script](examples/dark_plasma.py) · `full=True`.
+
 ## Mobile ions: finite versus imposed reservoirs
 
 The [mobile-ion example](examples/dark_reservoir.py) compares a zero-drive control, an imposed resonant force, and two finite Proca reservoirs with the same initial force. A two-fluid electron–ion solution checks the early mean response. By $\omega_pt=40$, the small dark reservoir loses about **52.8%** of its initial field energy; the large one loses about **14.8%**. [Controls, the earlier seeded pilot and limits](docs/kinetic.md#mobile-ions-and-a-finite-reservoir).
 
 <img src="docs/_static/figures/mobile_ions/figure.png" width="800" alt="Matched ion-electron prescribed drive and finite dark reservoirs">
+
+[Companion script](examples/dark_reservoir.py) · `study="mobile_ions"`, `full=True`.
 
 ## Resonant drive and nonlinear plasma response
 
@@ -185,6 +223,8 @@ The [parameter replay](examples/dark_reservoir.py) advances **206,000 particles*
 
 <img src="docs/_static/figures/paper_replay/figure.png" width="800" alt="Strong resonant drive compared with published RMS curves, no-drive and homogeneous relativistic controls">
 
+[Simulation script](examples/dark_reservoir.py) · `study="paper"`, `full=True`; [comparison and plot](docs/scripts/make_paper_replay.py) ([drive, control and refinement inputs](docs/scripts/make_all.py)).
+
 Final RMS speeds are **0.1926c (electrons)** and **0.000834c (ions)**, about **4.6%/5.4% below** the visible PDF curves; their variance-energy increments differ by **9.2%/35.2%**. Late electron variance grows **36.09×**, versus **1.0025×** without driving. The energy/work defect is at most **0.0241% of peak injected work**. Halving the timestep changes late electron spread by **1.1%**, but total/nonzero-mode field energy by **52.7%/65.0%**. A third step verifies early second-order behavior; same-step replays diverge during nonlinear broadening. Spatial broadening follows the published trend; quantitative late agreement remains open. [Data, refinement, normalization and mechanism limits](docs/kinetic.md#long-strong-drive-replay-and-controls).
 
 ### Late resolution controls
@@ -195,11 +235,15 @@ At $\Delta t\omega_p=0.005$, an [isolated 1,000→2,000-cell check](docs/kinetic
 
 <img src="docs/_static/figures/replay_resolution/figure.png" width="800" alt="Late field, local velocity spread, density and energy balance under separate grid, particle and seed controls">
 
+[Simulation script](examples/dark_reservoir.py) · `study="paper"`; [comparison and plot](docs/scripts/compare_replays.py) ([matched mesh/loading inputs](docs/scripts/make_all.py)).
+
 ## Oscillating pair plasma: a kinetic bridge
 
 The [pair example](examples/dark_reservoir.py) starts an **ordinary**, charge-neutral electron–positron waterbag with a finite homogeneous electric pump. It follows the parameter case of [Cruz, Grismayer and Silva](https://arxiv.org/abs/2104.04490): $\omega_0=\sqrt2\omega_p$ in the nonrelativistic limit, a $0.1c$ full velocity width, and a $0.14c$ initial quiver scale. The full replay uses the parent’s relativistic Boris pusher. A separate relativistic Vlasov orbit calculation predicts the seeded mode’s early growth at about **$0.0963\,\omega_0$**; the 4,096-cell PIC fit gives about **$0.0960\,\omega_0$** over five pump cycles. By $\omega_0t=170$, the coherent pump has transferred most of its energy into finite-wavelength fields and particle kinetic excess while the complete particle-plus-field energy changes by less than **$3.0\times10^{-4}$** of its initial value. No-pump and seed-amplitude controls, grid/loading refinements, equations and limitations are in the [kinetic study](docs/kinetic.md#an-oscillating-pair-plasma).
 
 <img src="docs/_static/figures/oscillating_pair/figure.png" width="800" alt="Ordinary oscillating pair plasma pump depletion, seeded mode growth and energy transfer">
+
+[Companion script](examples/dark_reservoir.py) · `study="pair"`, `full=True`.
 
 ## Pair plasma with a finite dark reservoir
 
@@ -207,11 +251,15 @@ The [dark pair option](examples/dark_reservoir.py) puts the same neutral waterba
 
 <img src="docs/_static/figures/oscillating_dark_pair/figure.png" width="800" alt="Finite dark pair-plasma reservoir, matched ordinary control, kinetic response and complete energy">
 
+[Companion script](examples/dark_reservoir.py) · `study="pair_dark"`, `full=True`.
+
 ## Conservation and long-time clocks
 
 The [source-free Proca comparison](docs/scripts/benchmark_time_integrators.py) evolves longitudinal and transverse fields to $\Omega_Dt=200$ against a matrix exponential. The explicit split bounds field-energy error at **2.37%** for $\Delta t\Omega_D=0.2$ and **0.577%** at half that step. Implicit midpoint preserves this vacuum field energy to roundoff but has **1.53** final relative state error at the larger step; DOP853 reaches **$3.0\times10^{-8}$** state error with tight tolerances. Phase accuracy and total PIC energy require separate checks: exact field-only conservation does not close the particle–field work ledger. [Methods and timings](docs/performance.md#which-clock-to-trust) and the [full record](docs/_static/figures/time_integrators/run.json) give the comparison.
 
 <img src="docs/_static/figures/time_integrators/figure.png" width="800" alt="Vacuum Proca energy conservation and long-time state error for explicit, midpoint and DOP853 integrators">
+
+[Benchmark script](docs/scripts/benchmark_time_integrators.py) · `quick=False`.
 
 ## Differentiate and optimize a physical objective
 
@@ -232,13 +280,19 @@ value, density_gradient = value_and_gradient(0.97)
 
 <img src="docs/_static/figures/density_calibration/figure.png" width="800" alt="PIC density objective, independent cold reference and gradient checks">
 
+[Companion script](examples/optimize_dark_photon.py) · `full=True`.
+
 ## A finite dark packet crosses a designed slab
 
 The [profile example](examples/dark_profile.py) keeps the slab's total electron column fixed while changing four smooth density weights. It measures **outgoing ordinary-photon flux at a detector**, rather than a homogeneous field amplitude. A JAX gradient design raises the held-out photon-energy fraction from **0.0020826** to **0.0021179**; a finer particle/grid replay gives a **1.81–1.82%** relative gain. An independent cold scattering solve predicts the same ordering. Finite-amplitude kinetic replay changes the yield but finds **no reliable additional gain** from re-optimization. This extends the tested setting from cold wave conversion and prescribed drives to a finite, self-consistent reservoir and a kinetic objective; it makes no detector or priority claim. See [constraints, reference and replay](docs/profile.md).
 
 <img src="docs/_static/figures/profile_design/figure.png" width="800" alt="Fixed-column slab profiles and outgoing photon fraction">
 
+[Companion script](examples/dark_profile.py) · `full=True`.
+
 <img src="docs/_static/movies/slab_packet/figure.webp" width="900" alt="Dark packet crossing a resolved slab, showing ordinary and dark electromagnetic fields and energy">
+
+[Movie script](docs/scripts/make_movies.py) · `full=True`, `movies=("slab_packet",)`.
 
 *The [packet movie](docs/_static/movies/slab_packet/run.json) uses 512 cells, about 26 cells across the slab, 256 particles per basis per species and 80 stored frames. It shows propagation; the full optimization record carries the flux and convergence claims.*
 
@@ -246,9 +300,13 @@ The [profile example](examples/dark_profile.py) keeps the slab's total electron 
 
 The [field tests](tests/test_proca.py) compare longitudinal and both transverse vacuum polarizations with discrete-symbol waves, check the ordinary and dark Gauss laws, and resume the complete particle/field state across a run boundary. The source-free [energy/phase experiment](docs/_static/figures/time_integrators/run.json) above includes all three polarizations. Native NPZ restart saves $\mathbf E_D,\mathbf B_D,\mathbf A_D,\phi_D$, the neutralizing background and accumulated work alongside the parent particle and Maxwell state. [Validation details](docs/validation.md).
 
+[Polarization benchmark](docs/scripts/benchmark_time_integrators.py) · `quick=False`; [restart input](examples/input.toml) with `load_state` and `simulation.run(state=...)` ([usage](docs/index.md)).
+
 ## Runtime and differentiation cost
 
 The [isolated field-step benchmark](docs/_static/figures/field_cost.json) uses 8,192 particles on 128 cells for 256 steps: median warm CPU times are **176 ms** for the parent and **219 ms** for active Proca. A [131,072-particle replay](docs/_static/figures/field_cost_large.json) gives **5.30 s** and **5.71 s**, with host load varying too much to infer a reliable overhead ratio. These are *timing workloads*; the two-stream movie advances 262,144 particles, and the refined kinetic bump run advances 240,000. A separate [955-step gradient recurrence](docs/_static/figures/recurrence_benchmark.json) compares native JAX checkpointing with SOLVAX. SOLVAX agrees on value and derivative but offers no clear benefit over native segmented JAX, so it remains optional. [Compile, memory and device details](docs/performance.md) are reported with the measurements.
+
+[Field and storage benchmark](docs/scripts/benchmark_field_cost.py); [gradient recurrence benchmark](docs/scripts/benchmark_recurrence.py). Their input blocks select the recorded workloads.
 
 ## Related codes and scope
 
@@ -277,6 +335,6 @@ The [isolated field-step benchmark](docs/_static/figures/field_cost.json) uses 8
 
 The pair benchmark confirms a known kinetic instability; the current finite-reservoir runs extend the model but have unresolved late loading dependence. They neither contradict Hook *et al.* nor confirm that paper's nonlinear conversion curve. Differentiable kinetic optimization already exists in ADEPT and the parent. The tested contribution here is the coupled Maxwell–Proca trajectory and its complete energy/work and gradient diagnostics; a new physical mechanism still requires converged controls.
 
-Regenerate full figures, records and measured documentation with `python docs/scripts/make_all.py`. Regenerate the three compressed README loops with `python docs/scripts/make_movies.py` after `python -m pip install -e '.[media]'`. Quick presets are smoke tests, not the full evidence quoted above.
+[Full evidence driver](docs/scripts/make_all.py): `records_only=True` refreshes measured documentation from saved records; set it to `False` to rerun the full studies sequentially. [Movie driver](docs/scripts/make_movies.py): install `.[media]`, set `full=True`, and choose the desired `movies` tuple. Both write directories are explicit inputs. Quick presets are smoke tests, not the evidence quoted above.
 
 MIT licensed. JAX-in-Cell and its human contributors retain upstream authorship and licenses. The parent [draft PR #42](https://github.com/uwplasma/JAX-in-Cell/pull/42) remains separate.

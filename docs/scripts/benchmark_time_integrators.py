@@ -4,7 +4,6 @@ The normalized vacuum equations use c = Omega_D = epsilon_0 = 1. This checks
 field-only conservation and phase, not conservation of a coupled PIC scheme.
 """
 
-import argparse
 from pathlib import Path
 from time import perf_counter
 
@@ -19,6 +18,13 @@ from jaxincell import save_run
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+
+
+# Editable inputs also accept runpy.run_path(..., init_globals={...}) batch overrides.
+quick = globals().get("quick", True)
+cells = globals().get("cells", 16)
+end = globals().get("end", 20. if quick else 200.)
+output = Path(globals().get("output", "artifacts/time_integrators"))
 
 
 def operators(cells):
@@ -121,18 +127,16 @@ def trial(method, h, end, y0, generator, split, unpack, div, exact):
             "time": times, "energy_change": energies / energies[0] - 1}
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Put vacuum ghosts on three clocks")
-    parser.add_argument("--quick", action="store_true")
-    parser.add_argument("--output", type=Path, default=Path("artifacts/time_integrators"))
-    args = parser.parse_args()
-    cells, end = 16, 20 if args.quick else 200
+if __name__ == "__main__":
+    if cells < 2 or not np.isfinite(end) or end <= 0 or not np.isclose(end / .2, round(end / .2)):
+        raise ValueError("at least two cells and a positive horizon divisible by 0.2 are required")
+    print(f"Starting vacuum time-integrator benchmark: {cells} cells, Ωt={end:g}", flush=True)
     y0, generator, split, unpack, div = system(cells)
     exact = expm_multiply(end * generator, y0, traceA=0)
-    runs = [trial(method, h, end, y0, generator, split, unpack, div, exact)
-            for method, h in (("split", 0.2), ("split", 0.1),
-                              ("midpoint", 0.2), ("midpoint", 0.1),
-                              ("DOP853", 0.2))]
+    runs = []
+    for method, h in (("split", .2), ("split", .1), ("midpoint", .2), ("midpoint", .1), ("DOP853", .2)):
+        print(f"Measuring {method}, ΔtΩ={h:g}", flush=True)
+        runs.append(trial(method, h, end, y0, generator, split, unpack, div, exact))
     with midnight():
         fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
         for run, color in zip(runs, ("#6A3D9A", "#B03568", "#0072B2", "#009E73", "#D55E00")):
@@ -151,18 +155,16 @@ def main():
         axes[1].legend(loc="center", facecolor="#FFFFFF", edgecolor="#6B7280", fontsize=7)
         for ax in axes:
             ax.grid(alpha=0.25)
-        settings = {"preset": "quick" if args.quick else "full", "cells": cells,
+        settings = {"preset": "quick" if quick else "full", "cells": cells,
                     "horizon_omega_D": end, "normalized_units": "c=Omega_D=epsilon_0=1",
                     "scope": "source-free staggered Proca field only; no PIC particles"}
         results = {"methods": [{k: v for k, v in run.items() if k not in ("time", "energy_change")}
                                for run in runs], "oracle": "scipy.sparse.linalg.expm_multiply"}
         arrays = {f"case_{i}_{key}": run[key] for i, run in enumerate(runs)
                   for key in ("time", "energy_change")}
-        save_run(args.output, "time_integrators", settings, results, fig, **arrays)
+        save_run(output, "time_integrators", settings, results, fig, **arrays)
         plt.close(fig)
     for run in results["methods"]:
         print("🕰️", run)
 
-
-if __name__ == "__main__":
-    main()
+    print(f"Finished vacuum time-integrator benchmark; wrote {output}", flush=True)
