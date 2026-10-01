@@ -71,13 +71,21 @@ def _normalization(data, settings):
     mass = np.array([1., settings['mass_ratio']])
     if not np.allclose(data['spread'], .5 * mass * data['rms']**2, rtol=2e-12, atol=1e-30):
         raise ValueError('spread and RMS do not share the stated energy normalization')
-    if not np.allclose(mass * data['rms'][0]**2, settings['T_each_over_mec2'], rtol=2e-12):
+    if settings.get('momentum_seed_over_sigma_e', 0):
+        temperature = np.asarray(settings.get('thermal_temperature_over_mec2', []))
+        initial = np.asarray(settings.get('initial_rms_over_c', []))
+        if (temperature.shape != (2,) or initial.shape != (2,)
+                or not np.allclose(temperature, settings['T_each_over_mec2'], rtol=2e-12, atol=0)
+                or not np.allclose(data['rms'][0], initial, rtol=2e-12, atol=0)):
+            raise ValueError('seeded initial RMS and reconstructed thermal loading must be recorded')
+    elif not np.allclose(mass * data['rms'][0]**2, settings['T_each_over_mec2'], rtol=2e-12, atol=0):
         raise ValueError('initial RMS differs from the physical temperature loading')
     if not np.allclose(data['nonzero_electric'], data['electric'] - data['mean_E']**2 / 2,
                        rtol=2e-12, atol=1e-30):
         raise ValueError('electric components do not share the stated field normalization')
     if all(key in data for key in ('balance', 'magnetic', 'dark', 'work')):
-        expected = data['electric'] + data['magnetic'] + data['dark'] + data['kinetic'].sum(axis=1) - data['work']
+        source = data['work'] if settings['coupling'] is None else 0
+        expected = data['electric'] + data['magnetic'] + data['dark'] + data['kinetic'].sum(axis=1) - source
         if not np.allclose(data['balance'], expected, rtol=2e-12, atol=1e-30):
             raise ValueError('energy/work ledger does not share one normalization')
 
@@ -349,7 +357,9 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
         axes[0, 1].set(ylabel=r'$U_{\rm local}(t)/U_{\rm local}(0)$', title=r'Local spread at $2\lambda_{D0}$',
                        yscale='log')
         axes[1, 0].set(ylabel='smoothed density RMS / mean', title=r'Density at $2\lambda_{D0}$')
-        axes[1, 1].set(ylabel=r'$(\Delta U-W)/\max|W|$', title='Energy and external work')
+        coupled = sources[0][0]['settings']['coupling'] is not None
+        axes[1, 1].set(ylabel=r'$\Delta U/\max|W_D|$' if coupled else r'$(\Delta U-W)/\max|W|$',
+                       title='Closed energy' if coupled else 'Energy and external work')
         for axis in axes.flat:
             axis.set(xlabel=r'$\omega_pt$', xlim=(0, time[-1]))
             axis.grid(alpha=.25)

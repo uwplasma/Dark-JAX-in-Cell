@@ -8,7 +8,7 @@ import jax.numpy as jnp
 from jaxincell import elementary_charge as e, epsilon_0, mass_electron, speed_of_light as c
 
 from examples.dark_reservoir import (array_fingerprint, paper_case, paper_initial,
-                                     paper_plasma, save_compressed_state)
+                                     paper_plasma, save_compressed_state, seed_noise)
 from darkjaxincell import DarkSimulation, PrescribedDrive, load_state
 
 
@@ -74,6 +74,64 @@ def test_fixed_physical_momentum_seed_is_neutral_resolved_and_differentiable():
     for value, mode in ((np.nan, 2), (.05, 0), (.05, 16)):
         with pytest.raises(ValueError):
             paper_plasma(32, 128, .01, 3, value, mode)
+    with pytest.raises(ValueError):
+        paper_plasma(64, 16, .01, 3, .05, 16)
+
+
+def test_seed_current_removes_the_momentum_kick_and_matches_charge_frechet():
+    from jaxincell._core import deposit
+    plain, _ = paper_plasma(64, 256, .01, 3)
+    seeded, _ = paper_plasma(64, 256, .01, 3, .05, 2, .37)
+    state, _ = seeded.initial_state(random.PRNGKey(0))
+    result = seed_noise(seeded, state, .05, 2, .37)
+    mass, charge = map(np.asarray, seeded.per_particle)
+    x = np.concatenate([np.asarray(s.x[:, 0]) for s in plain.species])
+    thermal = np.concatenate([np.asarray(s.v[:, 0]) for s in plain.species])
+    d, density = seeded.domain, float(seeded.species[0].density)
+    k = 4 * np.pi / d.length
+    coefficients = charge * np.asarray(state.w) / (e * density * d.length * c)
+    expected = np.sum(coefficients * thermal * np.exp(-1j * k * x))
+    observed = complex(*result['particle']['total']['thermal_current'])
+    np.testing.assert_allclose(observed, expected, rtol=2e-13, atol=2e-17)
+    np.testing.assert_allclose(result['thermal_temperature_over_mec2'], .001, rtol=2e-13)
+    np.testing.assert_allclose(result['charge_mode'], 0, atol=1e-13)
+    np.testing.assert_array_equal(result['seed_charge_mode'], [0., 0.])
+    # Differentiate actual charge deposition along thermal velocities; continuity fixes face current.
+    delta = 1e-6 / 1e9
+    rho = [(np.asarray(deposit(x + sign * delta * thermal, charge * np.asarray(state.w),
+                               d.grid[0], d.dx, d.cells, (0, 0)))) for sign in (-1, 1)]
+    rho_dot = np.mean((rho[1] - rho[0]) * np.exp(-1j * k * np.asarray(d.grid))) / (2 * delta)
+    exact_face = -rho_dot / (1j * 2 * np.sin(k * d.dx / 2) / d.dx * e * density * c)
+    observed_face = complex(*result['continuity_face']['total']['thermal_current'])
+    np.testing.assert_allclose(observed_face, exact_face, rtol=2e-6)
+    with pytest.raises(ValueError, match='quadratic deposition'):
+        seed_noise(seeded.replace(solver=seeded.solver.replace(filter_passes=1)), state, .05, 2, .37)
+
+
+@pytest.mark.parametrize('coupling', [None, .1])
+def test_seeded_scalar_archive_separates_thermal_loading_and_internal_work(tmp_path, coupling):
+    from docs.scripts.compare_replays import _load
+    history, settings, result = paper_case(tmp_path, 32, 256, .02, 1, 3, .03, coupling,
+                                           block_horizon=.5, momentum_seed=.05, seed_mode=2, seed_phase=.37)
+    _load(tmp_path, 1e-8)
+    np.testing.assert_allclose(result['initial_seed_noise']['thermal_temperature_over_mec2'], .001, rtol=2e-13)
+    np.testing.assert_allclose(settings['initial_rms_over_c'], history['rms'][0], rtol=2e-13)
+    with np.load(tmp_path / 'data.npz') as a:
+        assert a['linear_mode_E'].shape == a['linear_t'].shape == history['t'].shape
+        assert np.isfinite(a['linear_mode_D']).all()
+    if coupling is None:
+        np.testing.assert_array_equal(history['dark_coherent'], 0)
+    else:
+        np.testing.assert_allclose(history['dark_coherent'][0], history['dark'][0], rtol=2e-13)
+    assert result['max_dark_work_defect_over_nmc2L'] >= 0
+    assert result['max_ordinary_work_defect_over_nmc2L'] >= 0
+    assert settings['mode_basis'] == 'physical exp(-ikx) at faces'
+    from docs.scripts.compare_replays import _normalization
+    changed = {**settings, 'thermal_temperature_over_mec2': [.001, .0010000001]}
+    with pytest.raises(ValueError, match='reconstructed thermal'):
+        _normalization(history, changed)
+    with pytest.raises(ValueError, match='reconstructed thermal'):
+        _normalization(history, {**settings, 'initial_rms_over_c': settings['initial_rms_over_c'][:1]})
 
 
 @pytest.mark.parametrize('args', [(3, 100, .02, 0), (16, 1, .02, 0),

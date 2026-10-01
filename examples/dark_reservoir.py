@@ -642,7 +642,7 @@ def paper_plasma(cells, particles, dtau, seed, momentum_seed=0., seed_mode=16, s
         if not isinstance(value, core.Tracer) and not np.isfinite(value):
             raise ValueError('physical momentum seed and phase must be finite')
     seeded = isinstance(momentum_seed, core.Tracer) or momentum_seed != 0
-    if seeded and (not isinstance(seed_mode, (int, np.integer)) or not 0 < 2 * seed_mode < cells):
+    if seeded and (not isinstance(seed_mode, (int, np.integer)) or not 0 < 2 * seed_mode < min(cells, particles)):
         raise ValueError('physical seed_mode must be a positive resolved Fourier mode')
     wp, ratio = 1e9, 1836.0
     density = wp**2 * epsilon_0 * mass_electron / e**2
@@ -673,6 +673,55 @@ def array_fingerprint(array):
     digest = hashlib.sha256(f'{array.dtype.str}:{array.shape}'.encode())
     digest.update(array.tobytes())
     return digest.hexdigest()
+
+
+def seed_noise(plasma, ordinary, fraction, mode, phase):
+    """Measure the initial physical seed against thermal current, without evolving particles."""
+    d = plasma.domain
+    s = plasma.solver
+    if (s.algorithm != 'explicit' or getattr(s, 'shape_order', 2) != 2 or s.filter_passes
+            or d.field_bc != (0, 0) or d.particle_bc != (0, 0)):
+        raise ValueError('seed current audit requires explicit, unfiltered periodic quadratic deposition')
+    u, w = np.asarray(ordinary.u), np.asarray(ordinary.w)
+    mass, charge = map(np.asarray, plasma.per_particle)
+    velocity = u / np.sqrt(1 + np.sum((u / c)**2, axis=1))[:, None]
+    x = np.asarray(ordinary.x[:, 0]) - d.dt * velocity[:, 0] / 2
+    x = (x + d.length / 2) % d.length - d.length / 2
+    k = 2 * np.pi * mode / d.length
+    thermal_u = u.copy()
+    thermal_u[:, 0] += charge / e * mass_electron / mass * fraction * np.sqrt(.001) * c * np.cos(k * x + phase)
+    thermal = thermal_u[:, 0] / np.sqrt(1 + np.sum((thermal_u / c)**2, axis=1))
+    amount = charge * w / (e * float(plasma.species[0].density) * d.length * c)
+    centres = np.asarray(d.grid)
+    coordinate = (x - centres[0]) / d.dx
+    nearest = np.floor(coordinate + .5).astype(int)
+    offset = coordinate - nearest
+    indices = (nearest[:, None] + np.array([-1, 0, 1])) % d.cells
+    derivative = np.stack((offset - .5, -2 * offset, offset + .5), axis=1) / d.dx
+    kernel = np.sum(derivative * np.exp(-1j * k * centres[indices]), axis=1)
+    bases = dict(particle=np.exp(-1j * k * x),
+                 continuity_face=-kernel / (1j * 2 * np.sin(k * d.dx / 2) / d.dx))
+    sections, begin = dict(total=slice(None)), 0
+    for species in plasma.species:
+        sections[species.name] = slice(begin, begin + species.n)
+        begin += species.n
+    result = {}
+    for basis, values in bases.items():
+        result[basis] = {}
+        for label, section in sections.items():
+            noise = np.sum(amount[section] * values[section] * thermal[section])
+            signal = np.sum(amount[section] * values[section] * (velocity[section, 0] - thermal[section]))
+            result[basis][label] = dict(thermal_current=[float(noise.real), float(noise.imag)],
+                                        seed_current=[float(signal.real), float(signal.imag)],
+                                        seed_over_thermal=float(abs(signal) / abs(noise)) if abs(noise) else None)
+    result['thermal_temperature_over_mec2'] = [float(np.average(
+        (thermal[s] - np.average(thermal[s], weights=w[s]))**2, weights=w[s])
+        * mass[s][0] / (mass_electron * c**2)) for s in list(sections.values())[1:]]
+    rho = np.mean(np.asarray(ordinary.rho) * np.exp(-1j * k * centres)) / (e * float(plasma.species[0].density))
+    result['charge_mode'] = [float(rho.real), float(rho.imag)]
+    result['seed_charge_mode'] = [0., 0.]  # The counterfactual retains the same integer-time x and w.
+    result['scope'] = 'Initial selected-mode current in enc units; other noise modes and late dominance untested'
+    return result
 
 
 def save_compressed_state(path, state, sim):
@@ -770,6 +819,7 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
                  jnp.array([force / eta, 0., 0.]), (cells, 1))))
     sim = DarkSimulation(plasma, model)
     start, fingerprints = paper_initial(sim, seed, initial_state)
+    seed_diagnostics = seed_noise(plasma, start.ordinary, momentum_seed, seed_mode, seed_phase) if momentum_seed else {}
     stride = max(1, round(0.5 / dtau))
     steps = stride * max(1, round(horizon / (stride * dtau)))
     scales = np.array([2., 4.]) * np.sqrt(1e-3) * c / wp
@@ -794,8 +844,8 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
     history['mode_E'] /= field_scale
     history['dark_mode_E'] /= field_scale
     phase_origin = np.exp(-2j * np.pi * seed_mode * float(plasma.domain.faces[0]) / plasma.domain.length)
-    history['mode_E'] *= phase_origin if momentum_seed else 1
-    history['dark_mode_E'] *= phase_origin if momentum_seed else 1
+    history['mode_E'] = history['mode_E'] * (phase_origin if momentum_seed else 1)
+    history['dark_mode_E'] = history['dark_mode_E'] * (phase_origin if momentum_seed else 1)
     history['nonzero_electric'] = history['electric'] - history['mean_E']**2 / 2
     maxima = np.asarray(maxima)
     # Spatially homogeneous kinetic orbits separate relativistic detuning from density waves.
@@ -815,8 +865,10 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
         max_continuity_over_enwp=float(maxima[3] / (e * density * wp)),
         max_ordinary_gauss_over_en_eps0=float(maxima[4] * epsilon_0 / (e * density)),
         max_dark_gauss_over_en_eps0=float(maxima[5] * epsilon_0 / (e * density)),
-        late_electron_spread_over_initial=float(np.mean(history['spread'][late, 0]) / 5e-4),
-        late_ion_spread_over_initial=float(np.mean(history['spread'][late, 1]) / 5e-4),
+        max_dark_work_defect_over_nmc2L=float(maxima[7] / energy_scale),
+        max_ordinary_work_defect_over_nmc2L=float(maxima[8] / energy_scale),
+        late_electron_spread_over_initial=float(np.mean(history['spread'][late, 0]) / history['spread'][0, 0]),
+        late_ion_spread_over_initial=float(np.mean(history['spread'][late, 1]) / history['spread'][0, 1]),
         late_electric_energy_over_initial_electron_thermal=float(np.mean(history['electric'][late]) / 5e-4),
         late_nonzero_electric_energy_over_initial_electron_thermal=float(
             np.mean(history['nonzero_electric'][late]) / 5e-4),
@@ -835,7 +887,7 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
         claim=('Fixed physical momentum-seed extension; not the unseeded Fig. 2 replay' if momentum_seed else
                'Fig. 2 parameter replay; late reproduction requires loading/grid/time/seed convergence'))
     linear_curves, linear_results = seed_reference(history, amplitude, eta, momentum_seed, seed_mode, seed_phase)
-    results.update(linear_results)
+    results.update(linear_results, initial_seed_noise=seed_diagnostics or None)
     settings = dict(source=('Controlled physical-seed extension of Hook Fig. 2' if momentum_seed else
                             'Hook, Huang, Shalaby arXiv:2510.13956v1 Fig. 2 and Appendix B'),
                     cells=cells, particles_per_species=particles, dt_omega_p=dtau,
@@ -856,6 +908,8 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
                              if momentum_seed else
                              'co-located lattice; independent Gaussian velocities, zero mean and exact variance'),
                     momentum_seed_over_sigma_e=momentum_seed,
+                    initial_rms_over_c=history['rms'][0].tolist(),
+                    thermal_temperature_over_mec2=seed_diagnostics.get('thermal_temperature_over_mec2', [1e-3, 1e-3]),
                     seed_mode=seed_mode if momentum_seed else None, seed_phase=seed_phase if momentum_seed else None,
                     recorded_mode=seed_mode if momentum_seed else 1,
                     mode_basis='physical exp(-ikx) at faces' if momentum_seed else 'native fft index basis',
@@ -882,7 +936,8 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
         sound_speed = np.sqrt((history['rms'][:, 0]**2 + 1836 * history['rms'][:, 1]**2) / 1836)
         axes[0, 1].plot(t, sound_speed / np.sqrt(2), ':', color='#009E73', label='sound speed / √2')
         axes[0, 1].set(yscale='log', ylabel='velocity / c', ylim=(np.sqrt(1e-3 / 1836) / 10, None))
-        axes[1, 0].plot(t, (history['balance'] - history['balance'][0]) / 1e-3, label='energy − work')
+        axes[1, 0].plot(t, (history['balance'] - history['balance'][0]) / 1e-3,
+                        label='energy − work' if eta is None else 'total energy change')
         axes[1, 0].plot(t, history['momentum'][:, 0] - history['momentum'][0, 0], label='momentum / n mₑ c L')
         axes[1, 0].set(ylabel='conservation defects')
         axes[1, 1].set(ylabel='grid-scale density RMS / mean')

@@ -74,7 +74,9 @@ def test_window_reduction_uses_dark_work_sign_and_rejects_a_single_sample(record
 
 
 def test_physical_seed_changes_cannot_be_hidden_in_a_resolution_comparison(records):
-    change_settings(records[1], momentum_seed_over_sigma_e=.05, seed_mode=16, seed_phase=0.)
+    change_settings(records[1], momentum_seed_over_sigma_e=.05, seed_mode=16, seed_phase=0.,
+                    thermal_temperature_over_mec2=[.001, .001],
+                    initial_rms_over_c=np.sqrt(np.array([.001, .001 / 1836])).tolist())
     with pytest.raises(ValueError, match='physical seed'):
         compare_replays(*records, windows=((0, 1),))
 
