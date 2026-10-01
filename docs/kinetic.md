@@ -294,15 +294,32 @@ A second $\Delta\tau=0.01$ run ends at $1000$, with the same clean computational
 
 The repeat variation is negligible through $250$, where timestep contraction already fails, and becomes material during later broadening. Through $1000$, its mean-field and nonzero-energy differences are 34% and 19% of the fine adjacent-timestep differences. This one replay identifies execution sensitivity, not its cause or a statistical uncertainty. Exact initial particle arrays were not archived. The next nonlinear comparison needs repeated executions and independent loading seeds at fixed physical smoothing scales, alongside isolated mesh and timestep checks. A solver change should be judged on these observables as well as conservation.
 
-#### Controlled replay preparation
+#### Exact archived-state, equal-horizon replays
 
-The example now saves a compressed complete zero-time state before running. SHA-256 fingerprints identify the explicit loading positions/velocities and initialized particle weights, momenta and fields. `--initial-state` reuses that state after checking its particle arrays and physical metadata. `--block-horizon` compiles one fixed interval and carries the original conservation reference through every block; the total horizon changes the number of calls. These controls distinguish different compiled horizons from repeat variation within a fixed execution pattern.
+The example saves a compressed complete zero-time state before running. SHA-256 fingerprints identify the explicit loading positions/velocities and initialized particle weights, momenta and fields. `--initial-state` reuses that state after checking its particle arrays and physical metadata. Two GPU executions now use the exact same archived particles and Maxwell fields, source, runtime, $\Delta\tau=0.01$, $1000$ horizon and $0.5$ output cadence. Each compiles a $100/\omega_p$ interval and carries the original conservation reference through ten calls. The compiled configuration matches, but these are separately compiled processes; executable bytes were not compared.
 
 `--local-moments` records Gaussian-smoothed species density contrast and lab-frame random-energy histories at $2\lambda_{D0}$ and $4\lambda_{D0}$, at the native scalar cadence. These physical scales stay fixed across grid changes. The variances subtract resolved local flow and remain distinct from thermodynamic temperature. Timings include synchronized execution and host scalar transfers, with compilation separate.
+
+![Repeated archived-state dynamics and conservation](_static/figures/replay_controls/figure.png)
+
+| Window in $\tau$ | Mean-field difference (%) | Total electric-energy difference (%) | Nonzero-mode energy difference (%) |
+|---|---:|---:|---:|
+| 0–100 | {{ hook_fixed_0_100_mean_E_l2_percent }} | {{ hook_fixed_0_100_electric_l2_percent }} | {{ hook_fixed_0_100_nonzero_electric_l2_percent }} |
+| 0–250 | {{ hook_fixed_0_250_mean_E_l2_percent }} | {{ hook_fixed_0_250_electric_l2_percent }} | {{ hook_fixed_0_250_nonzero_electric_l2_percent }} |
+| 0–500 | {{ hook_fixed_0_500_mean_E_l2_percent }} | {{ hook_fixed_0_500_electric_l2_percent }} | {{ hook_fixed_0_500_nonzero_electric_l2_percent }} |
+| 0–1000 | {{ hook_fixed_0_1000_mean_E_l2_percent }} | {{ hook_fixed_0_1000_electric_l2_percent }} | {{ hook_fixed_0_1000_nonzero_electric_l2_percent }} |
+
+Differences are raw $L^2$ norms relative to execution 1, without shifting or interpolating time. On $800\le\tau\le1000$, nonzero-mode mean energy changes by **{{ hook_fixed_nonzero_mean_change_percent }}%**, while the local spread-energy means at $2\lambda_{D0}$ change by **{{ hook_fixed_local_spread_0_mean_change_percent }}% / {{ hook_fixed_local_spread_1_mean_change_percent }}%** for electrons/ions. Broadening is less sensitive than the late field in this pair. One repeat does not establish statistical uncertainty, a fixed-executable reproducibility floor or a cause. The JAX accumulation semantics and [method-selection review](performance.md#repeated-execution-and-compiled-horizons) explain why separate execution, timestep, mesh and seed controls are needed.
+
+The third trace halves the timestep to $0.005$ at the same horizon, cadence, physical loading and block duration. Native initialized positions change with leapfrog staggering; the supplied positions/velocities and physical weights match exactly. Through $100$, mean-field difference is **{{ hook_fixed_dt_0_100_mean_E_l2_percent }}%**; through $1000$, nonzero-energy difference is **{{ hook_fixed_dt_0_1000_nonzero_electric_l2_percent }}%**. On $800\le\tau\le1000$, nonzero mean energy changes by **+{{ hook_fixed_dt_nonzero_mean_change_percent }}%**, versus **{{ hook_fixed_dt_local_spread_0_mean_change_percent }}% / {{ hook_fixed_dt_local_spread_1_mean_change_percent }}%** for the local electron/ion spread. The field's timestep and repeat sensitivities remain material. These are numerical controls on the same driven model, with independent-seed and isolated mesh/loading convergence still open.
+
+All-step continuity and Gauss residuals remain at roundoff; particle charge is unchanged. A diagnostic periodic longitudinal projection of each final state would change $E/E_{\star}$ by at most **{{ hook_fixed_projection_field }}** and energy by at most **{{ hook_fixed_projection_energy }} $nm_ec^2L$**. The audit retains the incompatible mean residual and applies no correction. These endpoint sizes do not bound earlier dynamical amplification, but give no evidence of a large accumulated constraint defect requiring cleaning. The [native records, exact hashes, both smoothing lengths and projection audit](_static/figures/replay_controls/run.json) and [compressed scalar arrays](_static/figures/replay_controls/data.npz) retain the evidence. Faint electric-energy curves are raw; thick energy/density curves average 13 samples with trimmed endpoints. The local spread curves and all tabulated metrics use raw samples.
 
 ```sh
 python examples/dark_reservoir.py --paper --full --dt 0.01 --horizon 1000 --block-horizon 100 --local-moments --output artifacts/paper_fixed_first
 python examples/dark_reservoir.py --paper --full --dt 0.01 --horizon 1000 --block-horizon 100 --local-moments --initial-state artifacts/paper_fixed_first/initial_state.npz --output artifacts/paper_fixed_repeat
+python examples/dark_reservoir.py --paper --full --dt 0.005 --horizon 1000 --block-horizon 100 --local-moments --output artifacts/paper_fixed_fine
+python docs/scripts/compare_replays.py artifacts/paper_fixed_first artifacts/paper_fixed_repeat --constraints --refined artifacts/paper_fixed_fine --publish docs/_static/figures/replay_controls
 ```
 
 Run the following cases **sequentially**. The final complete restart is compressed and retained in each computational output; the public summary keeps compressed scalar curves and provenance.

@@ -1,0 +1,99 @@
+{
+ "jaxincell": "0.7.dev302+g83d327118",
+ "jax": "0.6.2",
+ "numpy": "2.2.4",
+ "python": "3.10.12",
+ "platform": "Linux x86_64",
+ "jax_enable_x64": true,
+ "backend": "gpu",
+ "git": "ea1462ced8f381801971c79a31b59ba001620cda",
+ "example": "implicit_drive",
+ "settings": {
+  "cells": 256,
+  "nodes": 8,
+  "rings": 1,
+  "dt": 0.02,
+  "iterations": 8,
+  "horizon": 1000.0,
+  "amplitude": 0.0009486832980505137,
+  "temperature": 0.001,
+  "samples": 2,
+  "gradient_horizon": 8.0,
+  "newtonian": false,
+  "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+  "precision": "float64",
+  "loading": "weighted Gauss-Hermite velocity rings; two mobile species; fixed electron wp",
+  "wp_rad_s": 1000000000.0,
+  "mass_ratio": 1836.0,
+  "particles_per_species": 2048,
+  "thermal_parameter_definition": "Gaussian velocity sigma_e squared / c squared"
+ },
+ "results": {
+  "compile_s": 4.977170984027907,
+  "first_primal_s": 85.4225266110152,
+  "warm_primal_s": [
+   86.81119077897165,
+   86.84039198700339
+  ],
+  "compiler_temporary_bytes": 2233832,
+  "peak_rss_bytes": 1016946688,
+  "host_load": [
+   7.0166015625,
+   6.62451171875,
+   6.3818359375
+  ],
+  "device_kinds": [
+   "NVIDIA RTX A4000"
+  ],
+  "max_balance_over_nmc2L": 1.8172051479001327e-16,
+  "max_particle_charge_change_over_enL": 0.0,
+  "max_grid_charge_change_over_enL": 9.495128939803334e-17,
+  "max_continuity_over_enwp": 4.032431809057383e-14,
+  "max_gauss_over_en_eps0": 1.7805372846399816e-13,
+  "max_mean_ampere_over_fieldwp": 2.24283764874848e-16,
+  "max_momentum_over_nmecL": 0.0023546566245075695,
+  "max_mean_E_error": 0.2601646223392033,
+  "max_current_error": 0.25588725319219646,
+  "max_phase_error_rad": 13.351341120431243,
+  "phase_definition": "unwrapped arg(E+iJ) against oracle; exclude near-zero radius and startup",
+  "phase_mask_samples": 9860,
+  "phase_total_samples": 10001,
+  "phase_radius_threshold_normalized": 0.0020847277244260263,
+  "phase_mask": "t>=2\u03c0 and both |E+iJ| exceed 1% of oracle peak radius",
+  "max_sampled_nonzero_electric_over_nmc2L": 0.0023995906931743843,
+  "final_nonzero_electric_over_nmc2L": 0.0004495185825818113,
+  "nonzero_electric_convention": "epsilon0 dx sum|E-mean(E)|\u00b2/2, all components; no clamp",
+  "max_work_error_over_nmc2L": 0.014093045284504765,
+  "oracle_nodes": 64,
+  "particle_substeps": 2,
+  "claim": "uniform prescribed-drive prototype; phase and work checks, no implicit Proca",
+  "gradient_compile_s": 12.094210941926576,
+  "gradient_first_primal_s": 3.7358946580206975,
+  "gradient_warm_s": [
+   3.6908569840015844,
+   3.6845363070024177
+  ],
+  "gradient_horizon": 8.0,
+  "objective": 7.04072749170736e-06,
+  "automatic_gradient": [
+   0.0148431326575801,
+   6.499946994769588e-06,
+   -1.5247184670067708e-05,
+   -3.803162257236131e-06
+  ],
+  "frechet_gradient": [
+   0.01484453982995298,
+   6.495726071947251e-06,
+   -1.5253200938660789e-05,
+   -3.8052278271239652e-06
+  ],
+  "finite_difference_gradient": [
+   0.014843132657537299,
+   6.4999469952081005e-06,
+   -1.524718464803392e-05,
+   -3.803162247815691e-06
+  ],
+  "gradient_peak_rss_bytes": 1145876480,
+  "gradient_temporary_bytes": 178684160
+ }
+}

@@ -123,7 +123,39 @@ The [long resonant-drive replay](kinetic.md#time-refinement-through-the-nonlinea
 
 ### Choosing a coupled method
 
-The smallest next conservation test couples the parent's implicit PIC method to the uniform prescribed drive, checking external work against the analytic cold response and refining timestep and Picard count separately. A conservative dynamical Proca extension requires one accepted orbit current and conjugate particle work:
+The [uniform-drive prototype](scripts/benchmark_implicit_drive.py) reuses the parent's relativistic implicit orbit solve. During one step it shifts the electric field by the uniform midpoint force $\mathbf F=\eta\mathbf D_0\cos[\Omega_D(t+h/2)+\varphi]$, then restores the physical field. The accepted trajectory current supplies the external work,
+
+$$
+\Delta W=h\Delta x\sum_i\overline{\mathbf J}_i\cdot\mathbf F.
+$$
+
+Periodic mean Ampère evolution makes the physical energy-minus-work defect equal to the shifted parent's energy defect. Nonuniform-charge tests independently check this identity and continuity at one and eight Picard iterations. Cold analytic response, relativistic homogeneous orbits, finite differences and an analytic tangent ODE test accuracy and derivatives; complete native restart checks retain absolute drive phase and work.
+
+#### Energy balance and resolved phase
+
+The first long control has 256 cells, $L=2\pi c/\omega_p$, 4,096 particles, eight weighted velocity nodes per species, eight Picard iterations and two particle substeps. Its drive and temperatures match the strong paper case, but its velocity distribution comprises eight cold beams. Its homogeneous accuracy check applies while nonzero modes remain negligible; late Maxwellian behavior requires a resolved velocity distribution.
+
+| $h\omega_p$ | Mean-field relative $L^2$ error through $\tau=40$ (%) | Max $|\Delta U-W|/(nm_ec^2L)$ through 1000 | Max $|\Delta P|/(nm_ecL)$ | Compile / warm median (s) |
+|---|---:|---:|---:|---:|
+| 0.04 | {{ implicit_drive_dt04_early_wave_percent }} | {{ implicit_drive_dt04_balance }} | {{ implicit_drive_dt04_momentum }} | {{ implicit_drive_dt04_compile }} / {{ implicit_drive_dt04_warm }} |
+| 0.02 | {{ implicit_drive_dt02_early_wave_percent }} | {{ implicit_drive_dt02_balance }} | {{ implicit_drive_dt02_momentum }} | {{ implicit_drive_dt02_compile }} / {{ implicit_drive_dt02_warm }} |
+
+![Implicit prescribed-drive energy balance, mean-field reference and phase](_static/figures/implicit_drive_dt02/figure.png)
+
+Halving the step reduces early field and phase error approximately fourfold even though both energy defects are already at roundoff. Nonzero spatial fields subsequently grow at both steps. The late PIC-minus-homogeneous curve and state-plane phase then include spatial dynamics and velocity-loading effects, and cannot be interpreted as timestep error alone. Finite-beam equilibria have a different spectrum from a smooth Maxwellian; increasing velocity resolution is essential ([Dawson's multibeam limit](https://doi.org/10.1103/PhysRev.118.381)). The finite momentum defects remain an accuracy gate: a neutral periodic plasma under this uniform electric force has zero net applied impulse.
+
+At $\tau=8$, gradients of final mean-field energy with respect to drive amplitude, density, frequency and phase agree with centered finite differences to **{{ implicit_drive_dt02_fd_relative }}** in maximum relative error. Density includes particle weights; thermal initialization has a separate derivative test. Against the independent Fréchet/tangent ODE, the error contracts from **{{ implicit_drive_dt04_frechet_relative }}** to **{{ implicit_drive_dt02_frechet_relative }}** on step halving. Warm gradient medians are **{{ implicit_drive_dt04_gradient_warm }} / {{ implicit_drive_dt02_gradient_warm }} s**, with **{{ implicit_drive_dt04_gradient_temp_mib }} / {{ implicit_drive_dt02_gradient_temp_mib }} MiB** compiler temporaries; compilation takes {{ implicit_drive_dt04_gradient_compile }} / {{ implicit_drive_dt02_gradient_compile }} s. These gradients validate the short physical objective, not the late kinetic state.
+
+Both rows used float64 JAX 0.6.2 on one RTX A4000, with compilation separated and two synchronized warm samples. The primal temporary estimates are {{ implicit_drive_dt04_temp_mib }} / {{ implicit_drive_dt02_temp_mib }} MiB; process peaks are {{ implicit_drive_dt04_rss_mib }} / {{ implicit_drive_dt02_rss_mib }} MiB. [Coarser](_static/figures/implicit_drive_dt04/run.json) and [finer](_static/figures/implicit_drive_dt02/run.json) native records retain the scalar arrays, gradient checks and Gauss maxima. This prescribed-force prototype does not evolve a Proca reservoir.
+
+```sh
+python docs/scripts/benchmark_implicit_drive.py --cells 256 --nodes 8 --dt .04 --iterations 8 --horizon 1000 --samples 2 --gradient-horizon 8 --output artifacts/implicit_dt04
+python docs/scripts/benchmark_implicit_drive.py --cells 256 --nodes 8 --dt .02 --iterations 8 --horizon 1000 --samples 2 --gradient-horizon 8 --output artifacts/implicit_dt02
+```
+
+#### Coupling an implicit dark field
+
+A conservative dynamical Proca extension requires one accepted orbit current and conjugate particle work:
 
 $$
 \Delta K=h\Delta x\sum_i\overline{\mathbf J}_i\cdot
@@ -134,7 +166,9 @@ With midpoint fields, compatible curls and the divergence/gradient adjoint cance
 
 [ECSIM](https://arxiv.org/abs/1602.06326) uses a linear mass-matrix field solve for energy conservation, without guaranteeing local charge. [ChECSIM](https://doi.org/10.1016/j.jcp.2021.110912) adds compatible deposition/coupling to conserve both, with a different finite-element discretization. [iVPIC, Sections 3.1–3.3](https://arxiv.org/html/1903.01565v2) combines implicit particles with leapfrog fields to retain light-wave dispersion under the CFL restriction; its conserved magnetic energy uses staggered-time products. These ordinary Maxwell methods need a separate Proca work derivation.
 
-[Christlieb, Chacón and Gong, Sections 4–5.3](https://arxiv.org/html/2606.15035v1) isolate orbit-chain-rule and mesh/particle work defects in nonrelativistic potential-based PIC: their unsplit-orbit control retains Gauss while accumulating energy error. [Ricketson and Hu's relativistic explicit correction, Section 3.1](https://arxiv.org/html/2605.18542v1) enforces local particle work when its analytic correction is real. Adoption requires tracking correction failures, charge-conserving trajectories, momentum, phase and derivatives.
+[Christlieb, Chacón and Gong, Sections 4–5.3](https://arxiv.org/html/2606.15035v1) isolate orbit-chain-rule and mesh/particle work defects in nonrelativistic potential-based PIC: their unsplit-orbit control retains Gauss while accumulating energy error. Their [relativistic Part II, Sections 4–5](https://arxiv.org/html/2609.36383v1) matches Higuera–Cary mechanics, orbit current and kinetic secant velocity in a coupled potential solve. Energy accuracy depends on nonlinear tolerance and orbit quadrature; its late Weibel traces differ under timestep refinement. Its self-adjoint Nyquist filter acts throughout source/gather/field coupling, and Gauss uses continuity-evolved charge. Independently redeposited endpoint charge and physical momentum need separate checks.
+
+[Ricketson and Hu's relativistic explicit correction, Section 3.1](https://arxiv.org/html/2605.18542v1) enforces local particle work when its analytic correction is real. Adoption requires tracking correction failures, charge-conserving trajectories, momentum, phase and derivatives. [Campos Pinto, Kormann and Sonnendrücker, Figure 3](https://link.springer.com/article/10.1007/s10915-022-01781-3#Fig3) demonstrate finite momentum defects alongside conserved energy and Gauss. A discrete-gradient work identity alone does not establish translation symmetry of the mesh coupling.
 
 [SHARP](https://arxiv.org/abs/1702.04732v2) motivates matched higher-order particle shapes and joint grid/loading refinement. [Adams, Werner and Cary](https://arxiv.org/html/2503.13697v2) show that higher-order field differences alone do not remove grid instability in their explicit electrostatic schemes. [Schmitz, Sections 3–4](https://arxiv.org/html/2603.06509v1) compares relativistic pushers and higher-order compositions in prescribed fields; improving the pusher alone does not establish the order or conservation of a coupled PIC update.
 

@@ -5,6 +5,9 @@ import math
 import subprocess
 import sys
 from pathlib import Path
+from shutil import copyfile
+
+import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -406,6 +409,43 @@ for window in hook["repeat_comparison"]["windows"]:
     for key in ("mean_E", "electric", "nonzero_electric"):
         error = window["observables"][key]["relative_l2_difference"]
         measured[f"hook_repeat_{end}_{key}_l2_percent"] = f"{100 * error:.6g}"
+controls = EVIDENCE.parent / "replay_controls"
+fixed_first, fixed_repeat = [ROOT / "artifacts" / name for name in ("paper_fixed_first", "paper_fixed_repeat")]
+for folder in (fixed_first, fixed_repeat):
+    command = [sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
+               "--dt", ".01", "--horizon", "1000", "--block-horizon", "100", "--local-moments",
+               "--output", str(folder)]
+    if folder == fixed_repeat:
+        command.extend(("--initial-state", str(fixed_first / "initial_state.npz")))
+    run_example(command, cwd=ROOT, check=True)
+fixed_fine = ROOT / "artifacts" / "paper_fixed_fine"
+run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
+             "--dt", ".005", "--horizon", "1000", "--block-horizon", "100", "--local-moments",
+             "--output", str(fixed_fine)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "docs" / "scripts" / "compare_replays.py"),
+             str(fixed_first), str(fixed_repeat), "--constraints", "--refined", str(fixed_fine),
+             "--publish", str(controls)], cwd=ROOT, check=True)
+control_record = json.loads((controls / "run.json").read_text())
+for label, key, fmt in (("hook_fixed", "comparison", ".6g"),
+                        ("hook_fixed_dt", "refinement_comparison", ".4f")):
+    comparison = control_record["results"][key]
+    for window in comparison["windows"]:
+        start, end = window["window_omega_p"]
+        for observable in ("mean_E", "electric", "nonzero_electric"):
+            error = window["observables"][observable]["relative_l2_difference"]
+            measured[f"{label}_{start}_{end}_{observable}_l2_percent"] = format(100 * error, fmt)
+    late = comparison["windows"][-1]["observables"]
+    energy = late["nonzero_electric"]
+    measured[f"{label}_nonzero_mean_change_percent"] = (
+        f"{100 * (energy['comparison_mean'] / energy['reference_mean'] - 1):.2f}")
+    spread = late["local_spread"]
+    for species in range(2):
+        measured[f"{label}_local_spread_{species}_mean_change_percent"] = (
+            f"{100 * (spread['comparison_mean'][species][0] / spread['reference_mean'][species][0] - 1):.3f}")
+audits = [row["ordinary"] for row in control_record["results"]["comparison"]["endpoint_constraints"]]
+measured["hook_fixed_projection_field"] = f"{max(row['max_correction_over_field_scale'] for row in audits):.2e}"
+measured["hook_fixed_projection_energy"] = f"{max(abs(row['energy_change_over_scale']) for row in audits):.2e}"
+measured["_provenance"]["replay_controls"] = provenance(control_record, "replay_controls")
 pic = EVIDENCE.parent / "pic_conservation"
 run_example([sys.executable, str(ROOT / "docs" / "scripts" / "benchmark_pic_conservation.py"),
              "--full", "--samples", "1", "--output", str(pic)], cwd=ROOT, check=True)
@@ -429,4 +469,37 @@ for label, case, cells, dt in (("explicit", "explicit", 128, .002),
     measured[f"pic_{label}_temp_mib"] = f"{row['compiler_temporary_bytes'] / 2**20:.2f}"
     measured[f"pic_{label}_rss_mib"] = f"{row['peak_rss_bytes'] / 2**20:.0f}"
 measured["_provenance"]["pic_conservation"] = provenance(pic_record, "pic_conservation")
+for label in ("dt04", "dt02"):
+    folder = EVIDENCE.parent / f"implicit_drive_{label}"
+    computational = ROOT / "artifacts" / f"implicit_{label}"
+    run_example([sys.executable, str(ROOT / "docs" / "scripts" / "benchmark_implicit_drive.py"),
+                 "--cells", "256", "--nodes", "8", "--dt", str(.04 if label == "dt04" else .02),
+                 "--iterations", "8", "--horizon", "1000", "--samples", "2", "--gradient-horizon", "8",
+                 "--output", str(computational)], cwd=ROOT, check=True)
+    if "--records-only" not in sys.argv[1:]:
+        folder.mkdir(exist_ok=True)
+        for name in ("run.json", "data.npz", "figure.png"):
+            copyfile(computational / name, folder / name)
+    record = json.loads((folder / "run.json").read_text())
+    result = record["results"]
+    prefix = f"implicit_drive_{label}"
+    for suffix, key, fmt in (("balance", "max_balance_over_nmc2L", ".2e"),
+                             ("momentum", "max_momentum_over_nmecL", ".2e"),
+                             ("gauss", "max_gauss_over_en_eps0", ".2e"),
+                             ("compile", "compile_s", ".2f"),
+                             ("gradient_compile", "gradient_compile_s", ".2f")):
+        measured[f"{prefix}_{suffix}"] = format(result[key], fmt)
+    for suffix, key in (("warm", "warm_primal_s"), ("gradient_warm", "gradient_warm_s")):
+        measured[f"{prefix}_{suffix}"] = f"{np.median(result[key]):.2f}"
+    for suffix, key in (("temp", "compiler_temporary_bytes"), ("rss", "peak_rss_bytes"),
+                        ("gradient_temp", "gradient_temporary_bytes")):
+        measured[f"{prefix}_{suffix}_mib"] = f"{result[key] / 2**20:.2f}"
+    gradient = np.asarray(result["automatic_gradient"])
+    for label_ref, key in (("fd", "finite_difference_gradient"), ("frechet", "frechet_gradient")):
+        measured[f"{prefix}_{label_ref}_relative"] = f"{np.max(abs((gradient - result[key]) / result[key])):.2e}"
+    with np.load(folder / "data.npz") as arrays:
+        mask = arrays["t"] <= 40 + 1e-9
+        error = np.linalg.norm((arrays["electric"] - arrays["oracle_E"])[mask])
+        measured[f"{prefix}_early_wave_percent"] = f"{100 * error / np.linalg.norm(arrays['oracle_E'][mask]):.4f}"
+    measured["_provenance"][prefix] = provenance(record, folder.name)
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")

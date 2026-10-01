@@ -115,6 +115,7 @@ Energy, local charge and momentum are separate numerical properties. Conservatio
 | [iVPIC](https://arxiv.org/abs/1903.01565v2) | Leapfrog Maxwell and Crank–Nicolson particles preserve a discrete energy balance and local charge while retaining light-wave dispersion | Compare the discrete conserved balance and physical energy; the original VPIC repository alone does not establish this algorithm is included |
 | [Geometric discrete-gradient PIC](https://arxiv.org/abs/1910.04000) | Antisymmetric discrete-gradient splitting conserves energy; a particular additional construction preserves Gauss | Select the actual charge-preserving scheme; not all GEMPIC time integrators have both properties |
 | [Potential-based Lorenz-gauge PIC, 2026 preprint](https://arxiv.org/abs/2606.15035v1) | Orbit-averaged discrete chain rule matches particle and field work, preserving energy/Gauss to nonlinear tolerance | Public [Unstaggered_PIC](https://github.com/sgong11/Unstaggered_PIC/tree/c9e20107624781af147d5497c5de10d004a35cd1/Project1) is a serial CPU 3D teaching implementation with embedded 1D1V Landau tests; a Proca mass/source-work extension needs a separate derivation |
+| [Relativistic GM–HC–CN, September 2026 preprint](https://arxiv.org/abs/2609.36383v1) | Matched relativistic work; continuity-evolved charge; nonlinear/orbit-quadrature tolerance | [Project3](https://github.com/sgong11/Unstaggered_PIC/tree/c9e20107624781af147d5497c5de10d004a35cd1/Project3) supplies ordinary 3D3V two-stream/Weibel inputs; late accuracy and endpoint particle charge need independent checks |
 
 [WarpX 26.09](https://warpx.readthedocs.io/en/26.09/usage/parameters.html#overall-simulation-parameters) exposes a coupled implicit electromagnetic method with energy conservation at $\theta=1/2$ and matching gather/deposition. Its semi-implicit and spectral-split variants have different energy/charge qualifications. Neither its conservation options nor its momentum-conserving gather name establish exact total momentum for every configuration. These are useful independent implementations of ordinary plasma limits; their documented models do not include this package's dynamical Proca field.
 
@@ -130,7 +131,7 @@ Performance decisions use [JAX's synchronized profiling](https://docs.jax.dev/en
 
 ### Reviewed public-source snapshots
 
-Reviewed **30 September 2026**. The parent remains pinned to `83d3271`; the public README/source snapshots below qualify the feature comparison. Documentation releases can include backend features absent from a particular public branch. For example, the [OSIRIS feature page](https://osiris-code.github.io/features/) advertises CUDA, but the reviewed public tree did not establish availability of that backend.
+Reviewed **30 September 2026**, with Project3 inspected **1 October**. The parent remains pinned to `83d3271`; the public README/source snapshots below qualify the feature comparison. Documentation releases can include backend features absent from a particular public branch. For example, the [OSIRIS feature page](https://osiris-code.github.io/features/) advertises CUDA, but the reviewed public tree did not establish availability of that backend.
 
 | Code | Reviewed public tree |
 |---|---|
