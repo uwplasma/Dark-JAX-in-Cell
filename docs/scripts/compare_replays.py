@@ -233,7 +233,7 @@ def compare_replays(first, second, variant='repeat', windows=WINDOWS, legacy=Fal
     return result
 
 
-def publish(first, second, folder, comparison):
+def publish(first, second, folder, comparison, refined=None):
     """Render saved scalars through the parent figure/provenance path; no dynamics."""
     import matplotlib
     matplotlib.use('Agg')
@@ -242,6 +242,10 @@ def publish(first, second, folder, comparison):
     from jaxincell import save_run
 
     sources = [_load(path, 1e-5) for path in (first, second)]
+    refinement = None
+    if refined is not None:
+        refinement = compare_replays(first, refined, variant='dt', constraints='endpoint_constraints' in comparison)
+        sources.append(_load(refined, 1e-5))
     time = sources[0][1]['t']
     width = max(1, round(2 * np.pi / sources[0][0]['settings']['output_dt_omega_p']))
     trim = slice(width, -width)
@@ -252,8 +256,9 @@ def publish(first, second, folder, comparison):
     with midnight():
         figure, axes = plt.subplots(2, 2, figsize=(10, 7), layout='constrained')
         for index, (record, data, _, _) in enumerate(sources):
-            label, style = f'execution {index + 1}', '-' if index == 0 else '--'
-            color = ('#0072B2', '#D55E00')[index]
+            label = f"Δtωₚ={record['settings']['dt_omega_p']:g}"
+            label += f', execution {index + 1}' if index < 2 else ''
+            style, color = ('-', '--', ':')[index], ('#0072B2', '#D55E00', '#009E73')[index]
             raw = data['nonzero_electric'] / .0005
             axes[0, 0].plot(time, raw, color=color, alpha=.15, lw=.5)
             axes[0, 0].plot(time[trim], average(raw), style, color=color, label=label)
@@ -276,7 +281,7 @@ def publish(first, second, folder, comparison):
             axis.set(xlabel=r'$\omega_pt$', xlim=(0, time[-1]))
             axis.grid(alpha=.25)
             axis.legend(fontsize=8)
-        arrays = {f'{name}_{key}': value for name, source in zip(('first', 'second'), sources)
+        arrays = {f'{name}_{key}': value for name, source in zip(('first', 'second', 'refined'), sources)
                   for key, value in source[1].items()}
         settings = dict(variant=comparison['variant'], parent_revision=sources[0][0]['settings']['parent_revision'],
                         figure_average_samples=width, figure_average_span_omega_p=width * np.median(np.diff(time)),
@@ -284,6 +289,8 @@ def publish(first, second, folder, comparison):
                                     'Local spread is raw; all comparison metrics use raw native samples.')
         result = dict(comparison=comparison, native_runs=[source[0] for source in sources],
                       claim='Controlled numerical sensitivity study; no convergence or statistical uncertainty claim')
+        if refinement is not None:
+            result['refinement_comparison'] = refinement
         save_run(folder, 'controlled_paper_replay', settings, result, figure, **arrays)
         np.savez_compressed(Path(folder) / 'data.npz', **arrays)
         plt.close(figure)
@@ -296,13 +303,16 @@ def main():
     parser.add_argument('--variant', choices=VARIANTS, default='repeat')
     parser.add_argument('--legacy', action='store_true', help='retain explicit missing-fingerprint status')
     parser.add_argument('--constraints', action='store_true', help='audit endpoint closure without applying it')
+    parser.add_argument('--refined', type=Path, help='add a controlled timestep refinement to a published figure')
     destination = parser.add_mutually_exclusive_group(required=True)
     destination.add_argument('--output', type=Path, help='write comparison JSON only')
     destination.add_argument('--publish', type=Path, help='render a compact figure, arrays and native run records')
     args = parser.parse_args()
+    if args.refined and not args.publish:
+        parser.error('--refined requires --publish')
     result = compare_replays(args.first, args.second, args.variant, legacy=args.legacy, constraints=args.constraints)
     if args.publish:
-        publish(args.first, args.second, args.publish, result)
+        publish(args.first, args.second, args.publish, result, args.refined)
     else:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2))
