@@ -50,6 +50,8 @@ def _load(folder, tolerance):
         raise ValueError('native clocks must begin at zero and increase')
     if not all(np.all(np.isfinite(data[key])) for key in ('t', *SERIES, 'spread', 'mean', 'kinetic')):
         raise ValueError('native scalar histories must be finite')
+    if any(data[key].shape != time.shape or not np.all(np.isfinite(data[key])) for key in ('work', 'balance')):
+        raise ValueError('work and balance must be finite native scalar histories')
     if not np.allclose(np.diff(time), settings['output_dt_omega_p'], rtol=0, atol=tolerance):
         raise ValueError('native cadence differs from recorded physical cadence')
     if abs(time[-1] - settings['horizon_omega_p']) > tolerance:
@@ -127,12 +129,34 @@ def metrics(first, second):
                 reference_mean=np.mean(first, axis=0).tolist(), comparison_mean=np.mean(second, axis=0).tolist())
 
 
+def window_summary(data, selected, coupled=False):
+    """Reduce within one realization; correlated output samples are not replicates."""
+    time = data['t'][selected]
+    if len(time) < 2:
+        raise ValueError('window injection rates require two native samples')
+    work = (-1 if coupled else 1) * (data['work'][selected][-1] - data['work'][selected][0])
+    plasma_energy = float(np.mean((data['electric'] + data['magnetic'] + data['kinetic'].sum(axis=1))[selected]))
+    result = dict(work_increment=float(work),
+                  injection_rate_over_wp=float(work / ((time[-1] - time[0]) * plasma_energy)),
+                  plasma_mean_energy=plasma_energy,
+                  electric_mean=float(np.mean(data['electric'][selected])),
+                  nonzero_electric_mean=float(np.mean(data['nonzero_electric'][selected])))
+    for key in ('kinetic', 'spread', 'local_spread'):
+        if key in data:
+            result[f'{key}_increment_mean'] = np.mean(data[key][selected] - data[key][0], axis=0).tolist()
+    return result
+
+
 def _controls(records, data, variant, tolerance):
     """Equal horizons/cadences preserve sampling and compile-allocation controls."""
     settings = [record['settings'] for record in records]
     for key in PARAMETERS:
         if key != VARIANTS[variant] and settings[0][key] != settings[1][key]:
             raise ValueError(f'controlled comparisons must share {key}')
+    for key in ('momentum_seed_over_sigma_e', 'seed_mode', 'seed_phase'):
+        default = 0. if key == 'momentum_seed_over_sigma_e' else None
+        if settings[0].get(key, default) != settings[1].get(key, default):
+            raise ValueError(f'controlled comparisons must share physical seed {key}')
     for key in ('git', 'jax', 'jaxincell', 'numpy', 'jax_enable_x64', 'backend'):
         if records[0][key] != records[1][key]:
             raise ValueError(f'controlled comparisons must share runtime/source {key}')
@@ -224,6 +248,8 @@ def compare_replays(first, second, variant='repeat', windows=WINDOWS, legacy=Fal
         series = [*SERIES, *[key for key in LOCAL_SERIES if key in data[0] and key in data[1]]]
         selected_windows.append(dict(
             window_omega_p=[start, end], samples=int(selected.sum()),
+            realization_summaries=[window_summary(row, selected, setting['coupling'] is not None)
+                                   for row, setting in zip(data, settings)],
             observables={key: metrics(data[0][key][selected], data[1][key][selected]) for key in series}))
     endpoint = {key: dict(first=data[0][key].tolist(), second=data[1][key].tolist(),
                           difference=(data[1][key] - data[0][key]).tolist())
@@ -485,7 +511,7 @@ def _implicit_pair(first, second, variant='iterations'):
                            ('electric', 'current', 'nonzero_electric', 'momentum', 'mean', 'rms', 'kinetic')}
 
 
-def publish_phases(folders, folder):
+def publish_phases(folders, folder, audits=()):
     """Compare fixed Gaussian loadings translated within each mesh, retaining repeat variability."""
     import matplotlib
     matplotlib.use('Agg')
@@ -526,6 +552,7 @@ def publish_phases(folders, folder):
             axis.grid(alpha=.25)
         save_run(folder, 'implicit_grid_phase', dict(parent_revision=records[0]['settings']['parent_revision']),
                  dict(native_runs=records, phase_observables=comparisons,
+                      orbit_audits=[json.loads((Path(path) / 'run.json').read_text()) for path in audits],
                       native_data_sha256=[hashlib.sha256((Path(path) / 'data.npz').read_bytes()).hexdigest()
                                           for path in folders],
                       native_run_sha256=[hashlib.sha256((Path(path) / 'run.json').read_bytes()).hexdigest()
@@ -679,12 +706,12 @@ if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
         raise ValueError('refinements require a publish folder')
     if loading_repeat and loading_refined is None:
         raise ValueError('a loading repeat requires its first record')
-    if finer_mesh and not method_controls or orbit_audits and not picard:
-        raise ValueError('finer_mesh requires method_controls; orbit_audits requires picard')
+    if finer_mesh and not method_controls or orbit_audits and not (picard or phase_controls):
+        raise ValueError('finer_mesh requires method_controls; orbit_audits requires picard or phase_controls')
     if phase_controls:
         if destination is None:
             raise ValueError('phase controls require a publish folder')
-        publish_phases(phase_controls, destination)
+        publish_phases(phase_controls, destination, orbit_audits)
     elif method_controls:
         if destination is None or refined is None:
             raise ValueError('method_controls requires substep, mesh and publish folders')

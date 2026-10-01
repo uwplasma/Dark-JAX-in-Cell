@@ -52,9 +52,31 @@ def test_exact_native_repeat_and_portable_fingerprints(records):
     assert result['initial_fingerprints']['verified']
     assert result['windows'][0]['observables']['electric']['relative_l2_difference'] == 0
     assert 'local_density_rms' in result['windows'][0]['observables']
+    summary = result['windows'][0]['realization_summaries'][0]
+    assert summary['work_increment'] == pytest.approx(.000201)
+    assert summary['injection_rate_over_wp'] == pytest.approx(.000201 / (.00102 + (.0000505 + .000201) / 3))
+    np.testing.assert_array_equal(summary['local_spread_increment_mean'], np.zeros((2, 2)))
     assert str(records[0]) not in json.dumps(result, allow_nan=False)
     assert fingerprint(np.zeros(2)) != fingerprint(np.zeros((1, 2)))
     assert metrics(np.zeros(3), np.ones(3))['relative_l2_difference'] is None
+
+
+def test_window_reduction_uses_dark_work_sign_and_rejects_a_single_sample(records):
+    from docs.scripts.compare_replays import window_summary
+    with np.load(records[0] / 'data.npz') as stored:
+        data = dict(stored)
+    selected = data['t'] >= 0
+    first = window_summary(data, selected)
+    second = window_summary(data, selected, coupled=True)
+    assert first['injection_rate_over_wp'] == -second['injection_rate_over_wp']
+    with pytest.raises(ValueError, match='two native samples'):
+        window_summary(data, data['t'] == 0)
+
+
+def test_physical_seed_changes_cannot_be_hidden_in_a_resolution_comparison(records):
+    change_settings(records[1], momentum_seed_over_sigma_e=.05, seed_mode=16, seed_phase=0.)
+    with pytest.raises(ValueError, match='physical seed'):
+        compare_replays(*records, windows=((0, 1),))
 
 
 def test_particle_loading_repeat_keeps_raw_arrays_and_incomplete_endpoint_scope(records, monkeypatch):

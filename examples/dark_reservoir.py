@@ -15,7 +15,7 @@ import resource
 import time
 
 import jax.numpy as jnp
-from jax import random
+from jax import core, random
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "docs" / "scripts")
 from pair_reference import (coupled_response, growth, relativistic_response,
                             seeded_response)  # noqa: E402
 from conservation import coarse_spread, elapsed_progress, measured_run, snapshot  # noqa: E402
-from drive_reference import forced_cold, homogeneous  # noqa: E402
+from drive_reference import forced_cold, gaussian_tangent, homogeneous  # noqa: E402
 
 
 # Inputs: the default is a small mobile-ion comparison.
@@ -54,6 +54,9 @@ block_horizon = globals().get('block_horizon', min(100, horizon))  # None preser
 local_moments = globals().get('local_moments', False)
 initial_state = globals().get('initial_state', None)
 initial_state = None if initial_state is None else Path(initial_state)
+momentum_seed = globals().get('momentum_seed', 0.)  # Electron δu / initial σe; zero keeps the paper loading.
+seed_mode = globals().get('seed_mode', 16)
+seed_phase = globals().get('seed_phase', 0.)
 
 
 def pair_plasma(cells, particles_per_cell, dtau, seed, relativistic=False):
@@ -240,6 +243,8 @@ def pair_dark_experiment(cells, particles_per_cell, dtau, horizon,
     nonzero_ordinary = np.mean((ordinary - ordinary_mean[:, None])**2, axis=1)
     mean_dark_energy = (0.5 * epsilon_0 * domain.length * field_scale**2
                         * (dark_mean**2 + mass**2 * vector**2))
+    homogeneous_dark_fraction = (background[1]**2 + mass**2 * background[2]**2) / reservoir_scale
+    total_dark_fraction = np.asarray(energy['dark']) / initial_energy
     nonzero_dark = (np.asarray(energy["dark"]) - mean_dark_energy) / initial_energy
     early = t <= 35
 
@@ -266,6 +271,10 @@ def pair_dark_experiment(cells, particles_per_cell, dtau, horizon,
               "max_dark_work_residual_over_initial": float(
                   np.max(abs(np.asarray(energy["dark_work_residual"]))) / initial_energy),
               "late_coherent_fraction": float(np.mean(coherent[t >= t[-1] - 20])),
+              "late_mean_dark_fraction": float(np.mean(mean_dark_energy[t >= t[-1] - 20]) / initial_energy),
+              "late_total_dark_fraction": float(np.mean(total_dark_fraction[t >= t[-1] - 20])),
+              "late_additional_dark_depletion": float(np.mean(
+                  (homogeneous_dark_fraction - total_dark_fraction)[t >= t[-1] - 20])),
               "late_random_gain_over_initial_reservoir": float(
                   np.mean(random_gain[t >= t[-1] - 20])),
               "half_coherence_time_omega0": float(t[crossing[0]]) if len(crossing) else None,
@@ -289,6 +298,9 @@ def pair_dark_experiment(cells, particles_per_cell, dtau, horizon,
                 ordinary_mode=ordinary_mode, dark_mode=dark_mode,
                 ordinary_reference=reference, dark_reference=dark_reference,
                 coherent=coherent, random_gain=random_gain,
+                mean_dark_fraction=mean_dark_energy / initial_energy, total_dark_fraction=total_dark_fraction,
+                homogeneous_dark_fraction=homogeneous_dark_fraction,
+                dark_source_work=np.asarray(energy['dark_source_work']) / initial_energy,
                 nonzero_ordinary=nonzero_ordinary / reservoir_scale,
                 nonzero_dark=nonzero_dark, total=total), settings, result
 
@@ -618,7 +630,7 @@ def paper_geometry_pilot(folder):
         plt.close(fig)
 
 
-def paper_plasma(cells, particles, dtau, seed):
+def paper_plasma(cells, particles, dtau, seed, momentum_seed=0., seed_mode=16, seed_phase=0.):
     """Appendix B plasma: RMS sigma, exact mass ratio, unseeded Gaussian velocities."""
     if not isinstance(cells, (int, np.integer)) or cells < 4:
         raise ValueError("paper cells must be an integer >= 4")
@@ -626,10 +638,17 @@ def paper_plasma(cells, particles, dtau, seed):
         raise ValueError("paper particles per species must be an integer >= 2")
     if not np.isfinite(dtau) or dtau <= 0:
         raise ValueError("paper dt must be finite and positive")
+    for value in (momentum_seed, seed_phase):
+        if not isinstance(value, core.Tracer) and not np.isfinite(value):
+            raise ValueError('physical momentum seed and phase must be finite')
+    seeded = isinstance(momentum_seed, core.Tracer) or momentum_seed != 0
+    if seeded and (not isinstance(seed_mode, (int, np.integer)) or not 0 < 2 * seed_mode < cells):
+        raise ValueError('physical seed_mode must be a positive resolved Fourier mode')
     wp, ratio = 1e9, 1836.0
     density = wp**2 * epsilon_0 * mass_electron / e**2
     length = 40 * c / wp
     x, _ = quiet_start(particles, length)
+    wave = jnp.cos(2 * jnp.pi * seed_mode * x[:, 0] / length + seed_phase) if seeded else None
     rng = np.random.default_rng(seed)
     species = []
     for name, charge, mass in (("electrons", -1, mass_electron),
@@ -638,6 +657,10 @@ def paper_plasma(cells, particles, dtau, seed):
         # Remove finite-sample bulk flow and match the specified initial variance.
         velocity = (velocity - velocity.mean()) / velocity.std()
         velocity *= c * np.sqrt(1e-3 * mass_electron / mass)
+        if seeded:
+            u = jnp.asarray(velocity) / jnp.sqrt(1 - (velocity / c)**2)
+            u -= charge * mass_electron / mass * momentum_seed * np.sqrt(.001) * c * wave
+            velocity = u / jnp.sqrt(1 + (u / c)**2)
         v = jnp.zeros((particles, 3)).at[:, 0].set(jnp.asarray(velocity))
         species.append(Species(name, particles, charge, mass, density, x=x, v=v))
     return Simulation(Domain(length=length, cells=cells, time_step=dtau / wp),
@@ -681,7 +704,7 @@ def paper_initial(sim, seed, initial_state):
     return start, fingerprints
 
 
-def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder):
+def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder, mode=1):
     """Compile one fixed interval, preserving the global reference across every block."""
     if block_horizon is not None and (not np.isfinite(block_horizon) or block_horizon <= 0):
         raise ValueError('paper block horizon must be finite and positive')
@@ -692,14 +715,14 @@ def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder):
     save_compressed_state(Path(folder) / 'initial_state.npz', start, sim)
     print(f'🦇 Compiling {block_steps} paper steps per block', flush=True)
     before = time.perf_counter()
-    executable = measured_run.lower(sim, start, block_steps, stride, reference, scales).compile()
+    executable = measured_run.lower(sim, start, block_steps, stride, reference, scales, mode).compile()
     compile_seconds = time.perf_counter() - before
     memory = executable.memory_analysis()
     print(f'🦇 Compiled in {compile_seconds:.2f} s; advancing {steps // block_steps} blocks', flush=True)
     before = time.perf_counter()
     final, maxima, chunks = start, jnp.zeros(9), []
     for index in range(steps // block_steps):
-        final, history, block_max = executable(sim, final, reference, scales)
+        final, history, block_max = executable(sim, final, reference, scales, mode)
         maxima = jnp.maximum(maxima, block_max)
         chunks.append({key: np.array(value)[int(index > 0):] for key, value in history.items()})
         if block_horizon is not None:
@@ -710,14 +733,35 @@ def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder):
     return final, history, maxima, block_steps, compile_seconds, warm_seconds, memory
 
 
+def seed_reference(history, amplitude, coupling, seed, mode, phase):
+    """Keep the fixed-seed early complex response and its independent quadrature refinement."""
+    if seed == 0:
+        return {}, {}
+    early = history['t'] <= min(40., history['t'][-1]) + 1e-8
+    time, k = history['t'][early], 2 * np.pi * mode / 40
+    controls = dict(amplitude=amplitude, eta=coupling, delta_u=seed * np.sqrt(.001) * np.exp(1j * phase))
+    coarse = gaussian_tangent(time, k, nodes=64, **controls)
+    fine = gaussian_tangent(time, k, nodes=128, rtol=2e-11, **controls)
+    curves, results = dict(linear_t=time), {}
+    for observed, key in (('mode_E', 'mode_E'), ('dark_mode_E', 'mode_D')):
+        norm = np.linalg.norm(fine[key])
+        curves[f'linear_{key}'] = fine[key]
+        results[f'linear_{key}_absolute_l2'] = float(np.linalg.norm(history[observed][early] - fine[key]))
+        results[f'linear_{key}_relative_l2'] = results[f'linear_{key}_absolute_l2'] / norm if norm else None
+        results[f'linear_{key}_quadrature_absolute_l2'] = float(np.linalg.norm(coarse[key] - fine[key]))
+    results['linear_reference_horizon'] = float(time[-1])
+    return curves, results
+
+
 def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
-               block_horizon=None, local_moments=False, initial_state=None):
+               block_horizon=None, local_moments=False, initial_state=None,
+               momentum_seed=0., seed_mode=16, seed_phase=0.):
     """Hook Fig. 2 drive with reduced moments, work and both constraint ledgers."""
     if not np.isfinite(horizon) or horizon <= 0 or not np.isfinite(ratio) or ratio < 0:
         raise ValueError("paper horizon must be positive and drive ratio nonnegative, both finite")
     if eta is not None and (not np.isfinite(eta) or eta <= 0):
         raise ValueError("paper finite-reservoir coupling must be finite and positive")
-    plasma, wp = paper_plasma(cells, particles, dtau, seed)
+    plasma, wp = paper_plasma(cells, particles, dtau, seed, momentum_seed, seed_mode, seed_phase)
     amplitude = ratio * np.sqrt(1e-3)
     field_scale = mass_electron * c * wp / e
     force = amplitude * field_scale
@@ -731,7 +775,7 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
     scales = np.array([2., 4.]) * np.sqrt(1e-3) * c / wp
     sampled_scales = jnp.asarray(scales) if local_moments else None
     final, history, maxima, block_steps, compile_seconds, warm_seconds, memory = paper_run(
-        sim, start, steps, stride, block_horizon, wp, sampled_scales, folder)
+        sim, start, steps, stride, block_horizon, wp, sampled_scales, folder, seed_mode if momentum_seed else 1)
     density = plasma.species[0].density
     energy_scale = density * mass_electron * c**2 * plasma.domain.length
     momentum_scale = energy_scale / c
@@ -739,7 +783,7 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
     coarse_final = np.asarray(coarse_spread(sim, final, scales)) / energy_scale
     t = history['t'] * wp
     history['t'] = t
-    for key in ('electric', 'magnetic', 'dark', 'kinetic', 'spread', 'balance', 'work'):
+    for key in ('electric', 'magnetic', 'dark', 'dark_coherent', 'kinetic', 'spread', 'balance', 'work'):
         history[key] /= energy_scale
     if local_moments:
         history['local_spread'] /= energy_scale
@@ -748,6 +792,10 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
     history['momentum'] /= momentum_scale
     history['mean_E'] /= field_scale
     history['mode_E'] /= field_scale
+    history['dark_mode_E'] /= field_scale
+    phase_origin = np.exp(-2j * np.pi * seed_mode * float(plasma.domain.faces[0]) / plasma.domain.length)
+    history['mode_E'] *= phase_origin if momentum_seed else 1
+    history['dark_mode_E'] *= phase_origin if momentum_seed else 1
     history['nonzero_electric'] = history['electric'] - history['mean_E']**2 / 2
     maxima = np.asarray(maxima)
     # Spatially homogeneous kinetic orbits separate relativistic detuning from density waves.
@@ -784,8 +832,12 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
         compiler_outputs_MiB=memory.output_size_in_bytes / 2**20 if memory is not None else None,
         process_peak_MiB=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (
             2**20 if sys.platform == 'darwin' else 1024),
-        claim='Fig. 2 parameter replay; late reproduction requires loading/grid/time/seed convergence')
-    settings = dict(source='Hook, Huang, Shalaby arXiv:2510.13956v1 Fig. 2 and Appendix B',
+        claim=('Fixed physical momentum-seed extension; not the unseeded Fig. 2 replay' if momentum_seed else
+               'Fig. 2 parameter replay; late reproduction requires loading/grid/time/seed convergence'))
+    linear_curves, linear_results = seed_reference(history, amplitude, eta, momentum_seed, seed_mode, seed_phase)
+    results.update(linear_results)
+    settings = dict(source=('Controlled physical-seed extension of Hook Fig. 2' if momentum_seed else
+                            'Hook, Huang, Shalaby arXiv:2510.13956v1 Fig. 2 and Appendix B'),
                     cells=cells, particles_per_species=particles, dt_omega_p=dtau,
                     horizon_omega_p=float(t[-1]), seed=seed, length_c_over_omega_p=40,
                     mass_ratio=1836, T_each_over_mec2=1e-3, drive_quiver_over_sigma=ratio,
@@ -800,7 +852,13 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
                                        energy_scale_J_m2=energy_scale, charge_density_C_m3=e * density,
                                        epsilon0_F_m=float(epsilon_0), c_m_s=float(c)),
                     local_spread_lengths_c_over_wp=(scales * wp / c).tolist(),
-                    loading='co-located lattice; independent Gaussian velocities, zero mean and exact variance',
+                    loading=('co-located lattice; conditioned Gaussian thermal velocities plus momentum wave'
+                             if momentum_seed else
+                             'co-located lattice; independent Gaussian velocities, zero mean and exact variance'),
+                    momentum_seed_over_sigma_e=momentum_seed,
+                    seed_mode=seed_mode if momentum_seed else None, seed_phase=seed_phase if momentum_seed else None,
+                    recorded_mode=seed_mode if momentum_seed else 1,
+                    mode_basis='physical exp(-ikx) at faces' if momentum_seed else 'native fft index basis',
                     pusher='relativistic Boris; electric 1V uses the same momentum kick as Vay',
                     shape='quadratic parent spline; paper uses fifth-order',
                     inferred_t_noise=(40 / (amplitude * np.sqrt(3 * particles * cells))
@@ -835,7 +893,7 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
         reference = {f'homogeneous_{key}': oracle[key] for key in (
             'mean_E', 'mean_D', 'mean_A', 'mean', 'rms', 'kinetic', 'spread', 'electric', 'dark', 'work', 'balance')}
         arrays = dict(linear_mean_E=cold, local_spread_initial=coarse_initial,
-                      local_spread_final=coarse_final, **reference, **history)
+                      local_spread_final=coarse_final, **reference, **history, **linear_curves)
         save_run(folder, 'paper_resonant_conversion', settings, results, fig, **arrays)
         # Scalar histories compress well; retain the native example/provenance path.
         np.savez_compressed(Path(folder) / 'data.npz', **arrays)
@@ -849,7 +907,7 @@ if __name__ == "__main__":
     if study == 'paper':
         with elapsed_progress("Resonant replay"):
             paper_case(output, cells, particles, dt, horizon, seed, drive_ratio,
-                       coupling, block_horizon, local_moments, initial_state)
+                       coupling, block_horizon, local_moments, initial_state, momentum_seed, seed_mode, seed_phase)
     elif study == 'pair':
         pair_figure(output, full)
     elif study == 'pair_dark':

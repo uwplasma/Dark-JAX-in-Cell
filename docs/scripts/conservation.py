@@ -44,7 +44,7 @@ def centred(face):
     return (face + jnp.roll(face, 1, axis=0)) / 2
 
 
-def snapshot(sim, state, background=None):
+def snapshot(sim, state, background=None, mode=1):
     """Integer-time moments and continuum momentum, using the pusher's energy.
 
     ``spread`` is longitudinal lab-frame velocity-variance energy. It is not a
@@ -72,7 +72,7 @@ def snapshot(sim, state, background=None):
     magnetic = epsilon_0 * c**2 * dx * jnp.sum(o.B**2) / 2
     momentum = jnp.sum((m * o.w)[:, None] * o.u, axis=0)
     momentum += epsilon_0 * dx * jnp.sum(jnp.cross(centred(o.E), o.B), axis=0)
-    massive, work = jnp.zeros(()), jnp.zeros(())
+    massive, work, coherent, dark_mode = (jnp.zeros(()) for _ in range(4))
     background = (state.background if dark else -jnp.mean(o.rho)) if background is None else background
     ordinary_gauss = jnp.max(jnp.abs(divergence(o.E, dx) - (o.rho + background) / epsilon_0))
     dark_gauss = jnp.zeros(())
@@ -81,6 +81,10 @@ def snapshot(sim, state, background=None):
         if isinstance(sim.dark, DarkField):
             model = sim.dark
             massive = energy(state.E, state.B, state.A, state.phi, dx, model.omega)
+            coherent = .5 * epsilon_0 * p.domain.length * (
+                jnp.sum(jnp.mean(state.E, axis=0)**2 + c**2 * jnp.mean(state.B, axis=0)**2)
+                + model.omega**2 * (jnp.sum(jnp.mean(state.A, axis=0)**2) + jnp.mean(state.phi)**2 / c**2))
+            dark_mode = jnp.fft.fft(state.E[:, 0])[mode] / p.domain.cells
             momentum += epsilon_0 * dx * jnp.sum(jnp.cross(centred(state.E), state.B), axis=0)
             momentum += epsilon_0 * model.omega**2 / c**2 * dx * jnp.sum(
                 state.phi[:, None] * centred(state.A), axis=0)
@@ -94,7 +98,8 @@ def snapshot(sim, state, background=None):
                 balance=electric + magnetic + massive + sum(kinetic) - work,
                 work=state.work if dark else jnp.zeros(()),
                 ordinary_gauss=ordinary_gauss, dark_gauss=dark_gauss,
-                mean_E=jnp.mean(o.E[:, 0]), mode_E=jnp.fft.fft(o.E[:, 0])[1] / p.domain.cells,
+                mean_E=jnp.mean(o.E[:, 0]), mode_E=jnp.fft.fft(o.E[:, 0])[mode] / p.domain.cells,
+                dark_coherent=coherent, dark_mode_E=dark_mode,
                 max_speed=jnp.max(jnp.linalg.norm(p._velocity(o.u), axis=1)))
 
 
@@ -157,7 +162,7 @@ def coarse_spread(sim, state, scales, groups=None, *, with_density=False):
 
 
 @partial(jax.jit, static_argnames=("steps", "stride"))
-def measured_run(sim, initial, steps, stride, reference=None, scales=None):
+def measured_run(sim, initial, steps, stride, reference=None, scales=None, mode=1):
     """Sparse scalar histories and all-step maxima; valid for neutral closed boxes.
 
     A neutral homogeneous prescribed drive has zero total external impulse.
@@ -205,7 +210,7 @@ def measured_run(sim, initial, steps, stride, reference=None, scales=None):
         return (state, jnp.maximum(maxima, defect)), None
 
     def sample(state):
-        values = {**snapshot(sim, state, background), "density_rms": density_rms(sim, state)}
+        values = {**snapshot(sim, state, background, mode), "density_rms": density_rms(sim, state)}
         if scales is not None:
             values["local_spread"], values["local_density_rms"] = coarse_spread(
                 sim, state, scales, with_density=True)

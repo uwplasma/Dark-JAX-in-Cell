@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from scipy.integrate import solve_ivp
 
-from docs.scripts.drive_reference import forced_cold, homogeneous, midpoint_orbits
+from docs.scripts.drive_reference import forced_cold, homogeneous, midpoint_orbits, gaussian_tangent
 
 
 def test_mobile_ion_oracle_and_infinite_mass_limit():
@@ -86,3 +86,60 @@ def test_substep_refinement_resolves_face_crossings_and_rejects_unsupported_coun
     default = midpoint_orbits(np.zeros(4), [0.], [0.], 1., 1., 2., .1)
     explicit = midpoint_orbits(np.zeros(4), [0.], [0.], 1., 1., 2., .1, substeps=2)
     np.testing.assert_array_equal(default['orbit_E'], explicit['orbit_E'])
+
+
+def test_cold_gaussian_tangent_has_exact_plasma_frequency_phase_and_charge_sign():
+    t, mass, kick, k = np.linspace(0, 12, 121), 7., .002, .6
+    result = gaussian_tangent(t, k, temperature=0., delta_u=kick, mass_ratio=mass, nodes=1, rtol=2e-11)
+    frequency = np.sqrt(1 + 1 / mass)
+    exact = kick * frequency * np.sin(frequency * t) / 2
+    np.testing.assert_allclose(result['mode_E'], exact, rtol=1e-9, atol=2e-12)
+    np.testing.assert_allclose(result['rho'], 1j * k * exact, rtol=1e-9, atol=2e-12)
+    np.testing.assert_array_equal(result['mode_D'], 0.)
+    assert result['mode_E'][1].real > 0 and result['rho'][1].imag > 0
+
+
+def test_cold_proca_tangent_matches_independent_two_frequency_solution():
+    t, mass, kick, k, eta, omega = np.linspace(0, 12, 121), 7., .002, .6, .25, 1.3
+    result = gaussian_tangent(t, k, temperature=0., delta_u=kick, mass_ratio=mass,
+                              nodes=1, eta=eta, omega=omega, rtol=2e-11)
+    # Cold E,D satisfy y''=-K y, y(0)=0 and y'(0)=kick*(1+1/m)/2*(1,eta).
+    plasma = 1 + 1 / mass
+    matrix = np.array([[plasma, eta * plasma], [eta * (plasma - k**2), omega**2 + k**2 + eta**2 * plasma]])
+    low, high = np.sort(np.linalg.eigvals(matrix))
+    upper = (matrix - low * np.eye(2)) / (high - low)
+    derivative = kick * plasma / 2 * np.array([1., eta])
+    exact = np.outer((np.eye(2) - upper) @ derivative, np.sin(np.sqrt(low) * t) / np.sqrt(low))
+    exact += np.outer(upper @ derivative, np.sin(np.sqrt(high) * t) / np.sqrt(high))
+    np.testing.assert_allclose(result['mode_E'], exact[0], rtol=1e-9, atol=2e-12)
+    np.testing.assert_allclose(result['mode_D'], exact[1], rtol=1e-9, atol=2e-12)
+    np.testing.assert_allclose(result['mode_phi'], 1j * k * (eta * exact[0] - exact[1]) / omega**2,
+                               rtol=1e-9, atol=2e-12)
+
+
+def test_zero_mixing_tangent_reduces_to_ordinary_gaussian_response():
+    t = np.linspace(0, 8, 41)
+    ordinary = gaussian_tangent(t, .8, seed=.02, nodes=16)
+    unmixed = gaussian_tangent(t, .8, seed=.02, nodes=16, eta=0.)
+    np.testing.assert_allclose(unmixed['mode_E'], ordinary['mode_E'], rtol=0, atol=1e-15)
+    np.testing.assert_array_equal(unmixed['mode_D'], 0.)
+    with pytest.raises(ValueError, match='zero effective'):
+        gaussian_tangent(t, .8, .01, eta=0.)
+    with pytest.raises(ValueError, match='nonzero k'):
+        gaussian_tangent(t, 0.)
+
+
+def test_gaussian_tangent_refines_quadrature_and_background_tolerance():
+    t = np.linspace(0, 8, 41)
+    controls = dict(amplitude=.008, seed=.02, mass_ratio=32., eta=.3, omega=.9)
+    coarse = gaussian_tangent(t, .8, nodes=16, rtol=1e-8, **controls)
+    resolved = gaussian_tangent(t, .8, nodes=32, rtol=1e-8, **controls)
+    refined = gaussian_tangent(t, .8, nodes=32, rtol=2e-11, **controls)
+    for key in ('mode_E', 'mode_D'):
+        np.testing.assert_allclose(coarse[key], resolved[key], rtol=2e-6, atol=2e-10)
+        np.testing.assert_allclose(resolved[key], refined[key], rtol=2e-6, atol=2e-10)
+    background = refined['background']
+    for key in ('mean_E', 'mean_D', 'impulse', 'mean', 'rms', 'kinetic'):
+        np.testing.assert_allclose(resolved['background'][key], background[key], rtol=2e-6, atol=2e-9)
+    np.testing.assert_allclose(background['balance'], background['balance'][0], rtol=0, atol=3e-10)
+    assert 'dense' not in background and background['initial_u'].shape == (2, 32)

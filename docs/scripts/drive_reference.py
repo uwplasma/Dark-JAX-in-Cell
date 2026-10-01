@@ -121,13 +121,15 @@ def midpoint_orbits(electric, x, u, charge, mass, length, dt, *, drive=0., weigh
 
 
 def homogeneous(times, amplitude, *, mass_ratio=1836., temperature=1e-3,
-                relativistic=True, nodes=64, eta=None, omega=1., rtol=2e-10):
+                relativistic=True, nodes=64, eta=None, omega=1., rtol=2e-10, dense_output=False):
     """Unseeded prescribed drive or finite Proca reservoir without spatial dynamics.
 
     ``amplitude`` is initial effective-force quiver / c. For a finite reservoir,
     D(0)=amplitude/eta; for a prescribed drive, effective external E=A cos(t).
     Energies use n me c², momentum uses n me c, time uses electron wp inverse.
     Velocity variance is a k=0-subtracted spread, not a thermodynamic temperature.
+    ``dense_output`` also exposes the continuous state and initial quadrature
+    for independent tangent integration; the fourth state component is impulse.
     """
     t = np.asarray(times, dtype=float)
     if t.ndim != 1 or len(t) < 2 or t[0] < 0 or np.any(np.diff(t) <= 0):
@@ -162,15 +164,72 @@ def homogeneous(times, amplitude, *, mass_ratio=1836., temperature=1e-3,
 
     start = [0., 0. if eta is None else amplitude / eta, 0., 0., 0.]
     solution = solve_ivp(rhs, (0., float(t[-1])), start, t_eval=t,
-                         method='DOP853', rtol=rtol, atol=rtol * 0.01)
+                         method='DOP853', rtol=rtol, atol=rtol * 0.01, dense_output=dense_output)
     if not solution.success:
         raise RuntimeError(solution.message)
     E, D, A, impulse, work = solution.y
     mean, rms, kinetic = (np.stack(values) for values in zip(*(moments(value) for value in impulse)))
     electric = E**2 / 2
     dark = (D**2 + omega**2 * A**2) / 2
-    return dict(t=t, mean_E=E, mean_D=D, mean_A=A, mean=mean, rms=rms,
-                kinetic=kinetic, spread=0.5 * masses[None, :] * rms**2,
-                electric=electric, dark=dark, work=work,
-                balance=electric + dark + kinetic.sum(axis=1) - work,
-                nfev=solution.nfev, nodes=nodes)
+    result = dict(t=t, mean_E=E, mean_D=D, mean_A=A, mean=mean, rms=rms,
+                  kinetic=kinetic, spread=0.5 * masses[None, :] * rms**2,
+                  electric=electric, dark=dark, work=work,
+                  balance=electric + dark + kinetic.sum(axis=1) - work,
+                  nfev=solution.nfev, nodes=nodes)
+    if dense_output:
+        result.update(dense=solution.sol, initial_u=initial, weights=weights, impulse=impulse)
+    return result
+
+
+def gaussian_tangent(times, k, amplitude=0., *, seed=1., delta_u=None, mass_ratio=1836.,
+                     temperature=1e-3, nodes=64, eta=None, omega=1., rtol=2e-10):
+    """Finite-time continuum 1V tangent about the same Gaussian homogeneous orbit.
+
+    Units are wp_e=c=me=epsilon0=1, q=(-1,+1), and both densities are one.
+    The +k coefficient of the initial cosine momentum kick is
+    pi_s=-q_s/m_s*delta_u/2; default delta_u=seed*sqrt(T). Positions, A and
+    phi initially have zero perturbation, so both Gauss laws start neutral.
+    eta=None uses the uniform prescribed-force background without a dynamic
+    dark response. Finite eta uses its bare Proca reservoir; eta=0 requires
+    amplitude=0 since that amplitude denotes effective quiver, not bare D.
+    This is an infinitesimal seed extension, not the unseeded Hook experiment
+    or a late nonlinear trajectory. Finite quadrature needs refinement before
+    interpreting long-time phase mixing; no Floquet rate is fitted.
+    """
+    values = [k, amplitude, seed, mass_ratio, temperature, omega, rtol,
+              eta if eta is not None else 0., delta_u if delta_u is not None else 0.]
+    if not np.all(np.isfinite(values)) or k == 0 or rtol <= 0:
+        raise ValueError('finite tangent controls, nonzero k and positive tolerance are required')
+    if eta == 0 and amplitude != 0:
+        raise ValueError('zero mixing requires zero effective reservoir amplitude')
+    background = homogeneous(times, amplitude, mass_ratio=mass_ratio, temperature=temperature,
+                             nodes=nodes, eta=None if eta == 0 else eta, omega=omega,
+                             rtol=rtol, dense_output=True)
+    dense, initial, weights = background.pop('dense'), background['initial_u'], background['weights']
+    charge, qm = np.array([-1., 1.]), np.array([-1., 1 / mass_ratio])
+    mixing, kick = 0. if eta is None else eta, seed * np.sqrt(temperature) if delta_u is None else delta_u
+    start = np.zeros(4 * nodes + 2, dtype=complex)
+    start[2 * nodes:4 * nodes] = np.broadcast_to(-qm[:, None] * kick / 2, (2, nodes)).ravel()
+
+    def rhs(time, state):
+        xi, pi = state[:-2].reshape(2, 2, nodes)
+        A, phi = state[-2:]
+        u = initial + qm[:, None] * dense(time)[3]
+        gamma = np.hypot(1., u)
+        E = -np.sum(charge * (xi @ weights))
+        D = (mixing * 1j * k * E - omega**2 * phi) / (1j * k)
+        advect = 1j * k * u / gamma
+        return np.r_[(pi / gamma**3 - advect * xi).ravel(),
+                     (qm[:, None] * (E + mixing * D) - advect * pi).ravel(),
+                     -D - 1j * k * phi, -1j * k * A]
+
+    solution = solve_ivp(rhs, (0., float(background['t'][-1])), start, t_eval=background['t'],
+                         method='DOP853', rtol=rtol, atol=rtol * .01 * max(abs(kick), 1e-12))
+    if not solution.success:
+        raise RuntimeError(solution.message)
+    xi = solution.y[:2 * nodes].reshape(2, nodes, -1)
+    E = -np.einsum('s,snt,n->t', charge, xi, weights)
+    A, phi = solution.y[-2:]
+    rho = 1j * k * E
+    return dict(t=background['t'], mode_E=E, mode_D=(mixing * rho - omega**2 * phi) / (1j * k),
+                mode_A=A, mode_phi=phi, rho=rho, delta_u=kick, background=background, nfev=solution.nfev)

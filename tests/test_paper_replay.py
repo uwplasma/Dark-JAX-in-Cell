@@ -1,6 +1,7 @@
 """The attached Hook–Huang–Shalaby setup, before long nonlinear comparisons."""
 
 import numpy as np
+import jax
 import pytest
 from jax import random
 import jax.numpy as jnp
@@ -44,6 +45,35 @@ def test_paper_seed_is_reproducible_and_species_draws_are_independent():
     electron = np.asarray(first.species[0].v[:, 0]) / c
     ion = np.asarray(first.species[1].v[:, 0]) * np.sqrt(1836) / c
     assert abs(np.corrcoef(electron, ion)[0, 1]) < .2
+
+
+def test_fixed_physical_momentum_seed_is_neutral_resolved_and_differentiable():
+    plain, wp = paper_plasma(32, 128, .01, 3)
+    seeded, _ = paper_plasma(32, 128, .01, 3, .05, 2, .3)
+    before, _ = plain.initial_state(random.PRNGKey(0))
+    after, _ = seeded.initial_state(random.PRNGKey(0))
+    wave = np.tile(np.cos(2 * np.pi * 2 * np.asarray(plain.species[0].x[:, 0]) / plain.domain.length + .3), 2)
+    mass, charge = map(np.asarray, plain.per_particle)
+    delta = -charge / e * mass_electron / mass * .05 * np.sqrt(.001) * c * wave
+    np.testing.assert_allclose(np.asarray(after.u[:, 0] - before.u[:, 0]), delta, atol=3e-16 * c)
+    assert abs(np.sum(mass * np.asarray(after.w) * delta)) < 1e-17 * mass_electron * c * np.sum(after.w)
+    np.testing.assert_array_equal(after.w, before.w)
+    assert np.max(abs(np.asarray(after.rho))) / (e * float(plain.species[0].density)) < 2e-12
+
+    def objective(value):
+        plasma, _ = paper_plasma(32, 128, .01, 3, value, 2, .3)
+        state, _ = plasma.initial_state(random.PRNGKey(0))
+        return jnp.sum(state.w * plasma._kinetic(plasma.per_particle[0], state.u))
+
+    derivative = float(jax.grad(objective)(.05))
+    velocity = np.asarray(seeded._velocity(after.u)[:, 0])
+    exact = np.sum(mass * np.asarray(after.w) * velocity * delta / .05)
+    np.testing.assert_allclose(derivative, exact, rtol=2e-10)
+    finite = (float(objective(.05001)) - float(objective(.04999))) / .00002
+    np.testing.assert_allclose(derivative, finite, rtol=1e-7)
+    for value, mode in ((np.nan, 2), (.05, 0), (.05, 16)):
+        with pytest.raises(ValueError):
+            paper_plasma(32, 128, .01, 3, value, mode)
 
 
 @pytest.mark.parametrize('args', [(3, 100, .02, 0), (16, 1, .02, 0),
