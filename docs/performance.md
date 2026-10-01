@@ -11,11 +11,11 @@ The explicit Maxwell–Proca step has no linear system, so SOLVAX is not used fo
 
 The 256-step exact-segment case gives native scan **{{ exact_scan_grad_s }}** s warm gradient and **{{ exact_scan_temp_mib }}** MiB compiler temporaries; SOLVAX gives **{{ exact_solvax_grad_s }}** s and **{{ exact_solvax_temp_mib }}** MiB. Objective and gradient agree across methods to the benchmark's strict numerical checks, including the tail.
 
-The compiler estimate is the executable's temporary-buffer estimate, **not** the full process footprint. Process peak includes Python, JAX, compilation, imports and the runtime allocator; the methods were isolated but shared-host load varied. SOLVAX reduced estimated temporaries relative to plain scan but had similar warm speed and memory to the native segmented method. Its full installation also requires `equinox>=0.13.3`; the tested compatible versions were SOLVAX 0.27.0, Equinox 0.13.8 and JAX 0.10.2. We therefore **defer adopting SOLVAX as a package dependency**. The native recurrence remains the default. The optional benchmark can be reproduced with:
+The compiler estimate is the executable's temporary-buffer estimate, **not** the full process footprint. Process peak includes Python, JAX, compilation, imports and the runtime allocator; the methods were isolated but shared-host load varied. SOLVAX reduced estimated temporaries relative to plain scan but had similar warm speed and memory to the native segmented method. Its full installation also requires `equinox>=0.13.3`; the tested compatible versions were SOLVAX 0.27.0, Equinox 0.13.8 and JAX 0.10.2. We therefore **defer adopting SOLVAX as a package dependency**. The native recurrence remains the default. Set `all_cases=True` in the [recurrence script](scripts/benchmark_recurrence.py), then run:
 
 ```sh
 python -m pip install solvax==0.27.0
-python docs/scripts/benchmark_recurrence.py --all
+python docs/scripts/benchmark_recurrence.py
 python docs/scripts/make_all.py
 ```
 
@@ -137,7 +137,7 @@ Periodic mean Ampère evolution makes the physical energy-minus-work defect equa
 
 The first long control has 256 cells, $L=2\pi c/\omega_p$, 4,096 particles, eight weighted velocity nodes per species, eight Picard iterations and two particle substeps. Its drive and temperatures match the strong paper case, but its velocity distribution comprises eight cold beams. Its homogeneous accuracy check applies while nonzero modes remain negligible; late Maxwellian behavior requires a resolved velocity distribution.
 
-| $h\omega_p$ | Mean-field relative $L^2$ error through $\tau=40$ (%) | Max $|\Delta U-W|/(nm_ec^2L)$ through 1000 | Max $|\Delta P|/(nm_ecL)$ | Compile / warm median (s) |
+| $h\omega_p$ | Mean-field relative $L^2$ error through $\tau=40$ (%) | Max $\lvert\Delta U-W\rvert/(nm_ec^2L)$ through 1000 | Max $\lvert\Delta P\rvert/(nm_ecL)$ | Compile / warm median (s) |
 |---|---:|---:|---:|---:|
 | 0.04 | {{ implicit_drive_dt04_early_wave_percent }} | {{ implicit_drive_dt04_balance }} | {{ implicit_drive_dt04_momentum }} | {{ implicit_drive_dt04_compile }} / {{ implicit_drive_dt04_warm }} |
 | 0.02 | {{ implicit_drive_dt02_early_wave_percent }} | {{ implicit_drive_dt02_balance }} | {{ implicit_drive_dt02_momentum }} | {{ implicit_drive_dt02_compile }} / {{ implicit_drive_dt02_warm }} |
@@ -163,7 +163,7 @@ The next control uses the resonant-drive fixture itself: 1,000 cells, $L=40c/\om
 
 ![Matched Gaussian drive: mean field, nonzero modes, momentum and complete energy/work](_static/figures/paper_implicit_comparison/figure.png)
 
-| Method | $\Delta t\omega_p$ | All-step max $|\Delta U-W|/(nm_ec^2L)$ | All-step max $|\Delta P|/(nm_ecL)$ |
+| Method | $\Delta t\omega_p$ | All-step max $\lvert\Delta U-W\rvert/(nm_ec^2L)$ | All-step max $\lvert\Delta P\rvert/(nm_ecL)$ |
 |---|---:|---:|---:|
 | Explicit | 0.01 | $5.41\times10^{-6}$ | $3.61\times10^{-15}$ |
 | Explicit | 0.005 | $4.77\times10^{-6}$ | $4.03\times10^{-15}$ |
@@ -190,7 +190,7 @@ Edit inputs in each linked script, then run it with Python.
 
 A shorter Gaussian control starts both four/eight-iteration runs from **all 50 identical native initial arrays**, including the field, charge and work ledger. Each uses two particle substeps, $\Delta t\omega_p=0.01$, 206,000 particles and 401 samples through $\tau=40$; a first and one warm execution use the same compiled callable.
 
-| Picard iterations | All-step $|\Delta U-W|/(nm_ec^2L)$ | All-step $|\Delta P|/(nm_ecL)$ | Warm synchronized time (s) |
+| Picard iterations | All-step $\lvert\Delta U-W\rvert/(nm_ec^2L)$ | All-step $\lvert\Delta P\rvert/(nm_ecL)$ | Warm synchronized time (s) |
 |---|---:|---:|---:|
 | 4 | {{ implicit_iterations_4_balance }} | {{ implicit_iterations_4_momentum }} | {{ implicit_iterations_4_warm }} |
 | 8 | {{ implicit_iterations_8_balance }} | {{ implicit_iterations_8_momentum }} | {{ implicit_iterations_8_warm }} |
@@ -225,7 +225,7 @@ Four Gaussian runs keep the same 206,000 physical particles, box, drive, $\Delta
 
 ![Separate implicit mesh and orbit-substep controls: fields, momentum, energy and work](_static/figures/implicit_method_controls/figure.png)
 
-| Cells | Particle substeps | All-step $|\Delta U-W|/(nm_ec^2L)$ | All-step $|\Delta P|/(nm_ecL)$ | Compile / warm (s) |
+| Cells | Particle substeps | All-step $\lvert\Delta U-W\rvert/(nm_ec^2L)$ | All-step $\lvert\Delta P\rvert/(nm_ecL)$ | Compile / warm (s) |
 |---:|---:|---:|---:|---:|
 | 1000 | 2 | {{ implicit_method_1000_2_balance }} | {{ implicit_method_1000_2_momentum }} | {{ implicit_method_1000_2_compile }} / {{ implicit_method_1000_2_warm }} |
 | 1000 | 4 | {{ implicit_method_1000_4_balance }} | {{ implicit_method_1000_4_momentum }} | {{ implicit_method_1000_4_compile }} / {{ implicit_method_1000_4_warm }} |
@@ -251,6 +251,32 @@ Edit inputs in each linked script, then run it with Python.
 | [benchmark_implicit_drive.py](../docs/scripts/benchmark_implicit_drive.py) | `paper_loading=True, cells=2000, dt=0.01, iterations=4, substeps=2, horizon=40, samples=1, output='artifacts/implicit_mesh2000_sub2', particles=103000` |
 | [benchmark_implicit_drive.py](../docs/scripts/benchmark_implicit_drive.py) | `paper_loading=True, cells=4000, dt=0.01, iterations=4, substeps=2, horizon=40, samples=1, output='artifacts/implicit_mesh4000_sub2', particles=103000` |
 | [compare_replays.py](../docs/scripts/compare_replays.py) | `first='artifacts/implicit_mesh1000_sub2', second='artifacts/implicit_mesh1000_sub4', method_controls=True, refined='artifacts/implicit_mesh2000_sub2', finer_mesh='artifacts/implicit_mesh4000_sub2', destination='docs/_static/figures/implicit_method_controls'` |
+
+#### Fractional-cell force audit
+
+A short neutral 1V fixture tests the particle–mesh force before another long run. Two opposed electron cohorts and mobile ions have 64 markers each, or **192 total**. A sinusoidal displacement of $0.03/k$ seeds a smooth charge mode. The box, particles and physical velocities remain fixed while the entire loading is translated by $0$, $\Delta x/4$ and $\Delta x/2$. Initial charge is independently redeposited on each 16-, 32- and 64-cell mesh, and the longitudinal electric field closes Gauss with zero mean. The explicit initialization retains its half-position staggering. Both methods use relativistic 1V mechanics; no external force acts.
+
+For one accepted step, the normalized net force is
+
+$$
+\mathcal F_h=\frac{P^{n+1}-P^n}{\Delta\tau\,nm_ecL},\qquad
+\Delta\tau=\omega_p\Delta t,\qquad
+P=\sum_p m_pw_pu_p.
+$$
+
+Here $n$ is total electron density. There is no longitudinal field momentum in this ordinary electrostatic fixture. The continuum net force vanishes for any translation. The explicit quadratic charge-transpose gather and compatible periodic Gauss derivative also give the discrete cancellation $\sum_i\rho_i(E_i+E_{i-1})/2=0$. The implicit orbit-averaged force closes particle–field work but need not obey that cancellation.
+
+| Mesh / translation | Implicit $\mathcal F_h$, $\Delta\tau=0.004$ | Implicit $\mathcal F_h$, $\Delta\tau=0.002$ |
+|---|---:|---:|
+| 16 / quarter cell | $-1.10\times10^{-8}$ | $-5.50\times10^{-9}$ |
+| 32 / quarter cell | $+1.24\times10^{-8}$ | $+6.18\times10^{-9}$ |
+| 64 / quarter cell | $-2.25\times10^{-7}$ | $-2.25\times10^{-7}$ |
+
+The explicit force is below $10^{-13}$ in all 18 rows. Implicit relative energy defects are below $3\times10^{-16}$, and charge, Gauss and continuity remain near roundoff. Independent NumPy integration in the accepted midpoint face field reproduces final implicit momentum per unit mass $u$ to $3.7\times10^{-16}c$ and the weighted impulse to $1.1\times10^{-14}nm_ecL$. The reference rejects unconverged orbits. For explicit PIC, an independent half-time quadratic deposit, Gauss integration and centre-field gather reconstruct the kick and its telescoping grid impulse.
+
+The quarter-cell force on the finest mesh survives timestep halving, while signs and magnitudes vary with mesh phase. This small loading has only one marker per cohort per cell on that mesh; it is **not** a continuum momentum-convergence test, a Proca test or a late Gaussian heating result. It distinguishes a verified accepted-orbit force from nonlinear-solver residuals. Energy conservation alone cannot select the late solver. The next Gaussian method check must retain particle count, physical smoothing length, grid phase, both work/charge ledgers and isolated mesh refinement before interpreting late conversion.
+
+[Companion script](scripts/benchmark_pic_conservation.py): `translations=True, particles=64, dt=0.004, output='artifacts/translation_audit'`. The [36-row record](_static/figures/translation_audit.json) includes clean source/runtime, independent reference errors and orbit closure. Complete native initial/final restarts are retained outside the repository; only the small scalar ledger is published.
 
 #### Coupling an implicit dark field
 
