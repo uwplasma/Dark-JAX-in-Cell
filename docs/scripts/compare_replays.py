@@ -296,10 +296,153 @@ def publish(first, second, folder, comparison, refined=None):
         plt.close(figure)
 
 
+def _implicit_controls(ordinary, record):
+    """Match the physical plasma and exact initial arrays across native clocks."""
+    a, b = ordinary['settings'], record['settings']
+    if not b['paper_loading'] or b['newtonian'] or a['coupling'] is not None or a['seed'] != 0:
+        raise ValueError('comparison requires the same relativistic seed-zero prescribed Gaussian plasma')
+    for left, right in (('cells', 'cells'), ('particles_per_species', 'particles_per_species'),
+                        ('length_c_over_omega_p', 'length_over_c_wp'), ('mass_ratio', 'mass_ratio'),
+                        ('T_each_over_mec2', 'temperature'), ('force_quiver_over_c', 'amplitude'),
+                        ('parent_revision', 'parent_revision')):
+        if a[left] != b[right]:
+            raise ValueError(f'method comparison must share {left}')
+    for key in ('jax', 'jaxincell', 'numpy', 'jax_enable_x64', 'backend'):
+        if ordinary[key] != record[key]:
+            raise ValueError(f'method comparison must share runtime {key}')
+    loading, state = a['initial_fingerprints']['loading'], a['initial_fingerprints']['state']
+    hashes = b['initial_fingerprints']
+    matches = dict(x=loading['x'] == hashes['x'],
+                   **{key: state[key] == hashes[key] for key in ('u', 'w', 'B')})
+    if not all(matches.values()):
+        raise ValueError('physical initial positions, momenta, weights or magnetic field disagree')
+    return matches
+
+
+def implicit_comparison(explicit, implicit, tolerance=1e-5):
+    """Align prescribed 1V Gaussian controls; native E schemas have different units.
+
+    Explicit ``electric`` is energy, implicit ``electric`` is mean field. Current
+    is instantaneous in both; accepted midpoint work stays in its native ledger.
+    Particle u/w and supplied x hashes anchor loading despite position staggering.
+    """
+    ordinary = _load(explicit, tolerance)
+    path = Path(implicit)
+    record = json.loads((path / 'run.json').read_text())
+    with np.load(path / 'data.npz', allow_pickle=False) as stored:
+        data = dict(stored)
+    matches = _implicit_controls(ordinary[0], record)
+    a, b = ordinary[0]['settings'], record['settings']
+    time = ordinary[1]['t']
+    cadence = b['dt'] * b['store_every']
+    ratio = a['output_dt_omega_p'] / cadence
+    if ratio < 1 or abs(ratio - round(ratio)) > tolerance:
+        raise ValueError('native cadences must have an integer ratio')
+    indices = np.arange(len(time)) * round(ratio)
+    if (data['t'].ndim != 1 or len(data['t']) != indices[-1] + 1 or data['t'][0] != 0
+            or not np.allclose(np.diff(data['t']), cadence, rtol=0, atol=tolerance)
+            or not np.allclose(time, data['t'][indices], rtol=0, atol=tolerance)):
+        raise ValueError('equal native horizons and clocks are required; interpolation is unsupported')
+    ordinary_data = ordinary[1]
+    first = dict(t=time, mean_E=ordinary_data['mean_E'],
+                 current=ordinary_data['mean'][:, 1] - ordinary_data['mean'][:, 0],
+                 nonzero_electric=ordinary_data['nonzero_electric'], work=ordinary_data['work'],
+                 balance=ordinary_data['balance'] - ordinary_data['balance'][0],
+                 momentum=ordinary_data['momentum'] - ordinary_data['momentum'][0])
+    second = dict(t=data['t'][indices], mean_E=data['electric'][indices],
+                  **{key: data[key][indices] for key in ('current', 'nonzero_electric', 'work', 'balance')},
+                  momentum=data['momentum'][indices] - data['momentum'][0])
+    if not all(np.all(np.isfinite(value)) for row in (first, second) for value in row.values()):
+        raise ValueError('method comparison needs finite raw scalar histories')
+    windows = []
+    for end in (40, 100, 250, 500, 1000):
+        if end > time[-1] + tolerance:
+            continue
+        mask = time <= end + tolerance
+        windows.append(dict(end_omega_p=end, samples=int(mask.sum()),
+                            observables={key: metrics(first[key][mask], second[key][mask])
+                                         for key in first if key != 't'}))
+    peak_work = float(np.max(abs(second['work'])))
+    result = dict(initial_hash_matches=matches, windows=windows,
+                  max_clock_difference=float(np.max(abs(time - second['t']))),
+                  implicit_native_samples=len(data['t']), common_samples=len(time),
+                  implicit_balance_over_peak_recorded_work=float(
+                      record['results']['max_balance_over_nmc2L'] / peak_work) if peak_work else None,
+                  native_run_sha256=[ordinary[3], hashlib.sha256((path / 'run.json').read_bytes()).hexdigest()],
+                  native_data_sha256=[ordinary[2], hashlib.sha256((path / 'data.npz').read_bytes()).hexdigest()],
+                  notes='Raw native samples, no interpolation or phase alignment. Momentum subtracts each '
+                        'actual initial value. Energy is normalized by n me c² L and momentum by n me c L. '
+                        'Implicit all-step maxima describe its final timed call; its repeat traces use one '
+                        'compiled callable. No species-heating estimate is inferred from field/work histories. '
+                        'Cross-method differences do not establish convergence or identify an error cause.')
+    return result, ordinary[0], record, first, second, data
+
+
+def publish_implicit(explicit, implicit, folder, refined=None):
+    """Compare saved conservation/mode evidence; the renderer runs no dynamics."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from darkjaxincell import midnight
+    from jaxincell import save_run
+
+    result, native, record, first, second, raw = implicit_comparison(explicit, implicit)
+    records, series = [native, record], [('explicit .01', first), ('implicit .01, warm', second)]
+    if refined is not None:
+        compare_replays(explicit, refined, variant='dt')
+        refinement, fine_record, _, fine, _, _ = implicit_comparison(refined, implicit)
+        result['refined_method_comparison'] = refinement
+        records.append(fine_record)
+        series.append(('explicit .005', fine))
+    initial = dict(t=raw['t'], mean_E=raw['execution_0_mean_E'],
+                   nonzero_electric=raw['execution_0_nonzero_electric'],
+                   momentum=raw['execution_0_momentum'] - raw['execution_0_momentum'][0])
+    series.append(('implicit .01, first', initial))
+    colors = ('#0072B2', '#6A3D9A', '#009E73', '#D55E00')
+    with midnight():
+        fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout='constrained')
+        for (label, row), color in zip(series, colors):
+            t = row['t']
+            early = t <= 40 + 1e-5
+            axes[0, 0].plot(t[early], row['mean_E'][early], color=color, label=label)
+            width = max(1, round(2 * np.pi / np.median(np.diff(t))))
+            averaged = np.convolve(row['nonzero_electric'], np.ones(width) / width, mode='valid')
+            trim = width // 2
+            axes[0, 1].plot(t, row['nonzero_electric'], color=color, alpha=.12, lw=.4)
+            axes[0, 1].plot(t[trim:trim + len(averaged)], averaged, color=color, label=label)
+            axes[1, 0].plot(t, row['momentum'][:, 0], color=color, label=label)
+            if 'balance' in row:
+                axes[1, 1].plot(t, abs(row['balance']), color=color, label=label)
+        axes[0, 0].plot(raw['t'][raw['t'] <= 40], raw['oracle_E'][raw['t'] <= 40], 'k--',
+                        lw=.8, label='homogeneous reference')
+        axes[0, 0].set(ylabel=r'$\langle E_x\rangle/E_\star$', title='Early mean response', xlim=(0, 40))
+        axes[0, 1].set(ylabel=r'$U_{E,k\ne0}/(nm_ec^2L)$', title='Nonzero-mode energy', yscale='log',
+                       ylim=(1e-8, None))
+        axes[1, 0].set(ylabel=r'$[P_x(t)-P_x(0)]/(nm_ecL)$', title='Momentum balance')
+        axes[1, 1].set(ylabel=r'$|\Delta U-W|/(nm_ec^2L)$', title='Energy and source work', yscale='log',
+                       ylim=(1e-18, None))
+        for axis in axes.flat:
+            axis.set_xlabel(r'$\omega_pt$')
+            axis.grid(alpha=.25)
+        axes[0, 0].legend(fontsize=8)
+        axes[0, 1].legend(fontsize=8)
+        arrays = {f'{index}_{key}': value for index, (_, row) in enumerate(series) for key, value in row.items()}
+        settings = dict(parent_revision=native['settings']['parent_revision'],
+                        figure_note='Faint energy traces are raw; thick traces average approximately one plasma '
+                                    'period with trimmed endpoints. All metrics use raw native samples.')
+        save_run(folder, 'paper_implicit_comparison', settings,
+                 dict(comparison=result, native_runs=records,
+                      claim='Prescribed-force numerical comparison; late field/particle convergence remains open'),
+                 fig, **arrays)
+        np.savez_compressed(Path(folder) / 'data.npz', **arrays)
+        plt.close(fig)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('first', type=Path)
     parser.add_argument('second', type=Path)
+    parser.add_argument('--implicit', action='store_true', help='second record is a Gaussian implicit drive')
     parser.add_argument('--variant', choices=VARIANTS, default='repeat')
     parser.add_argument('--legacy', action='store_true', help='retain explicit missing-fingerprint status')
     parser.add_argument('--constraints', action='store_true', help='audit endpoint closure without applying it')
@@ -310,6 +453,15 @@ def main():
     args = parser.parse_args()
     if args.refined and not args.publish:
         parser.error('--refined requires --publish')
+    if args.implicit:
+        if args.constraints or args.legacy or args.variant != 'repeat':
+            parser.error('--implicit uses its own physical-loading and native-clock contract')
+        if args.publish:
+            publish_implicit(args.first, args.second, args.publish, args.refined)
+        else:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(implicit_comparison(args.first, args.second)[0], indent=2))
+        return
     result = compare_replays(args.first, args.second, args.variant, legacy=args.legacy, constraints=args.constraints)
     if args.publish:
         publish(args.first, args.second, args.publish, result, args.refined)

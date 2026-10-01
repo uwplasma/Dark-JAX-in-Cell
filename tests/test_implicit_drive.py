@@ -83,6 +83,48 @@ def test_shifted_field_work_identity_and_accepted_continuity_current(iterations)
         assert abs(float(physical_defect)) / scale > 1e-10
 
 
+def test_accepted_longitudinal_impulse_and_integer_cell_translation():
+    """Check accepted particle impulse independently of mesh work conservation."""
+    p, state = homogeneous_box(cells=16, nodes=4, iterations=8)
+    p = p.replace(solver=p.solver.replace(substeps=1))
+    o, d = state.ordinary, p.domain
+    mass, charge = p.per_particle
+    theta = 2 * jnp.pi * o.x[:, 0] / d.length
+    # Break reflection symmetry, retaining two mobile species with zero total charge.
+    x = o.x.at[:, 0].add(jnp.where(charge < 0, .04 * d.dx *
+                                   (jnp.sin(theta + .37) + .3 * jnp.cos(2 * theta - .19)), 0.))
+    rho = deposit(x[:, 0], charge * o.w, d.grid[0], d.dx, d.cells, (0, 0))
+    o = o.replace(x=x, rho=rho, E=o.E.at[:, 0].set(E_x_from_rho(rho, d.dx, (0, 0))))
+    state, model = drive_state(p, o), cosine()
+    accepted, current = implicit_drive_step(p, state, model)
+    after = accepted.ordinary
+    # Within one linear-interpolation interval, the quadratic potential secant
+    # equals the independent linear face-field interpolant at the orbit midpoint.
+    endpoints = np.asarray(o.x[:, 0]), np.asarray(after.x[:, 0])
+    np.testing.assert_array_equal(*(np.floor((x + d.length / 2) / d.dx) for x in endpoints))
+    force = float(model.eta * model.amplitude[0]) * np.cos(
+        float(model.omega) * (float(o.time) + d.dt / 2) + float(model.phase))
+    midpoint_field = np.asarray((o.E[:, 0] + after.E[:, 0]) / 2) + force
+    electric = np.interp((endpoints[0] + endpoints[1]) / 2, d.faces, midpoint_field, period=d.length)
+    expected = np.asarray(charge * o.w) * d.dt * electric
+    actual = np.asarray(mass * o.w * (after.u[:, 0] - o.u[:, 0]))
+    scale = N * m * c * d.length
+    np.testing.assert_allclose(actual / scale, expected / scale, rtol=0, atol=2e-12)
+    momentum = snapshot(p, after)['momentum'] - snapshot(p, o)['momentum']
+    np.testing.assert_allclose(momentum / scale, [expected.sum() / scale, 0., 0.], rtol=0, atol=2e-12)
+    # An integer-cell translation is an exact grid permutation, not a claim of
+    # continuous translation symmetry or exact continuum momentum conservation.
+    shifted_x = o.x.at[:, 0].set((o.x[:, 0] + d.length / 2 + d.dx) % d.length - d.length / 2)
+    shifted = o.replace(x=shifted_x, E=jnp.roll(o.E, 1, axis=0), rho=jnp.roll(o.rho, 1))
+    translated, translated_current = implicit_drive_step(p, state.replace(ordinary=shifted), model)
+    np.testing.assert_allclose(translated.ordinary.u / c, after.u / c, rtol=0, atol=2e-12)
+    for key, units in (('E', FIELD), ('rho', e * N)):
+        np.testing.assert_allclose(getattr(translated.ordinary, key) / units,
+                                   jnp.roll(getattr(after, key), 1, axis=0) / units, rtol=0, atol=2e-12)
+    np.testing.assert_allclose(translated_current / (e * N * c),
+                               jnp.roll(current, 1, axis=0) / (e * N * c), rtol=0, atol=2e-12)
+
+
 def test_zero_drive_is_parent_step_and_unsupported_solver_is_rejected():
     p, state = homogeneous_box(nodes=4)
     expected, _ = p._implicit_step(state.ordinary, p.per_particle)

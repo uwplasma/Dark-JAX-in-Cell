@@ -4,7 +4,8 @@ import json
 import numpy as np
 import pytest
 
-from docs.scripts.compare_replays import _projection, compare_replays, constraint_audit, fingerprint, metrics
+from docs.scripts.compare_replays import (_projection, compare_replays, constraint_audit,
+                                          fingerprint, implicit_comparison, metrics)
 
 
 @pytest.fixture
@@ -145,3 +146,63 @@ def test_manufactured_proca_projection_retains_scalar_potential(tmp_path):
     assert audit['dark']['unchanged_phi_energy_over_scale'] == pytest.approx(.0075)
     assert audit['dark']['phi_energy_change'] == 0
     assert path.read_bytes() == before
+
+
+@pytest.fixture
+def method_records(records):
+    """Independent scalar fixture: electric energy and mean field are distinct."""
+    explicit, implicit = records
+    record = json.loads((explicit / 'run.json').read_text())
+    a = record['settings']
+    b = dict(paper_loading=True, newtonian=False, cells=a['cells'],
+             particles_per_species=a['particles_per_species'], length_over_c_wp=40,
+             mass_ratio=1836, temperature=.001, amplitude=a['force_quiver_over_c'],
+             parent_revision=a['parent_revision'], dt=.01, store_every=25,
+             initial_fingerprints=dict(x='2' * 64, u='3' * 64, w='3' * 64, B='3' * 64))
+    with np.load(explicit / 'data.npz') as stored:
+        data = dict(stored)
+    data['momentum'] = np.tile(np.array([.003, 0., 0.]), (3, 1))
+    np.savez_compressed(explicit / 'data.npz', **data)
+    time = np.arange(5) / 4
+    np.savez_compressed(implicit / 'data.npz', t=time, electric=time / 50, current=time / 100,
+                        nonzero_electric=time * 1e-6, work=(time / 50)**2 / 2 + time * 1e-6,
+                        balance=np.zeros(5), momentum=np.tile([.003, 0., 0.], (5, 1)))
+    record.update(settings=b, results=dict(max_balance_over_nmc2L=1e-15), git='5' * 40)
+    (implicit / 'run.json').write_text(json.dumps(record))
+    return explicit, implicit
+
+
+def test_cross_method_native_units_and_momentum_offset(method_records):
+    result, _, _, first, second, _ = implicit_comparison(*method_records)
+    assert all(result['initial_hash_matches'].values())
+    assert result['common_samples'] == 3 and result['implicit_native_samples'] == 5
+    np.testing.assert_array_equal(first['mean_E'], second['mean_E'])
+    np.testing.assert_array_equal(first['momentum'], np.zeros((3, 3)))
+    np.testing.assert_array_equal(second['momentum'], np.zeros((3, 3)))
+    np.testing.assert_allclose(second['current'], [0, .005, .01])
+    np.testing.assert_allclose(second['work'], [0, .0000505, .000201])
+    assert result['implicit_balance_over_peak_recorded_work'] == pytest.approx(1e-15 / .000201)
+    assert str(method_records[0]) not in json.dumps(result, allow_nan=False)
+
+
+@pytest.mark.parametrize('change', ['clock', 'initial', 'amplitude', 'runtime', 'finite'])
+def test_cross_method_mismatches_are_rejected(method_records, change):
+    path = method_records[1]
+    if change in ('clock', 'finite'):
+        with np.load(path / 'data.npz') as stored:
+            data = dict(stored)
+        data['t'][1] += .001 if change == 'clock' else 0
+        if change == 'finite':
+            data['electric'][2] = np.nan
+        np.savez_compressed(path / 'data.npz', **data)
+    else:
+        record = json.loads((path / 'run.json').read_text())
+        if change == 'initial':
+            record['settings']['initial_fingerprints']['u'] = '8' * 64
+        elif change == 'runtime':
+            record['jax'] = 'different'
+        else:
+            record['settings']['amplitude'] *= 2
+        (path / 'run.json').write_text(json.dumps(record))
+    with pytest.raises(ValueError):
+        implicit_comparison(*method_records)
