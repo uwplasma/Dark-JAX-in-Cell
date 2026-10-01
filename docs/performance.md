@@ -52,7 +52,7 @@ The source-free [time-step experiment](scripts/benchmark_time_integrators.py) us
 
 ![Proca vacuum energy and long-time state error](_static/figures/time_integrators/figure.png)
 
-| Method | $\Delta t\Omega_D$ | Max $|\Delta U_D/U_D(0)|$ | Final state error against $e^{tL}$ | Max dark Gauss residual |
+| Method | $\Delta t\Omega_D$ | Max $\lvert\Delta U_D/U_D(0)\rvert$ | Final state error against $e^{tL}$ | Max dark Gauss residual |
 |---|---:|---:|---:|---:|
 | Current kick–drift–kick | 0.2 | 2.37% | 1.03 | $3.3\times10^{-15}$ |
 | Current kick–drift–kick | 0.1 | 0.577% | 0.356 | $5.4\times10^{-15}$ |
@@ -82,7 +82,7 @@ The [coupled benchmark](scripts/benchmark_pic_conservation.py) loads two warm el
 
 The upper panels show sampled defects in complete energy and continuum momentum; the table uses maxima from **every step**. The lower panels show the first complex electric mode and its phase relative to $\omega_pt=8$. Dashed amplitude segments use the kinetic pole growth rate over the fit window. A flat phase would describe a pure symmetric growing eigenmode; the curved traces expose the loading transient.
 
-| Method | Cells | $\Delta t\omega_p$ | Max $|\Delta U|/U_0$ | Max $|\Delta P|/(nm_ecL)$ | Fitted $\gamma/\omega_p$ | Fitted $\omega_r/\omega_p$ |
+| Method | Cells | $\Delta t\omega_p$ | Max $\lvert\Delta U\rvert/U_0$ | Max $\lvert\Delta P\rvert/(nm_ecL)$ | Fitted $\gamma/\omega_p$ | Fitted $\omega_r/\omega_p$ |
 |---|---:|---:|---:|---:|---:|---:|
 | Ordinary explicit | 128 | 0.002 | {{ pic_explicit_energy }} | {{ pic_explicit_momentum }} | {{ pic_explicit_growth }} | {{ pic_explicit_frequency }} |
 | Ordinary implicit, 4 iterations | 128 | 0.002 | {{ pic_implicit4_energy }} | {{ pic_implicit4_momentum }} | {{ pic_implicit4_growth }} | {{ pic_implicit4_frequency }} |
@@ -118,5 +118,7 @@ python docs/scripts/benchmark_pic_conservation.py --full --samples 1
 python docs/scripts/benchmark_pic_conservation.py --render --output docs/_static/figures/pic_conservation
 python docs/scripts/benchmark_pic_conservation.py --overhead --particles 40000
 ```
+
+The [long resonant-drive replay](kinetic.md#time-refinement-through-the-nonlinear-transition) recovers early second-order behavior but fails the nonlinear field-convergence check. A same-step prefix replay also develops finite trajectory differences. Those gates remain necessary before transferring this short benchmark's timestep or cost conclusions to a late driven result.
 
 An implicit method must also resolve the physical phase and growth. Roundoff energy alone is insufficient for a late kinetic result. [Christlieb, Chacón and Gong](https://arxiv.org/abs/2606.15035), Section 5.3 and Figures 2–3, isolate particle, mesh and orbit-chain-rule defects: their unsplit-orbit control retains Gauss while accumulating energy error. This is a useful model for the two sector work ledgers here. [Ricketson and Hu's relativistic explicit correction](https://arxiv.org/abs/2605.18542), Section 3.1, can enforce particle work locally but its analytic correction need not have a real solution. Adopting it would require a new coupled work derivation, charge-conserving trajectories and derivative checks, rather than adjusting the total energy after a run.

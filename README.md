@@ -74,14 +74,14 @@ The [coupled benchmark](docs/scripts/benchmark_pic_conservation.py) follows iden
 
 <img src="docs/_static/figures/pic_conservation/figure.png" width="800" alt="Complete energy, momentum, electric-mode growth and phase for explicit, implicit and Proca particle-in-cell methods">
 
-| Method | Cells | $\Delta t\omega_p$ | Maximum $|\Delta U|/U_0$ | Maximum $|\Delta P|/(nm_ecL)$ |
+| Method | Cells | $\Delta t\omega_p$ | Maximum $\lvert\Delta U\rvert/U_0$ | Maximum $\lvert\Delta P\rvert/(nm_ecL)$ |
 |---|---:|---:|---:|---:|
 | Ordinary explicit | 128 | 0.002 | $7.46\times10^{-4}$ | $2.94\times10^{-17}$ |
 | Ordinary implicit, four iterations | 128 | 0.002 | $8.53\times10^{-16}$ | $7.13\times10^{-7}$ |
 | Proca explicit | 128 | 0.002 | $7.98\times10^{-4}$ | $2.34\times10^{-17}$ |
 | Proca explicit | 256 | 0.002 | $2.06\times10^{-4}$ | $2.97\times10^{-17}$ |
 
-Charge, continuity and both Gauss residuals remain below $4.6\times10^{-13}$ in their stated normalizations. The implicit energy/charge balance agrees with the [discrete-gradient PIC construction](https://arxiv.org/abs/1910.04000), while momentum has a finite error. On this GPU workload, four implicit iterations cost about five times the explicit run at the same step; a tenfold larger step recovers that cost, with phase and nonlinear accuracy still requiring validation. Proca total-energy error falls about fourfold on grid doubling; its much smaller dark-sector work defect falls fourfold on timestep halving. These measurements favour spatial refinement of the explicit companion before changing its clock. [All twelve rows, timings, phase accuracy and method limits](docs/performance.md#coupled-kinetic-methods).
+Charge, continuity and both Gauss residuals remain below $4.6\times10^{-13}$ in their stated normalizations. The implicit energy/charge balance agrees with the [discrete-gradient PIC construction](https://arxiv.org/abs/1910.04000), while momentum has a finite error. On this GPU workload, four implicit iterations cost about five times the explicit run at the same step; a tenfold larger step recovers that cost, with phase and nonlinear accuracy still requiring validation. Proca total-energy error falls about fourfold on grid doubling; its much smaller dark-sector work defect falls fourfold on timestep halving. Spatial particle–mesh work dominates this short benchmark; the long driven case has a separate timestep check below. [All twelve rows, timings, phase accuracy and method limits](docs/performance.md#coupled-kinetic-methods).
 
 ## Cold exchange: a known answer
 
@@ -164,14 +164,14 @@ The [mobile-ion example](examples/dark_reservoir.py) compares a zero-drive contr
 The [strong-drive Figure 2 case of Hook, Huang and Shalaby](https://arxiv.org/pdf/2510.13956v1) has mobile ions, $m_i/m_e=1836$, $T_e=T_i=10^{-3}m_ec^2$ and $L=40c/\omega_p$. The applied field is
 
 $$
-E_{\rm applied}=E_*a_0\cos(\omega_pt),\qquad E_*=m_ec\omega_p/e,\qquad a_0=0.03\sqrt{10^{-3}}.
+E_{\rm applied}=E_{\star}a_0\cos(\omega_pt),\qquad E_{\star}=m_ec\omega_p/e,\qquad a_0=0.03\sqrt{10^{-3}}.
 $$
 
 The [parameter replay](examples/dark_reservoir.py) advances **206,000 particles** on 1,000 cells through $\omega_pt=5000$, with $\Delta t\omega_p=0.02$ and quadratic shapes; the paper uses fifth-order shapes.
 
 <img src="docs/_static/figures/paper_replay/figure.png" width="800" alt="Strong resonant drive compared with published RMS curves, no-drive and homogeneous relativistic controls">
 
-Final electron/ion RMS speeds are **$0.1926c$/$0.000834c$**, about **4.6%/5.4% below** the visible PDF curves; their variance-energy increments differ by **9.2%/35.2%**. Late electron variance grows **36.09×**, versus **1.0025×** without driving. The energy/work defect is at most **0.0241% of peak injected work**. Spatial broadening follows the published trend; grid, timestep, loading and seed checks remain necessary for quantitative late agreement. [Data, averaging, normalization and mechanism limits](docs/kinetic.md#long-strong-drive-replay-and-controls).
+Final RMS speeds are **0.1926c (electrons)** and **0.000834c (ions)**, about **4.6%/5.4% below** the visible PDF curves; their variance-energy increments differ by **9.2%/35.2%**. Late electron variance grows **36.09×**, versus **1.0025×** without driving. The energy/work defect is at most **0.0241% of peak injected work**. Halving the timestep changes late electron spread by **1.1%**, but total/nonzero-mode field energy by **52.7%/65.0%**. A third step verifies early second-order behavior; same-step replays diverge during nonlinear broadening. Spatial broadening follows the published trend; quantitative late agreement remains open. [Data, refinement, normalization and mechanism limits](docs/kinetic.md#long-strong-drive-replay-and-controls).
 
 ## Oscillating pair plasma: a kinetic bridge
 

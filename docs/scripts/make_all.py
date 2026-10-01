@@ -357,8 +357,15 @@ for name, ratio in (("drive", ".03"), ("zero", "0")):
 halfstep = ROOT / "artifacts" / "paper_dt_half"
 run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
              "--dt", ".01", "--output", str(halfstep)], cwd=ROOT, check=True)
+transition = ROOT / "artifacts" / "paper_dt_quarter_transition"
+run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
+             "--dt", ".005", "--horizon", "1000", "--output", str(transition)], cwd=ROOT, check=True)
+repeat = ROOT / "artifacts" / "paper_dt_half_prefix_replay"
+run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
+             "--dt", ".01", "--horizon", "1000", "--output", str(repeat)], cwd=ROOT, check=True)
 run_example([sys.executable, str(ROOT / "docs" / "scripts" / "make_paper_replay.py"),
-             "--records", str(ROOT / "artifacts"), "--refined", str(halfstep), "--output", str(paper)],
+             "--records", str(ROOT / "artifacts"), "--refined", str(halfstep),
+             "--refined", str(transition), "--repeat", str(repeat), "--output", str(paper)],
             cwd=ROOT, check=True)
 paper_record = json.loads((paper / "run.json").read_text())
 hook = paper_record["results"]
@@ -384,6 +391,21 @@ measured.update({"hook_electron_rms": f"{hook['final_rms_over_c'][0]:.4f}",
                  "hook_gauss": f"{budget['max_ordinary_gauss_over_en_eps0']:.2e}",
                  "hook_continuity": f"{budget['max_continuity_over_enwp']:.2e}"})
 measured["_provenance"]["paper_replay"] = provenance(paper_record, "paper_replay")
+for label, comparison in zip(("halfstep", "quarter"), hook["refinement_comparisons"]):
+    for window in comparison["windows"]:
+        end = window["window_omega_p"][1]
+        for key in ("mean_E", "electric", "nonzero_electric"):
+            error = window["observables"][key]["relative_l2_difference"]
+            measured[f"hook_{label}_{end}_{key}_l2_percent"] = f"{100 * error:.4f}"
+for window in hook["adjacent_error_contraction"]:
+    end = window["window_omega_p"][1]
+    for key in ("mean_E", "electric", "nonzero_electric"):
+        measured[f"hook_contraction_{end}_{key}"] = f"{window['error_ratio'][key]:.2f}"
+for window in hook["repeat_comparison"]["windows"]:
+    end = window["window_omega_p"][1]
+    for key in ("mean_E", "electric", "nonzero_electric"):
+        error = window["observables"][key]["relative_l2_difference"]
+        measured[f"hook_repeat_{end}_{key}_l2_percent"] = f"{100 * error:.6g}"
 pic = EVIDENCE.parent / "pic_conservation"
 run_example([sys.executable, str(ROOT / "docs" / "scripts" / "benchmark_pic_conservation.py"),
              "--full", "--samples", "1", "--output", str(pic)], cwd=ROOT, check=True)

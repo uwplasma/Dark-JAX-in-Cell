@@ -16,7 +16,8 @@ parser.add_argument('--records', type=Path, default=Path('artifacts'))
 parser.add_argument('--output', type=Path, default=Path('artifacts/paper_summary'))
 parser.add_argument('--reference', type=Path, default=Path(__file__).resolve().parents[1]
                     / '_static' / 'figures' / 'paper_replay', help='digitized reference folder')
-parser.add_argument('--refined', type=Path, action='append', default=[], help='additional driven replay folders')
+parser.add_argument('--refined', type=Path, action='append', default=[], help='consecutive half-step driven folders')
+parser.add_argument('--repeat', type=Path, help='same-step prefix replay for an execution reproducibility control')
 args = parser.parse_args()
 paths = {name: args.records / folder / 'data.npz' for name, folder in (
     ('drive', 'paper_full_drive'), ('zero', 'paper_full_zero'))}
@@ -40,10 +41,17 @@ for record in [zero_record, *[row[1] for row in refinements]]:
         if record['settings'][key] != drive_record['settings'][key]:
             raise ValueError(f'replays must share physical {key}')
 for data, record in refinements:
-    np.testing.assert_allclose(data['t'][-1], 5000, rtol=0, atol=1e-5)
+    if not 1000 - 1e-5 <= data['t'][-1] <= 5000 + 1e-5:
+        raise ValueError('refinements must cover the transition through tau=1000, within the comparison horizon')
     np.testing.assert_allclose(record['settings']['output_dt_omega_p'], .5, rtol=0, atol=1e-9)
     if record['settings']['drive_quiver_over_sigma'] != .03:
         raise ValueError('refinements must retain the same prescribed drive')
+    for key in ('cells', 'particles_per_species', 'seed', 'loading', 'pusher', 'shape'):
+        if record['settings'][key] != drive_record['settings'][key]:
+            raise ValueError(f'timestep refinements must share {key}')
+for previous, (_, record) in zip([drive_record, *[row[1] for row in refinements]], refinements):
+    np.testing.assert_allclose(record['settings']['dt_omega_p'], previous['settings']['dt_omega_p'] / 2,
+                               rtol=0, atol=1e-12)
 width = round(2 * np.pi / np.median(np.diff(t)))
 late = (t >= 4800 - 1e-5) & (t <= 5000 + 1e-5)
 refined_colors = ('#30343B', '#009E73', '#CC79A7')
@@ -52,6 +60,28 @@ refined_colors = ('#30343B', '#009E73', '#CC79A7')
 def averaged(values):
     """An approximately one-period moving average; endpoints are trimmed below."""
     return np.convolve(values, np.ones(width) / width, mode='same')
+
+
+def compare_windows(first, second):
+    """Compare native samples in fixed inclusive windows, without interpolation."""
+    count = min(len(first['t']), len(second['t']))
+    np.testing.assert_allclose(first['t'][:count], second['t'][:count], rtol=0, atol=1e-5)
+    clock = (first['t'][:count] + second['t'][:count]) / 2
+    windows = []
+    for start, end in ((0, 100), (0, 250), (0, 500), (0, 1000), (4800, 5000)):
+        if end > clock[-1] + 1e-5:
+            continue
+        selected = (clock >= start - 1e-5) & (clock <= end + 1e-5)
+        observables = {}
+        for key in ('mean_E', 'rms', 'electric', 'nonzero_electric', 'density_rms'):
+            x, y = first[key][:count][selected], second[key][:count][selected]
+            difference, norm = np.linalg.norm(y - x, axis=0), np.linalg.norm(x, axis=0)
+            observables[key] = dict(relative_l2_difference=(difference / norm).tolist())
+            observables[key].update(l2_difference=difference.tolist(), reference_l2_norm=norm.tolist())
+            if key != 'mean_E':
+                observables[key]['mean_relative_change'] = (y.mean(axis=0) / x.mean(axis=0) - 1).tolist()
+        windows.append(dict(window_omega_p=[start, end], samples=int(selected.sum()), observables=observables))
+    return windows
 
 
 with midnight():
@@ -66,7 +96,9 @@ with midnight():
                 color=colors['paper'], label='Fig. 2, PDF curve')
         for j, (data, record) in enumerate(refinements):
             controls = record['settings']
-            label = f"{controls['cells']} cells, Δtωₚ={controls['dt_omega_p']:g}"
+            label = f"Δtωₚ={controls['dt_omega_p']:g}"
+            if data['t'][-1] < 5000 - 1e-5:
+                label += f", τ≤{round(data['t'][-1])}"
             ax.plot(data['t'], data['rms'][:, i], ':', color=refined_colors[j % 3], label=label)
         ax.set(title=species.capitalize() + ' velocity spread', ylabel=rf'$\sigma_{{{species[0]}}}/c$')
     ax = axes[1, 0]
@@ -98,7 +130,7 @@ with midnight():
     for ax in axes.flat:
         ax.set(xlabel=r'$\omega_p t$', xlim=(0, 5000))
         ax.grid(alpha=.25)
-        ax.legend(fontsize=8)
+        ax.legend(fontsize=9, loc='lower right' if ax is axes[0, 1] else 'best')
     target = [np.interp(t[-1], paper[f'strong_{s}_rms_t'], paper[f'strong_{s}_rms'])
               for s in ('electron', 'ion')]
     masses = np.array([1, drive_record['settings']['mass_ratio']])
@@ -115,19 +147,59 @@ with midnight():
                'no_drive_late_global_spread_over_initial': zero_record['results'][
                    'late_electron_spread_over_initial'],
                'late_global_spread_over_initial': (a['spread'][late].mean(axis=0) / .0005).tolist(),
+               'native_runs': {'drive': drive_record, 'no_drive': zero_record},
                'refinements': [record for _, record in refinements],
                'claim': 'Figure 2 parameter replay; grid, timestep, loading and seed convergence pending'}
     results['refinement_comparisons'] = []
-    for data, record in refinements:
+    for i, (data, record) in enumerate(refinements):
         mask = (data['t'] >= 4800 - 1e-5) & (data['t'] <= 5000 + 1e-5)
-        results['refinement_comparisons'].append(dict(
+        comparison = dict(
             cells=record['settings']['cells'], dt_omega_p=record['settings']['dt_omega_p'],
             particles_per_species=record['settings']['particles_per_species'],
-            late_samples=int(mask.sum()),
-            late_global_spread_relative_change=(data['spread'][mask].mean(axis=0)
-                                                / a['spread'][late].mean(axis=0) - 1).tolist(),
-            **{f'late_{key}_relative_change': float(data[key][mask].mean() / a[key][late].mean() - 1)
-               for key in ('electric', 'nonzero_electric')}))
+            compared_to_dt_omega_p=(drive_record if i == 0 else refinements[i - 1][1])['settings']['dt_omega_p'],
+            windows=compare_windows(a if i == 0 else refinements[i - 1][0], data),
+            late_samples=int(mask.sum()))
+        if mask.any():
+            comparison.update(
+                late_global_spread_relative_change=(data['spread'][mask].mean(axis=0)
+                                                    / a['spread'][late].mean(axis=0) - 1).tolist(),
+                **{f'late_{key}_relative_change': float(data[key][mask].mean() / a[key][late].mean() - 1)
+                   for key in ('electric', 'nonzero_electric')})
+        results['refinement_comparisons'].append(comparison)
+    if len(refinements) == 2:
+        contraction = []
+        first, second = results['refinement_comparisons']
+        for window in second['windows']:
+            preceding = next(w for w in first['windows'] if w['window_omega_p'] == window['window_omega_p'])
+            ratios = {key: (np.asarray(preceding['observables'][key]['l2_difference'])
+                            / np.asarray(values['l2_difference'])).tolist()
+                      for key, values in window['observables'].items()}
+            contraction.append(dict(window_omega_p=window['window_omega_p'], error_ratio=ratios))
+        results['adjacent_error_contraction'] = contraction
+    results['first_electron_spread_crossings'] = []
+    for data in (a, *[row[0] for row in refinements]):
+        crossings = {}
+        for threshold in (2, 5, 10, 20):
+            indices = np.flatnonzero(data['spread'][:, 0] / data['spread'][0, 0] >= threshold)
+            index = int(indices[0]) if len(indices) else None
+            crossings[threshold] = None if index is None else data['t'][max(index - 1, 0):index + 1].tolist()
+        results['first_electron_spread_crossings'].append(crossings)
+    repeat_data = None
+    if args.repeat:
+        repeat_data = np.load(args.repeat / 'data.npz')
+        repeat_record = json.loads((args.repeat / 'run.json').read_text())
+        controls = ('cells', 'particles_per_species', 'dt_omega_p', 'seed', 'length_c_over_omega_p',
+                    'mass_ratio', 'T_each_over_mec2', 'drive_quiver_over_sigma', 'coupling', 'parent_revision',
+                    'loading', 'pusher', 'shape', 'output_dt_omega_p')
+        original, original_record = next((data, record) for data, record in ((a, drive_record), *refinements)
+                                         if all(record['settings'][key] == repeat_record['settings'][key]
+                                                for key in controls))
+        revision = repeat_record['git']
+        if revision != original_record['git'] or revision == 'unknown' or revision.endswith('-dirty'):
+            raise ValueError('repeat control must share the original clean computational revision')
+        results['repeat_comparison'] = dict(record=repeat_record, compared_to_git=original_record['git'],
+                                            windows=compare_windows(original, repeat_data),
+                                            note='same timestep and loading; different horizon/compiler allocation')
     settings = {'raw_computation_git': drive_record['git'],
                 'computation': {name: {key: record[key] for key in (
                     'git', 'jaxincell', 'jax', 'numpy', 'python', 'platform', 'jax_enable_x64', 'backend')}
@@ -148,12 +220,15 @@ with midnight():
                 'analysis_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
     settings['input_sha256'].update({f'refined{i}': hashlib.sha256((folder / 'data.npz').read_bytes()).hexdigest()
                                      for i, folder in enumerate(args.refined)})
-    keys = ('t', 'rms', 'electric', 'nonzero_electric', 'density_rms',
-            'homogeneous_rms', 'homogeneous_electric')
-    arrays = {key: a[key] for key in keys}
+    if args.repeat:
+        settings['input_sha256']['repeat'] = hashlib.sha256((args.repeat / 'data.npz').read_bytes()).hexdigest()
+    keys = ('t', 'rms', 'mean_E', 'spread', 'electric', 'nonzero_electric', 'density_rms')
+    arrays = {key: a[key] for key in (*keys, 'homogeneous_rms', 'homogeneous_electric')}
     arrays.update(no_drive_rms=zero['rms'], no_drive_density_rms=zero['density_rms'])
     arrays.update({f'refined{i}_{key}': data[key] for i, (data, _) in enumerate(refinements)
-                   for key in ('t', 'rms', 'balance', 'electric', 'nonzero_electric')})
+                   for key in (*keys, 'balance')})
+    if repeat_data is not None:
+        arrays.update({f'repeat_{key}': repeat_data[key] for key in keys})
     arrays.update({key: paper[key] for key in paper.files if key.startswith('strong_')})
     save_run(args.output, 'hook_parameter_replay_summary', settings, results, fig, **arrays)
     np.savez_compressed(args.output / 'data.npz', **arrays)

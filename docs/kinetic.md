@@ -23,7 +23,7 @@ The same full run now advances **JAX-in-Cell itself** from the identical electro
 
 The same quiet loading is used for matched parent/dark runs at each resolution. A fixed $2<\omega_pt<12$ window fits the early absolute-field maxima; it does not require the signal to reach a noise floor. The longer windows $2$–$14$ and $3$–$16$ are saved as sensitivity checks. The complex ordinary, dark and effective mode coefficients, particle-plus-field energy and exact settings are in the linked records.
 
-| Cells / markers / steps | Parent $\omega_r/\omega_p$ | Parent $\gamma/\omega_p$ | Mixed $\omega_r/\omega_p$ | Mixed $\gamma/\omega_p$ | Max sampled $|\Delta U|/U_0$ |
+| Cells / markers / steps | Parent $\omega_r/\omega_p$ | Parent $\gamma/\omega_p$ | Mixed $\omega_r/\omega_p$ | Mixed $\gamma/\omega_p$ | Max sampled $\lvert\Delta U\rvert/U_0$ |
 |---|---:|---:|---:|---:|---:|
 | 32 / 40,000 / 3,000 | {{ physical_32_parent_measured_real_over_wp }} | {{ physical_32_parent_measured_imag_over_wp }} | {{ physical_32_measured_real_over_wp }} | {{ physical_32_measured_imag_over_wp }} | {{ physical_32_maximum_sampled_closed_energy_drift }} |
 | 64 / 80,000 / 6,000 | {{ physical_64_parent_measured_real_over_wp }} | {{ physical_64_parent_measured_imag_over_wp }} | {{ physical_64_measured_real_over_wp }} | {{ physical_64_measured_imag_over_wp }} | {{ physical_64_maximum_sampled_closed_energy_drift }} |
@@ -233,10 +233,10 @@ For $r=0.03$, $N_x=1000$ and $\overline t_{\rm noise}=2.4$, this gives $N_p\sime
 
 The saved scalar histories include exact relativistic particle kinetic energy, the Eq. B3 velocity-spread measure, species mean and RMS velocities, mean and nonzero-$k$ electric energy, grid-scale density contrast, source work, and total momentum. The spread measure removes only the species-global mean; it includes spatial flows and does not measure a rest-frame thermodynamic temperature. Every-step maxima retain energy-minus-work, particle/grid charge, continuity, ordinary Gauss, and dark Gauss residuals without storing particle histories. `--coupling ETA` replaces the prescribed source by a finite Proca field with the same initial force, and includes its full potential energy and momentum.
 
-Two independent controls accompany the PIC data. The finite-ion Newtonian solution generalizes Eq. A25: for $\tau=\omega_pt$, $b=1+1/1836$ and $E_* = m_ec\omega_p/e$,
+Two independent controls accompany the PIC data. The finite-ion Newtonian solution generalizes Eq. A25: for $\tau=\omega_pt$, $b=1+1/1836$ and $E_{\star} = m_ec\omega_p/e$,
 
 $$
-\frac{\overline E}{E_*}=\frac{ba_0}{b-1}\left[\cos(\sqrt b\,\tau)-\cos\tau\right].
+\frac{\overline E}{E_{\star}}=\frac{ba_0}{b-1}\left[\cos(\sqrt b\,\tau)-\cos\tau\right].
 $$
 
 Its early, fixed-ion limit is $-a_0\tau\sin\tau/2$, with energy envelope $a_0^2\tau^2/8$. Independently integrated Gaussian momentum orbits retain relativistic thermal and amplitude detuning while suppressing spatial perturbations. This homogeneous reference can bound coherent field growth without exciting ion-density waves. A nonlinear spatial interpretation therefore requires a resolved increase in electron spread and density contrast relative to both this reference and the no-drive control, with separate grid, step, loading, and seed checks. The setup and linear-limit controls do not by themselves confirm the paper's late suppression curve, its proposed density mechanism, or its cosmological conclusion.
@@ -260,12 +260,49 @@ Faint lines retain raw field-energy and density samples every $\Delta\tau=0.5$; 
 
 Every-step energy-minus-external-work error is at most **{{ hook_work_error_percent }}%** of peak injected work; momentum defect is **{{ hook_momentum }}** in $nm_ecL$ units. Continuity and ordinary Gauss maxima are **{{ hook_continuity }}** and **{{ hook_gauss }}**, scaled by $en\omega_p$ and $en/\epsilon_0$. These checks address numerical conservation, independently of curve agreement. The [PDF normalization review](validation.md#which-published-limits-are-tested) explains why the direct RMS comparison is used rather than rescaling the paper's solid thermal-energy curves.
 
+#### Time refinement through the nonlinear transition
+
+The same loading recipe, weights, physical parameters and seed were replayed at $\Delta\tau=0.01$ through $5000$, then at $0.005$ through $1000$. Initial particle moments match exactly. Dotted/dash-dot curves in the figure show their RMS speeds and electric energies; the green third-level curves end at $1000$. The late electron/ion spread-energy means change by $-1.09\%/+0.40\%$ on halving the full-run step, while total/nonzero-$k$ electric-energy means change by $-52.70\%/-65.00\%$. Energy-minus-work defects are $0.02412\%$ and $0.02371\%$ of peak injected work. Small conservation defects do not establish late field convergence.
+
+For observable $X$, define the adjacent-level contraction on the indicated fixed window as
+
+$$
+R_X=\frac{\lVert X_{0.02}-X_{0.01}\rVert_2}{\lVert X_{0.01}-X_{0.005}\rVert_2}.
+$$
+
+Native samples are compared directly, with $10^{-5}$ tolerance on accumulated clocks and no interpolation or smoothing. These are paired trajectory differences from one particle realization, not an ensemble uncertainty.
+
+| Window in $\tau$ | $R_{\overline E}$ | $R_{U_E}$ | $R_{U_{E,k\ne0}}$ |
+|---|---:|---:|---:|
+| 0–100 | {{ hook_contraction_100_mean_E }} | {{ hook_contraction_100_electric }} | {{ hook_contraction_100_nonzero_electric }} |
+| 0–250 | {{ hook_contraction_250_mean_E }} | {{ hook_contraction_250_electric }} | {{ hook_contraction_250_nonzero_electric }} |
+| 0–500 | {{ hook_contraction_500_mean_E }} | {{ hook_contraction_500_electric }} | {{ hook_contraction_500_nonzero_electric }} |
+| 0–1000 | {{ hook_contraction_1000_mean_E }} | {{ hook_contraction_1000_electric }} | {{ hook_contraction_1000_nonzero_electric }} |
+
+The ratio near four through $100$ verifies second-order behavior in the early smooth response. Contraction fails during nonlinear broadening. The fine-level relative $L^2$ differences through $1000$ are approximately $9.7\%$ for mean field and $27\%$ for nonzero-mode energy when normalized by the common $0.02$ trace. The [record](_static/figures/paper_replay/run.json) retains the norms, windows and raw computational provenance. The first $2\times$ and $5\times$ electron-spread crossings agree to the $0.5$ sample interval; the $20\times$ marker shifts from $553$ to $562.5$ to $626$. The finest trace already reaches $19.93\times$ before $625$, so a first threshold crossing is not a sharply defined instability onset. The $1000$-horizon conservation maxima also cannot be compared as equal-horizon improvements over the $5000$ runs.
+
+#### Same-step prefix replay
+
+A second $\Delta\tau=0.01$ run ends at $1000$, with the same clean computational source, loading recipe, seed, grid and output cadence. Its initial RMS speeds, means, kinetic/spread energies, weights and particle counts match the longer run exactly; initial field diagnostics differ at roundoff. Different horizons produce different compiled allocations. The table compares unsmoothed native samples with the longer run's prefix, using $\lVert X_{\rm repeat}-X_{0.01}\rVert_2/\lVert X_{0.01}\rVert_2$.
+
+| Window in $\tau$ | Mean-field difference (%) | Total field-energy difference (%) | Nonzero-mode energy difference (%) |
+|---|---:|---:|---:|
+| 0–100 | {{ hook_repeat_100_mean_E_l2_percent }} | {{ hook_repeat_100_electric_l2_percent }} | {{ hook_repeat_100_nonzero_electric_l2_percent }} |
+| 0–250 | {{ hook_repeat_250_mean_E_l2_percent }} | {{ hook_repeat_250_electric_l2_percent }} | {{ hook_repeat_250_nonzero_electric_l2_percent }} |
+| 0–500 | {{ hook_repeat_500_mean_E_l2_percent }} | {{ hook_repeat_500_electric_l2_percent }} | {{ hook_repeat_500_nonzero_electric_l2_percent }} |
+| 0–1000 | {{ hook_repeat_1000_mean_E_l2_percent }} | {{ hook_repeat_1000_electric_l2_percent }} | {{ hook_repeat_1000_nonzero_electric_l2_percent }} |
+
+The repeat variation is negligible through $250$, where timestep contraction already fails, and becomes material during later broadening. Through $1000$, its mean-field and nonzero-energy differences are 34% and 19% of the fine adjacent-timestep differences. This one replay identifies execution sensitivity, not its cause or a statistical uncertainty. Exact initial particle arrays were not archived. The next nonlinear comparison needs repeated executions and independent loading seeds at fixed physical smoothing scales, alongside isolated mesh and timestep checks. A solver change should be judged on these observables as well as conservation.
+
 Run the following cases **sequentially**. The final complete restart is compressed and retained in each computational output; the public summary keeps compressed scalar curves and provenance.
 
 ```sh
 python examples/dark_reservoir.py --paper --full --output artifacts/paper_full_drive
 python examples/dark_reservoir.py --paper --full --drive-ratio 0 --output artifacts/paper_full_zero
-python docs/scripts/make_paper_replay.py --output docs/_static/figures/paper_replay
+python examples/dark_reservoir.py --paper --full --dt 0.01 --output artifacts/paper_dt_half
+python examples/dark_reservoir.py --paper --full --dt 0.005 --horizon 1000 --output artifacts/paper_dt_quarter_transition
+python examples/dark_reservoir.py --paper --full --dt 0.01 --horizon 1000 --output artifacts/paper_dt_half_prefix_replay
+python docs/scripts/make_paper_replay.py --refined artifacts/paper_dt_half --refined artifacts/paper_dt_quarter_transition --repeat artifacts/paper_dt_half_prefix_replay --output docs/_static/figures/paper_replay
 ```
 
 `--dt 0.01` repeats identical initial particles at half the timestep. A subsequent `--cells 2000 --dt 0.01` with unchanged particle count isolates spatial refinement against that run. Loading and independent-seed checks follow separately. The new output also retains initial/final local spread at fixed physical Gaussian smoothing lengths $2\lambda_{D0}$ and $4\lambda_{D0}$, with $\lambda_{D0}=\sqrt{10^{-3}}c/\omega_p$. These lab-frame moments remove resolved local flow; they remain distinct from a relativistic thermodynamic temperature. The original stored long runs precede those additional endpoint diagnostics. The weak-drive panel, Appendix C's much longer evolution and the cosmological conclusion remain open reproduction targets.
