@@ -430,6 +430,29 @@ audits = [row["ordinary"] for row in control_record["results"]["comparison"]["en
 measured["hook_fixed_projection_field"] = f"{max(row['max_correction_over_field_scale'] for row in audits):.2e}"
 measured["hook_fixed_projection_energy"] = f"{max(abs(row['energy_change_over_scale']) for row in audits):.2e}"
 measured["_provenance"]["replay_controls"] = provenance(control_record, "replay_controls")
+late_folder = EVIDENCE.parent / 'late_step_controls'
+late_runs = [ROOT / 'artifacts' / 'conversion_controls' / name
+             for name in ('paper_dt005', 'paper_dt005_repeat', 'paper_dt0025')]
+for index, folder in enumerate(late_runs):
+    run_example('examples/dark_reservoir.py', study='paper', cells=2000, particles=206000,
+                dt=.0025 if index == 2 else .005, horizon=1000., block_horizon=100., local_moments=True,
+                initial_state=late_runs[0] / 'initial_state.npz' if index == 1 else None, output=folder)
+run_example('docs/scripts/compare_replays.py', first=late_runs[0], second=late_runs[1], constraints=True,
+            refined=late_runs[2], destination=late_folder)
+late_record = json.loads((late_folder / 'run.json').read_text())
+replay_measurements(late_record, (("late_repeat", "comparison", ".4f"),
+                                 ("late_dt", "refinement_comparison", ".4f")))
+for label, key in (("late_repeat", "comparison"), ("late_dt", "refinement_comparison")):
+    a, b = late_record['results'][key]['windows'][-1]['realization_summaries']
+    for observable in ('electric_mean', 'work'):
+        field = 'work_increment' if observable == 'work' else observable
+        measured[f'{label}_{observable}_change_percent'] = f'{100 * (b[field] / a[field] - 1):.2f}'
+    for species in range(2):
+        increments = [r['local_spread_increment_mean'][species][0] for r in (a, b)]
+        change = 100 * (increments[1] / increments[0] - 1)
+        measured[f'{label}_local_spread_increment_{species}_change_percent'] = f'{change:.3f}'
+    measured[f'{label}_injection_rate_difference'] = f"{b['injection_rate_over_wp'] - a['injection_rate_over_wp']:.3e}"
+measured['_provenance']['late_step_controls'] = provenance(late_record, late_folder.name)
 resolution = EVIDENCE.parent / "replay_resolution"
 mesh, seed, loading = [ROOT / "artifacts" / name for name in
                        ("paper_fixed_mesh", "paper_fixed_seed", "paper_fixed_particles")]

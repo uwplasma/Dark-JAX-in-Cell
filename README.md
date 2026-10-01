@@ -251,6 +251,14 @@ At $\Delta t\omega_p=0.005$, an [isolated 1,000→2,000-cell check](docs/kinetic
 
 [Simulation script](examples/dark_reservoir.py) · `study="paper"`; [comparison and plot](docs/scripts/compare_replays.py) ([matched mesh/loading inputs](docs/scripts/make_all.py)).
 
+### Late timestep and execution at higher loading
+
+<img src="docs/_static/figures/late_step_controls/figure.png" width="900" alt="412,000-particle resonant drive: repeated execution and halved timestep through normalized time 1000">
+
+[Simulation script](examples/dark_reservoir.py) · `study="paper"`, `cells=2000`, `particles=206000`; [comparison and plot](docs/scripts/compare_replays.py) ([timestep and restart inputs](docs/scripts/make_all.py)).
+
+These controls use **206,000 particles per species** on 2,000 cells through $\omega_pt=1000$: an exact-state repeat at $\Delta t\omega_p=0.005$ and a halved step. On $800\leq\omega_pt\leq1000$, mean electric energy changes by **−17.12% / −17.60%** relative to the first run; injected work changes by **−29.87% / −35.60%**. Local electron-spread increments change by **−0.25% / −1.64%** at $2\lambda_{D0}$. The residual injection-rate differences exceed the accuracy target, so neither a late conversion rate nor timestep convergence is established. One repeated execution does not supply ensemble uncertainty. [Raw measurements, normalization and limits](docs/kinetic.md#higher-count-late-timestep-and-execution-controls).
+
 ## Oscillating pair plasma: a kinetic bridge
 
 The [pair example](examples/dark_reservoir.py) starts an **ordinary**, charge-neutral electron–positron waterbag with a finite homogeneous electric pump. It follows the parameter case of [Cruz, Grismayer and Silva](https://arxiv.org/abs/2104.04490): $\omega_0=\sqrt2\omega_p$ in the nonrelativistic limit, a $0.1c$ full velocity width, and a $0.14c$ initial quiver scale. The full replay uses the parent’s relativistic Boris pusher. A separate relativistic Vlasov orbit calculation predicts the seeded mode’s early growth at about **$0.0963\,\omega_0$**; the 4,096-cell PIC fit gives about **$0.0960\,\omega_0$** over five pump cycles. By $\omega_0t=170$, the coherent pump has transferred most of its energy into finite-wavelength fields and particle kinetic excess while the complete particle-plus-field energy changes by less than **$3.0\times10^{-4}$** of its initial value. No-pump and seed-amplitude controls, grid/loading refinements, equations and limitations are in the [kinetic study](docs/kinetic.md#an-oscillating-pair-plasma).

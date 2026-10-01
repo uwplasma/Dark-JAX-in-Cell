@@ -1,9 +1,11 @@
-"""Measure parent, configured zero-coupling, and active Proca on matched PIC work."""
+"""Measure matched PIC costs or repeated calls to the same compiled executables."""
 
 import json
+from importlib import metadata
 import os
 import platform
 import resource
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -12,9 +14,10 @@ from time import perf_counter
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
-                       epsilon_0, mass_electron, speed_of_light as c)
-from darkjaxincell import DarkField, DarkSimulation
+                       epsilon_0, mass_electron, save_run, speed_of_light as c)
+from darkjaxincell import DarkField, DarkSimulation, PrescribedDrive
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,10 +29,106 @@ case = globals().get("case", "parent")
 all_cases = globals().get("all_cases", False)
 storage = globals().get("storage", None)
 storage_all = globals().get("storage_all", False)
-particles = globals().get("particles", 128)
-steps = globals().get("steps", 16)
-stride = globals().get("stride", 4)
-output = Path(globals().get("output", OUTPUT))
+replay = globals().get("replay", False)  # One executable per kernel, three calls on the same initial arrays.
+cells = globals().get("cells", 2000)
+dt = globals().get("dt", .005)
+seed = globals().get("seed", 0)
+initial_state = globals().get("initial_state", None)
+particles = globals().get("particles", 206000 if replay else 128)
+steps = globals().get("steps", 100 if replay else 16)
+stride = globals().get("stride", steps if replay else 4)
+output = Path(globals().get("output", "artifacts/reproducibility" if replay else OUTPUT))
+
+
+def numpy_deposit(x, amounts, first, dx, cells):
+    """Independent periodic quadratic deposition with serial NumPy accumulation."""
+    coordinate = (x - first) / dx
+    nearest = np.floor(coordinate + .5).astype(np.int64)
+    offset = coordinate - nearest
+    weights = np.stack((.5 * (.5 - offset)**2, .75 - offset**2, .5 * (.5 + offset)**2), axis=1)
+    result = np.zeros(cells, dtype=amounts.dtype)
+    for column, shift in enumerate((-1, 0, 1)):
+        np.add.at(result, (nearest + shift) % cells, amounts / dx * weights[:, column])
+    return result
+
+
+def measure_replay(cells, particles, dt, steps, stride, seed, initial_state):
+    """Test within-process repeatability; XLA_FLAGS must be set before importing JAX."""
+    sys.path.insert(0, str(ROOT))
+    from jaxincell._core import deposit
+    from examples.dark_reservoir import array_fingerprint, paper_initial, paper_plasma
+    from docs.scripts.conservation import measured_run, snapshot
+    jax.config.update("jax_enable_x64", True)
+    plasma, wp = paper_plasma(cells, particles, dt, seed)
+    if getattr(plasma.solver, 'shape_order', 2) != 2:
+        raise ValueError('the independent reproducibility check requires quadratic deposition')
+    field = mass_electron * c * wp / e
+    sim = DarkSimulation(plasma, PrescribedDrive(1., jnp.array([.03 * np.sqrt(.001) * field, 0., 0.]), wp))
+    start, fingerprints = paper_initial(sim, seed, initial_state)
+    reference = snapshot(sim, start)
+    jax.block_until_ready((start, reference))
+
+    def arrays(value):
+        return {jax.tree_util.keystr(path): np.array(leaf)
+                for path, leaf in jax.tree_util.tree_flatten_with_path(value)[0]}
+
+    def repeat(lower, inputs):
+        before = perf_counter()
+        executable = lower().compile()
+        compilation, memory = perf_counter() - before, executable.memory_analysis()
+        baseline, rows = None, []
+        for index in range(3):
+            before = perf_counter()
+            value = executable(*inputs)
+            jax.block_until_ready(value)
+            warm = perf_counter() - before
+            values = arrays(value)
+            baseline = values if baseline is None else baseline
+            hashes = {key: array_fingerprint(a) for key, a in values.items()}
+            errors = {key: float(np.max(abs(a.astype(np.complex128) - baseline[key]), initial=0))
+                      for key, a in values.items()}
+            rows.append(dict(warm_s=warm, array_sha256=hashes, max_absolute_error=errors,
+                             bitwise_equal_to_first=hashes == rows[0]['array_sha256'] if rows else True))
+            print(f'reproducibility call {index + 1}/3: {warm:.3f} s', file=sys.stderr, flush=True)
+        return dict(compile_s=compilation, compiled_objects=1, calls=rows,
+                    warm_median_s=median(row['warm_s'] for row in rows),
+                    compiler_temporary_MiB=memory.temp_size_in_bytes / 2**20 if memory else None,
+                    leaf_schema={key: dict(dtype=str(a.dtype), shape=list(a.shape))
+                                 for key, a in baseline.items()}), baseline
+
+    d, charge_scale = plasma.domain, e * float(plasma.species[0].density)
+    x, amounts = start.ordinary.x[:, 0], plasma.per_particle[1] * start.ordinary.w
+    charge = jax.jit(lambda positions, charges: deposit(positions, charges, d.grid[0], d.dx, cells, (0, 0)))
+    deposition, values = repeat(lambda: charge.lower(x, amounts), (x, amounts))
+    rho = next(iter(values.values()))
+    expected = numpy_deposit(np.asarray(x), np.asarray(amounts), float(d.grid[0]), float(d.dx), cells)
+    error = float(np.max(abs(rho - expected)) / charge_scale)
+    deposition.update(numpy_max_error_over_en=error, numpy_tolerance_over_en=1e-11, numpy_check_passed=error <= 1e-11,
+                      integrated_charge_error_over_enL=float(
+                          abs(d.dx * np.sum(rho) - np.sum(np.asarray(amounts))) / (charge_scale * d.length)))
+    run, _ = repeat(lambda: measured_run.lower(sim, start, steps, stride, reference, None, 1),
+                    (sim, start, reference, None, 1))
+    packages = {}
+    for name in ('jax', 'jaxlib', 'jax-cuda12-plugin', 'jax-cuda12-pjrt', 'jax-cuda13-plugin', 'jax-cuda13-pjrt'):
+        try:
+            packages[name] = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            packages[name] = None
+    settings = dict(cells=cells, particles_per_species=particles, dt_omega_p=dt, steps=steps, stride=stride, seed=seed,
+                    drive_quiver_over_sigma=.03, coupling=None, initial_fingerprints=fingerprints,
+                    initial_leaf_sha256={key: array_fingerprint(a) for key, a in arrays(start).items()},
+                    initial_state_source='complete zero-time archive' if initial_state else 'native initialization',
+                    XLA_FLAGS=' '.join(token if '/' not in token and '\\' not in token
+                                       else token.split('=')[0] + '=<path omitted>'
+                                       for token in shlex.split(os.environ.get('XLA_FLAGS', ''))),
+                    runtime_packages=packages, device_kinds=[device.device_kind for device in jax.devices()],
+                    normalization=dict(charge_density_C_m3=float(charge_scale)),
+                    note='One compiled object per kernel; three original-input calls. Device warm times exclude '
+                    'host copies and hashes. Deposition uses native half-step x; errors are per leaf in native units. '
+                    'Within-process repeatability does not establish late convergence or adopt compiler flags.')
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    save_run(output, 'pic_reproducibility', settings, dict(deposition=deposition, short_run=run,
+             peak_rss_bytes=int(rss if platform.system() == 'Darwin' else rss * 1024)))
 
 
 def measure(case, particles, steps):
@@ -122,12 +221,16 @@ def isolated(inputs):
 
 
 if __name__ == "__main__":
-    if min(particles, steps, stride) < 1 or ((storage or storage_all) and steps % stride):
+    if min(particles, steps, stride) < 1 or ((storage or storage_all or replay) and steps % stride):
         raise ValueError("positive particles/steps/stride and steps divisible by stride are required")
     if case not in (None, "parent", "eta_zero", "active") or storage not in (None, "sparse", "full"):
         raise ValueError("choose parent/eta_zero/active or sparse/full storage")
     print("Starting matched field/storage cost benchmark", file=sys.stderr, flush=True)
-    if storage:
+    if replay:
+        if storage or storage_all or all_cases:
+            raise ValueError('replay must run alone in its process')
+        measure_replay(cells, particles, dt, steps, stride, seed, initial_state)
+    elif storage:
         print(json.dumps(measure_storage(storage, particles, steps, stride)))
     elif storage_all or all_cases:
         names = ("sparse", "full") if storage_all else ("parent", "eta_zero", "active")
