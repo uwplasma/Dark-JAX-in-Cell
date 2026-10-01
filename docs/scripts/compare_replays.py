@@ -433,31 +433,86 @@ def implicit_comparison(explicit, implicit, tolerance=1e-5):
     return result, ordinary[0], record, first, second, data
 
 
+def _implicit_pair(first, second, variant='iterations'):
+    """Require matched physical loading, native clocks and one varied control."""
+    records, data = zip(*[_implicit_load(path) for path in (first, second)])
+    settings = [record['settings'] for record in records]
+    changes = {'iterations': {'iterations'}, 'substeps': {'substeps'},
+               'cells': {'cells', 'initial_fingerprints', 'initial_state_source'}}[variant]
+    for key in settings[0].keys() | settings[1].keys():
+        if key not in changes and settings[0].get(key) != settings[1].get(key):
+            raise ValueError(f'implicit controls must share {key}, including required initial hashes')
+    if settings[0][variant] == settings[1][variant]:
+        raise ValueError(f'implicit controls must vary {variant}')
+    if variant == 'cells':
+        hashes = [row['initial_fingerprints'] for row in settings]
+        if not all(_hash_matches(hashes, ('x', 'u', 'w', 'time', 'mass', 'charge')).values()):
+            raise ValueError('mesh controls require identical physical particle arrays')
+    for key in ('git', 'jax', 'jaxincell', 'numpy', 'backend', 'jax_enable_x64'):
+        if records[0][key] != records[1][key]:
+            raise ValueError(f'implicit controls must share runtime/source {key}')
+    if not np.array_equal(data[0]['t'], data[1]['t']) or data[0]['t'][0] != 0:
+        raise ValueError('implicit controls require identical native clocks')
+    return records, data, {key: metrics(data[0][key], data[1][key]) for key in
+                           ('electric', 'current', 'nonzero_electric', 'momentum', 'mean', 'rms', 'kinetic')}
+
+
 def publish_iterations(first, second, folder, audits=()):
     """Retain exact-input Picard controls, raw arrays and independent orbit records."""
     from jaxincell import save_run
-    records, data = zip(*[_implicit_load(path) for path in (first, second)])
-    settings = [record['settings'] for record in records]
-    for key in settings[0].keys() | settings[1].keys():
-        if key != 'iterations' and settings[0].get(key) != settings[1].get(key):
-            raise ValueError(f'iteration controls must share {key}, including all initial hashes')
-    for key in ('git', 'jax', 'jaxincell', 'numpy', 'backend', 'jax_enable_x64'):
-        if records[0][key] != records[1][key]:
-            raise ValueError(f'iteration controls must share runtime/source {key}')
-    if not np.array_equal(data[0]['t'], data[1]['t']) or data[0]['t'][0] != 0:
-        raise ValueError('iteration controls require identical native clocks')
+    records, data, observables = _implicit_pair(first, second)
     result = dict(native_runs=records,
-                  observables={key: metrics(data[0][key], data[1][key]) for key in
-                               ('electric', 'current', 'nonzero_electric', 'momentum', 'mean', 'rms', 'kinetic')},
+                  observables=observables,
                   orbit_audits=[json.loads((Path(path) / 'run.json').read_text()) for path in audits],
                   native_data_sha256=[hashlib.sha256((Path(path) / 'data.npz').read_bytes()).hexdigest()
                                       for path in (first, second)],
                   claim='Iteration-count sensitivity with exact native initialization; conservation alone '
                         'does not validate late trajectories. Orbit references use frozen accepted fields.')
     arrays = {f'{index}_{key}': value for index, row in enumerate(data) for key, value in row.items()}
-    save_run(folder, 'implicit_iteration_control', dict(parent_revision=settings[0]['parent_revision']),
+    save_run(folder, 'implicit_iteration_control', dict(parent_revision=records[0]['settings']['parent_revision']),
              result, **arrays)
     np.savez_compressed(Path(folder) / 'data.npz', **arrays)
+
+
+def publish_method_controls(first, substeps, mesh, folder):
+    """Render independent mesh/substep controls without launching any dynamics."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from darkjaxincell import midnight
+    from jaxincell import save_run
+    records, data, substep_metrics = _implicit_pair(first, substeps, 'substeps')
+    mesh_records, mesh_data, mesh_metrics = _implicit_pair(first, mesh, 'cells')
+    records, data = (*records, mesh_records[1]), (*data, mesh_data[1])
+    arrays = {f'{index}_{key}': value for index, row in enumerate(data) for key, value in row.items()}
+    with midnight():
+        fig, axes = plt.subplots(2, 2, figsize=(10, 6), layout='constrained')
+        for record, row, style in zip(records, data, ('-', '--', ':')):
+            s = record['settings']
+            label = f"{s['cells']} cells, {s['substeps']} substeps"
+            for axis, key in zip(axes.flat, ('electric', 'nonzero_electric', 'momentum', 'balance')):
+                value = row[key] - row[key][0] if key == 'momentum' else row[key]
+                if key == 'momentum':
+                    value = value[:, 0]
+                if key == 'balance':
+                    value = abs(value)
+                axis.plot(row['t'], value, style, label=label)
+        axes[0, 0].set(ylabel=r'$\langle E_x\rangle/E_\star$', title='Mean electric response')
+        axes[0, 1].set(ylabel=r'$U_{E,k\ne0}/(nm_ec^2L)$', title='Nonzero-mode energy', yscale='log')
+        axes[1, 0].set(ylabel=r'$\Delta P_x/(nm_ecL)$', title='Momentum balance')
+        axes[1, 1].set(ylabel=r'$|\Delta U-W|/(nm_ec^2L)$', title='Energy and source work', yscale='log')
+        for axis in axes.flat:
+            axis.set_xlabel(r'$\omega_pt$')
+            axis.grid(alpha=.25)
+        axes[0, 0].legend(fontsize=8)
+        save_run(folder, 'implicit_method_controls', dict(parent_revision=records[0]['settings']['parent_revision']),
+                 dict(native_runs=records, substep_observables=substep_metrics, mesh_observables=mesh_metrics,
+                      native_data_sha256=[hashlib.sha256((Path(path) / 'data.npz').read_bytes()).hexdigest()
+                                          for path in (first, substeps, mesh)],
+                      claim='Separate mesh/substep sensitivities at fixed physical particles; '
+                            'no late-convergence or error-cause claim'), fig, **arrays)
+        np.savez_compressed(Path(folder) / 'data.npz', **arrays)
+        plt.close(fig)
 
 
 def publish_implicit(explicit, implicit, folder, refined=None):
@@ -523,12 +578,30 @@ def publish_implicit(explicit, implicit, folder, refined=None):
         plt.close(fig)
 
 
+def _publish_controls(args, parser):
+    if args.method_controls:
+        if (not args.publish or not args.refined or args.picard or args.implicit or args.orbit_audits
+                or args.loading_refined or args.loading_repeat or args.constraints or args.legacy
+                or args.variant != 'repeat'):
+            parser.error('--method-controls requires a substep record, --refined mesh record and --publish')
+        publish_method_controls(args.first, args.second, args.refined, args.publish)
+        return True
+    if args.picard:
+        if (not args.publish or args.implicit or args.refined or args.loading_refined or args.loading_repeat
+                or args.constraints or args.legacy or args.variant != 'repeat'):
+            parser.error('--picard requires two iteration records and --publish')
+        publish_iterations(args.first, args.second, args.publish, args.orbit_audits)
+        return True
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('first', type=Path)
     parser.add_argument('second', type=Path)
     parser.add_argument('--implicit', action='store_true', help='second record is a Gaussian implicit drive')
     parser.add_argument('--picard', action='store_true', help='compare two exact-input implicit iteration counts')
+    parser.add_argument('--method-controls', action='store_true', help='second varies substeps, --refined varies mesh')
     parser.add_argument('--orbit-audits', type=Path, nargs='+', default=(), help='retain independent orbit records')
     parser.add_argument('--variant', choices=VARIANTS, default='repeat')
     parser.add_argument('--legacy', action='store_true', help='retain explicit missing-fingerprint status')
@@ -541,11 +614,7 @@ def main():
     destination.add_argument('--output', type=Path, help='write comparison JSON only')
     destination.add_argument('--publish', type=Path, help='render a compact figure, arrays and native run records')
     args = parser.parse_args()
-    if args.picard:
-        if (not args.publish or args.implicit or args.refined or args.loading_refined or args.loading_repeat
-                or args.constraints or args.legacy or args.variant != 'repeat'):
-            parser.error('--picard requires two iteration records and --publish')
-        publish_iterations(args.first, args.second, args.publish, args.orbit_audits)
+    if _publish_controls(args, parser):
         return
     if args.orbit_audits:
         parser.error('--orbit-audits requires --picard')

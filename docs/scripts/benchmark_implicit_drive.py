@@ -236,13 +236,17 @@ def crossings(t, nonzero):
 
 def load_plasma(args):
     """Keep the supplied physical loading, then initialize the native implicit clock."""
+    substeps = getattr(args, 'substeps', 2)
+    if (not isinstance(substeps, (int, np.integer)) or isinstance(substeps, (bool, np.bool_)) or substeps < 1
+            or (not args.paper_loading and substeps != 2)):
+        raise ValueError('positive integer substeps are required; changing them requires paper loading')
     if not args.paper_loading:
         return homogeneous_box(args.cells, args.nodes, args.rings, args.dt, args.iterations,
                                temperature=args.temperature, relativistic=not args.newtonian)
     from examples.dark_reservoir import paper_plasma
     plasma, _ = paper_plasma(args.cells, args.particles, args.dt, 0)
     plasma = plasma.replace(solver=Solver(algorithm="implicit", relativistic=True,
-                                          picard_iterations=args.iterations, substeps=2))
+                                          picard_iterations=args.iterations, substeps=substeps))
     ordinary, _ = plasma.initial_state(jax.random.PRNGKey(0))
     return plasma, drive_state(plasma, ordinary)
 
@@ -266,9 +270,8 @@ def audit_orbits(args):
     drive = PrescribedDrive(1., jnp.array([args.amplitude * FIELD, 0., 0.]), WP)
     state = load_state(args.audit_state, SimpleNamespace(plasma=plasma, dark=drive))
     before, d = state.ordinary, plasma.domain
-    if (np.any(before.B) or np.any(before.E[:, 1:]) or np.any(before.u[:, 1:])
-            or plasma.solver.substeps != 2):
-        raise ValueError('orbit audit requires pure-electric 1V motion and two particle substeps')
+    if np.any(before.B) or np.any(before.E[:, 1:]) or np.any(before.u[:, 1:]):
+        raise ValueError('orbit audit requires pure-electric 1V motion')
     accepted, current = jax.jit(implicit_drive_step)(plasma, state, drive)
     after, current = accepted.ordinary, np.asarray(current[:, 0]) / (e * N * c)
     length, dt = d.length * WP / c, d.dt * WP
@@ -277,7 +280,8 @@ def audit_orbits(args):
     force = args.amplitude * np.cos(float(before.time) * WP + dt / 2)
     reference = midpoint_orbits((np.asarray(before.E[:, 0]) + np.asarray(after.E[:, 0])) / (2 * FIELD),
                                 np.asarray(before.x[:, 0]) * WP / c, np.asarray(before.u[:, 0]) / c,
-                                charge, mass, length, dt, drive=force, weights=weights)
+                                charge, mass, length, dt, drive=force, weights=weights,
+                                substeps=plasma.solver.substeps)
     reference_current = -length / d.cells * np.cumsum((reference['rho'] - reference['rho_initial']) / dt)
     reference_current += reference['mean_current'] - np.mean(reference_current)
     position_error = (np.asarray(after.x[:, 0]) * WP / c - reference['x'] + length / 2) % length - length / 2
@@ -302,7 +306,8 @@ def audit_orbits(args):
                   momentum_disagreement_over_nmecL=float(momentum - reference_momentum),
                   scope='Frozen accepted-midpoint 1V orbit/deposit reference; differences include finite iteration '
                         'and native force evaluation roundoff. Not an internal parent Picard residual.')
-    settings = dict(dt=args.dt, iterations=args.iterations, particles_per_species=plasma.species[0].n,
+    settings = dict(dt=args.dt, iterations=args.iterations, particle_substeps=plasma.solver.substeps,
+                    particles_per_species=plasma.species[0].n,
                     cells=args.cells, parent_revision='83d327118163833f93e2588edcb5029241f6ba2a')
     save_run(args.output, 'implicit_orbit_audit', settings, result)
     print(json.dumps(result, indent=2))
@@ -503,6 +508,7 @@ def main():
     parser.add_argument("--rings", type=int, default=1)
     parser.add_argument("--dt", type=float, default=.02)
     parser.add_argument("--iterations", type=int, default=8)
+    parser.add_argument("--substeps", type=int, default=2, help="particle substeps per field step with --paper-loading")
     parser.add_argument("--horizon", type=float, default=80.)
     parser.add_argument("--amplitude", type=float, default=.03 * np.sqrt(.001))
     parser.add_argument("--temperature", type=float, default=.001)
@@ -517,7 +523,7 @@ def main():
     args = parser.parse_args()
     args.cells = args.cells if args.cells is not None else (1000 if args.paper_loading else 32)
     finite = np.all(np.isfinite([args.dt, args.horizon, args.amplitude, args.temperature, args.gradient_horizon]))
-    if (not finite or min(args.cells, args.nodes, args.rings, args.iterations, args.samples) < 1
+    if (not finite or min(args.cells, args.nodes, args.rings, args.iterations, args.samples, args.substeps) < 1
             or args.dt <= 0 or args.dt > args.horizon
             or args.horizon < 2 * np.pi or args.temperature < 0 or args.gradient_horizon < 0
             or (args.gradient_horizon and args.gradient_horizon < args.dt)):
@@ -525,6 +531,8 @@ def main():
     if args.paper_loading and (args.cells < 4 or args.particles < 2 or args.newtonian
                                or args.temperature != .001 or args.gradient_horizon):
         parser.error("paper loading requires cells >= 4, particles >= 2, relativistic T=0.001 and no gradient study")
+    if not args.paper_loading and args.substeps != 2:
+        parser.error("changing particle substeps requires --paper-loading")
     if (not args.paper_loading and not args.newtonian
             and 2 * args.temperature * max(abs(hermgauss(args.nodes)[0]))**2 >= 1 - 1e-5):
         parser.error("quadrature velocities exceed the parent's relativistic input margin")

@@ -229,6 +229,45 @@ def test_iteration_comparison_requires_exact_native_fields_and_keeps_species_arr
         publish_iterations(first, second, folder)
 
 
+@pytest.mark.parametrize('corrupt', [None, 'native_field', 'particle_weight', 'runtime'])
+def test_implicit_mesh_substep_controls_keep_loading_and_reject_hidden_changes(method_records, corrupt):
+    from docs.scripts.compare_replays import publish_method_controls
+    first = method_records[1]
+    with np.load(first / 'data.npz') as stored:
+        data = dict(stored)
+    for key in ('mean', 'rms', 'kinetic'):
+        data[key] = np.ones((len(data['t']), 2))
+    data['balance'] = data['t'] * 1e-15
+    np.savez_compressed(first / 'data.npz', **data)
+    change_settings(first, substeps=2, iterations=4,
+                    initial_fingerprints={key: '3' * 64 for key in ('x', 'u', 'w', 'time', 'mass', 'charge', 'E')})
+    second, mesh = first.parent / 'substeps4', first.parent / 'mesh2000'
+    copytree(first, second)
+    copytree(first, mesh)
+    change_settings(second, substeps=4)
+    record = json.loads((mesh / 'run.json').read_text())
+    record['settings']['cells'] = 2000
+    record['settings']['initial_fingerprints']['E'] = '7' * 64
+    (mesh / 'run.json').write_text(json.dumps(record))
+    if corrupt:
+        target = second if corrupt == 'native_field' else mesh
+        record = json.loads((target / 'run.json').read_text())
+        if corrupt == 'runtime':
+            record['jax'] = 'different'
+        else:
+            record['settings']['initial_fingerprints']['E' if corrupt == 'native_field' else 'w'] = '8' * 64
+        (target / 'run.json').write_text(json.dumps(record))
+        with pytest.raises(ValueError):
+            publish_method_controls(first, second, mesh, first.parent / 'evidence')
+    else:
+        folder = first.parent / 'evidence'
+        publish_method_controls(first, second, mesh, folder)
+        result = json.loads((folder / 'run.json').read_text())['results']
+        np.testing.assert_array_equal(result['mesh_observables']['kinetic']['relative_l2_difference'], [0, 0])
+        with np.load(folder / 'data.npz') as stored:
+            np.testing.assert_array_equal(stored['2_rms'], data['rms'])
+
+
 @pytest.mark.parametrize('change', ['clock', 'initial', 'amplitude', 'runtime', 'finite', 'shape', 'execution'])
 def test_cross_method_mismatches_are_rejected(method_records, change):
     path = method_records[1]

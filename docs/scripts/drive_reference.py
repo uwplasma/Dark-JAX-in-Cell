@@ -59,12 +59,13 @@ def _quadratic_charge(x, amounts, length, cells):
 
 
 def midpoint_orbits(electric, x, u, charge, mass, length, dt, *, drive=0., weights=None,
-                    tolerance=2e-13, iterations=64):
-    """Independently solve two relativistic 1V substeps in a frozen midpoint field.
+                    tolerance=2e-13, iterations=64, substeps=2):
+    """Independently solve relativistic 1V substeps in a frozen midpoint field.
 
     Units are x:c/wp, u:c, E:me*c*wp/e, q:e and mass:me. ``drive`` is the
     uniform force already evaluated at the whole field-step midpoint. Optional
     weights w/(nL) give endpoint charge/(en) and mean current/(en*c).
+    ``substeps`` is a positive integer; the default is two, as in the parent.
     No magnetic/transverse motion is supported. Residuals describe this frozen
     field reference, not the parent's inaccessible internal Picard residual.
     """
@@ -72,15 +73,17 @@ def midpoint_orbits(electric, x, u, charge, mass, length, dt, *, drive=0., weigh
     charge, mass = (np.broadcast_to(np.asarray(a, dtype=float), x.shape) for a in (charge, mass))
     if (x.ndim != 1 or not x.size or u.shape != x.shape or electric.ndim != 1 or electric.size < 2
             or not isinstance(iterations, (int, np.integer)) or iterations < 1
+            or not isinstance(substeps, (int, np.integer)) or isinstance(substeps, (bool, np.bool_)) or substeps < 1
             or not np.all(np.isfinite([length, dt, drive, tolerance])) or min(length, dt, tolerance) <= 0
             or not all(np.all(np.isfinite(a)) for a in (electric, x, u, charge, mass)) or np.any(mass <= 0)):
-        raise ValueError('finite 1V arrays, positive mass/length/dt/tolerance and iteration count are required')
+        raise ValueError('finite 1V arrays, positive mass/length/dt/tolerance and integer iteration/substep counts '
+                         'are required')
     if np.any((x < -length / 2) | (x >= length / 2)):
         raise ValueError('initial integer-time positions must lie in the periodic box')
     initial_x, total = x.copy(), np.zeros_like(x)
     counts, residual_u, residual_x, fields, equation_u = [], [], [], [], []
-    h, dx, qm = dt / 2, length / electric.size, charge / mass
-    for _ in range(2):
+    h, dx, qm = dt / substeps, length / electric.size, charge / mass
+    for _ in range(substeps):
         old_u, old_x = u.copy(), x.copy()
         shift = h * old_u / np.hypot(1., old_u)
         for count in range(1, iterations + 1):
