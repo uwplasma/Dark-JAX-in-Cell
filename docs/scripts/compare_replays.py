@@ -243,7 +243,20 @@ def _replay_label(settings, variant, index):
     return f"{settings['cells']} cells, {settings['particles_per_species'] // 1000}k/species, seed {settings['seed']}"
 
 
-def publish(first, second, folder, comparison, refined=None, refined_variant='dt', loading_refined=None):
+def _loading_repeat(folder, reference):
+    """Keep an extra scalar execution without requiring its final native archive."""
+    if folder is None:
+        return {}, {}
+    if reference is None:
+        raise ValueError('a loading repeat requires the particle-loading control')
+    repeated = _load(folder, 1e-5)
+    return (dict(loading_execution_comparison=compare_replays(folder, reference),
+                 loading_repeat_run=repeated[0], loading_repeat_endpoint=constraint_audit(folder, repeated[0])),
+            {f'loading_repeat_{key}': value for key, value in repeated[1].items()})
+
+
+def publish(first, second, folder, comparison, refined=None, refined_variant='dt', loading_refined=None,
+            loading_repeat=None):
     """Render saved scalars through the parent figure/provenance path; no dynamics."""
     import matplotlib
     matplotlib.use('Agg')
@@ -310,6 +323,9 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
             result['refinement_comparison'] = refinement
         if loading is not None:
             result['loading_comparison'] = loading
+        repeated, repeated_arrays = _loading_repeat(loading_repeat, loading_refined)
+        result.update(repeated)
+        arrays.update(repeated_arrays)
         save_run(folder, 'controlled_paper_replay', settings, result, figure, **arrays)
         np.savez_compressed(Path(folder) / 'data.npz', **arrays)
         plt.close(figure)
@@ -479,14 +495,17 @@ def main():
     parser.add_argument('--refined', type=Path, help='add a controlled refinement to a published figure')
     parser.add_argument('--refined-variant', choices=VARIANTS, default='dt')
     parser.add_argument('--loading-refined', type=Path, help='change particle count relative to the second record')
+    parser.add_argument('--loading-repeat', type=Path, help='retain a scalar repeat of --loading-refined')
     destination = parser.add_mutually_exclusive_group(required=True)
     destination.add_argument('--output', type=Path, help='write comparison JSON only')
     destination.add_argument('--publish', type=Path, help='render a compact figure, arrays and native run records')
     args = parser.parse_args()
-    if (args.refined or args.loading_refined) and not args.publish:
+    if (args.refined or args.loading_refined or args.loading_repeat) and not args.publish:
         parser.error('refinements require --publish')
+    if args.loading_repeat and not args.loading_refined:
+        parser.error('--loading-repeat requires --loading-refined')
     if args.implicit:
-        if args.constraints or args.legacy or args.variant != 'repeat' or args.loading_refined:
+        if args.constraints or args.legacy or args.variant != 'repeat' or args.loading_refined or args.loading_repeat:
             parser.error('--implicit uses its own physical-loading and native-clock contract')
         if args.publish:
             publish_implicit(args.first, args.second, args.publish, args.refined)
@@ -496,7 +515,8 @@ def main():
         return
     result = compare_replays(args.first, args.second, args.variant, legacy=args.legacy, constraints=args.constraints)
     if args.publish:
-        publish(args.first, args.second, args.publish, result, args.refined, args.refined_variant, args.loading_refined)
+        publish(args.first, args.second, args.publish, result, args.refined, args.refined_variant,
+                args.loading_refined, args.loading_repeat)
     else:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2))

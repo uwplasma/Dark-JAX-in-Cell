@@ -462,14 +462,21 @@ for folder, cells, loading_seed, particles in ((mesh, "2000", "0", "103000"),
                  "--cells", cells, "--seed", loading_seed, "--particles", particles, "--dt", ".005",
                  "--horizon", "1000",
                  "--block-horizon", "100", "--local-moments", "--output", str(folder)], cwd=ROOT, check=True)
+loading_repeat = ROOT / "artifacts" / "paper_fixed_particles_repeat"
+run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--cells", "2000",
+             "--particles", "206000", "--dt", ".005", "--horizon", "1000", "--block-horizon", "100",
+             "--local-moments", "--initial-state", str(loading / "initial_state.npz"),
+             "--output", str(loading_repeat)], cwd=ROOT, check=True)
 run_example([sys.executable, str(ROOT / "docs" / "scripts" / "compare_replays.py"), str(fixed_fine),
              str(mesh), "--variant", "mesh", "--constraints", "--refined", str(seed),
-             "--refined-variant", "seed", "--loading-refined", str(loading), "--publish", str(resolution)],
+             "--refined-variant", "seed", "--loading-refined", str(loading),
+             "--loading-repeat", str(loading_repeat), "--publish", str(resolution)],
             cwd=ROOT, check=True)
 resolution_record = json.loads((resolution / "run.json").read_text())
 replay_measurements(resolution_record, (("hook_mesh", "comparison", ".4f"),
                                         ("hook_seed", "refinement_comparison", ".4f"),
-                                        ("hook_loading", "loading_comparison", ".4f")))
+                                        ("hook_loading", "loading_comparison", ".4f"),
+                                        ("hook_loading_repeat", "loading_execution_comparison", ".4f")))
 for index, label in enumerate(("fine", "mesh", "seed", "loading")):
     native = resolution_record["results"]["native_runs"][index]["results"]
     measured[f"hook_resolution_{label}_balance"] = f"{native['max_energy_work_defect_over_initial_thermal'] * .001:.2e}"

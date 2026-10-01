@@ -1,5 +1,6 @@
 """Native-record guards reject mismatched clocks, units and controlled loading."""
 import json
+from shutil import copytree
 
 import numpy as np
 import pytest
@@ -54,6 +55,27 @@ def test_exact_native_repeat_and_portable_fingerprints(records):
     assert str(records[0]) not in json.dumps(result, allow_nan=False)
     assert fingerprint(np.zeros(2)) != fingerprint(np.zeros((1, 2)))
     assert metrics(np.zeros(3), np.ones(3))['relative_l2_difference'] is None
+
+
+def test_particle_loading_repeat_keeps_raw_arrays_and_incomplete_endpoint_scope(records, monkeypatch):
+    from docs.scripts import compare_replays as renderer
+    loading = records[0].parent / 'loading'
+    copytree(records[1], loading)
+    change_settings(loading, particles_per_species=206000)
+    repeated = records[0].parent / 'loading_repeat'
+    copytree(loading, repeated)
+    original = renderer.compare_replays
+    monkeypatch.setattr(renderer, 'compare_replays',
+                        lambda *args, **kwargs: original(*args, **kwargs, windows=((0, 1),)))
+    folder = records[0].parent / 'publication'
+    renderer.publish(*records, folder, original(*records, windows=((0, 1),)),
+                     loading_refined=loading, loading_repeat=repeated)
+    with np.load(folder / 'data.npz') as data:
+        assert 'loading_t' in data and 'loading_repeat_t' in data and 'refined_t' not in data
+        np.testing.assert_array_equal(data['loading_t'], data['loading_repeat_t'])
+    result = json.loads((folder / 'run.json').read_text())['results']
+    assert result['loading_execution_comparison']['initial_fingerprints']['verified']
+    assert not result['loading_repeat_endpoint']['available']
 
 
 @pytest.mark.parametrize('quantity', ['clock', 'units', 'fingerprints', 'scales', 'blocks'])
