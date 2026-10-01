@@ -302,7 +302,7 @@ def test_implicit_mesh_substep_controls_keep_loading_and_reject_hidden_changes(m
             np.testing.assert_array_equal(stored['3_rms'], data['rms'])
 
 
-@pytest.mark.parametrize('corrupt', [None, 'missing_phase', 'weights', 'clock'])
+@pytest.mark.parametrize('corrupt', [None, 'missing_phase', 'weights', 'magnetic', 'clock'])
 def test_grid_phase_controls_retain_native_arrays_and_reject_unmatched_controls(method_records, corrupt):
     from docs.scripts.compare_replays import publish_phases
     template = method_records[1]
@@ -327,8 +327,8 @@ def test_grid_phase_controls_retain_native_arrays_and_reject_unmatched_controls(
                 hashes['x'] = '4' * 64
             if mesh == 2000 or phase:
                 hashes['E'] = hashes['rho'] = '5' * 64
-            if corrupt == 'weights' and mesh == 2000 and phase:
-                hashes['w'] = '6' * 64
+            if corrupt in ('weights', 'magnetic') and mesh == 2000 and phase:
+                hashes['w' if corrupt == 'weights' else 'B'] = '6' * 64
             (path / 'run.json').write_text(json.dumps(record))
             folders.append(path)
     if corrupt == 'missing_phase':

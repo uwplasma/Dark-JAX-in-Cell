@@ -360,6 +360,17 @@
       "backend": "cpu",
       "git": "9831ac7fc0819c801cfa3c2156304080c2cc7ca0",
       "run": "implicit_method_controls/run.json"
+    },
+    "implicit_grid_phase": {
+      "jaxincell": "unknown",
+      "jax": "0.10.2",
+      "numpy": "2.2.2",
+      "python": "3.11.14",
+      "platform": "Darwin arm64",
+      "jax_enable_x64": true,
+      "backend": "cpu",
+      "git": "529a8380a5683eb9616058cae7f969a33ab3d142",
+      "run": "implicit_grid_phase/run.json"
     }
   },
   "drive_wave_error": "7.488e-05",
@@ -896,5 +907,20 @@
   "implicit_method_mesh_mean_E_percent": "0.235",
   "implicit_method_mesh_nonzero_percent": "31.34",
   "implicit_method_refined_mesh_mean_E_percent": "0.1042",
-  "implicit_method_refined_mesh_nonzero_percent": "18.91"
+  "implicit_method_refined_mesh_nonzero_percent": "18.91",
+  "phase_balance": "1.620e-18",
+  "phase_gauss": "3.465e-14",
+  "phase_continuity": "9.604e-14",
+  "phase_force_max": "5.407e-06",
+  "phase_momentum_1000": "4.965e-05",
+  "phase_momentum_2000": "1.455e-05",
+  "phase_momentum_4000": "3.956e-06",
+  "phase_nonzero_min_percent": "1.807",
+  "phase_nonzero_max_percent": "4.305",
+  "phase_repeat_nonzero_l2": "4.110e-08",
+  "phase_orbit_impulse": "3.904e-15",
+  "phase_warm_min": "65.50",
+  "phase_warm_max": "69.57",
+  "phase_temp_mib": "81.84",
+  "phase_rss_mib": "1074.86"
 }

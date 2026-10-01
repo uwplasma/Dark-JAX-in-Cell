@@ -26,6 +26,61 @@ def neutral_box(algorithm="explicit", cells=16, relativistic=False):
                       Solver(algorithm=algorithm, relativistic=relativistic))
 
 
+def test_snapshot_selects_complex_ordinary_mode_without_a_dark_sector():
+    plasma = neutral_box()
+    state, _ = plasma.initial_state(jax.random.PRNGKey(0))
+    theta = 2 * np.pi * np.arange(plasma.domain.cells) / plasma.domain.cells
+    scale = m * c * WP / e
+    field = scale * (.7 + .1 * np.cos(theta) - .2 * np.sin(theta)
+                     + .4 * np.cos(3 * theta) + .3 * np.sin(3 * theta))
+    state = state.replace(E=state.E.at[:, 0].set(field))
+    values = snapshot(plasma, state, mode=3)
+    # FFT/N of a*cos(kx)+b*sin(kx) is (a-i*b)/2 at positive k.
+    np.testing.assert_allclose(values['mode_E'] / scale, .2 - .15j, rtol=2e-14)
+    np.testing.assert_allclose(snapshot(plasma, state)['mode_E'] / scale,
+                               .05 + .1j, rtol=2e-14)
+    np.testing.assert_allclose(snapshot(plasma, state, mode=0)['mode_E'] / scale,
+                               .7, rtol=2e-14)
+    assert values['dark_coherent'] == values['dark_mode_E'] == 0
+
+
+def test_snapshot_separates_homogeneous_proca_energy_and_complex_wave():
+    plasma = neutral_box()
+    omega, phase, scale = 1.7 * WP, .37, m * c * WP / e
+    sim = DarkSimulation(plasma, DarkField(omega, .2))
+    state, _ = sim.initial_state(jax.random.PRNGKey(0))
+    theta = 2 * np.pi * np.arange(plasma.domain.cells) / plasma.domain.cells
+    e0, b0, a0 = np.array([[.2, -.1, .3], [.04, .05, -.02], [-.07, .11, .13]])
+    ew, bw, aw = np.array([[.4, .1, -.2], [.03, -.08, .06], [.09, .12, -.05]])
+    phi0, phiw = .17, -.14
+    wave = np.cos(3 * theta + phase)[:, None]
+    # This manufactured diagnostic state need not satisfy the dynamical Gauss laws.
+    state = state.replace(E=jnp.asarray(scale * (e0 + ew * wave)),
+                          B=jnp.asarray(scale / c * (b0 + bw * wave)),
+                          A=jnp.asarray(scale / WP * (a0 + aw * wave)),
+                          phi=jnp.asarray(c * scale / WP * (phi0 + phiw * wave[:, 0])))
+    ordinary = scale * (.11 + .3 * np.cos(3 * theta) - .4 * np.sin(3 * theta))
+    state = state.replace(ordinary=state.ordinary.replace(
+        E=state.ordinary.E.at[:, 0].set(ordinary)))
+    values = snapshot(sim, state, mode=3)
+    prefactor = epsilon_0 * plasma.domain.length * scale**2
+    # Independent integrals: <cos>=0 and <cos^2>=1/2, including all potential terms.
+    coherent = prefactor / 2 * (np.sum(e0**2 + b0**2)
+                                + (omega / WP)**2 * (np.sum(a0**2) + phi0**2))
+    spatial = prefactor / 4 * (np.sum(ew**2 + bw**2)
+                               + (omega / WP)**2 * (np.sum(aw**2) + phiw**2))
+    np.testing.assert_allclose(values['dark_coherent'], coherent, rtol=2e-14)
+    np.testing.assert_allclose(values['dark'], coherent + spatial, rtol=2e-14)
+    np.testing.assert_allclose(values['dark'] - values['dark_coherent'], spatial, rtol=2e-14)
+    np.testing.assert_allclose(values['mode_E'] / scale, .15 + .2j, rtol=2e-14)
+    expected = ew[0] * np.exp(1j * phase) / 2
+    np.testing.assert_allclose(values['dark_mode_E'] / scale, expected, rtol=2e-14)
+    negative = snapshot(sim, state, mode=plasma.domain.cells - 3)
+    np.testing.assert_allclose(negative['dark_mode_E'] / scale, expected.conjugate(), rtol=2e-14)
+    zero = snapshot(sim, state, mode=0)
+    np.testing.assert_allclose(zero['dark_mode_E'] / scale, e0[0], rtol=2e-14)
+
+
 @pytest.mark.parametrize("iterations", [0, 8])
 def test_fractional_cell_force_matches_independent_accepted_orbits(iterations):
     for fraction in (0., .25, .5):

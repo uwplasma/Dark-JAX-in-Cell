@@ -498,7 +498,7 @@ def _implicit_pair(first, second, variant='iterations'):
         raise ValueError(f'implicit controls must vary {variant}')
     if variant in ('cells', 'grid_phase'):
         hashes = [row['initial_fingerprints'] for row in settings]
-        shared = ('u', 'w', 'time', 'mass', 'charge') + (('x',) if variant == 'cells' else ())
+        shared = ('u', 'w', 'time', 'mass', 'charge') + (('x',) if variant == 'cells' else ('B',))
         if not all(_hash_matches(hashes, shared).values()):
             raise ValueError('mesh controls require identical physical particle arrays')
     for key in ('git', 'jax', 'jaxincell', 'numpy', 'backend', 'jax_enable_x64'):

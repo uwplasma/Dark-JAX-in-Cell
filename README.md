@@ -117,6 +117,14 @@ A neutral, periodic one-step test translates identical particles by zero, a quar
 
 [Companion benchmark](docs/scripts/benchmark_pic_conservation.py) · `translations=True`, `particles=64`, `dt=.004`.
 
+### Gaussian loading between grid points
+
+<img src="docs/_static/figures/implicit_grid_phase/figure.png" width="900" alt="Gaussian implicit plasma translated by zero, a quarter and half a cell on three meshes: momentum and nonzero-mode energy">
+
+[Implicit simulation](docs/scripts/benchmark_implicit_drive.py) · `paper_loading=True`, `grid_phase=0`, `.25` or `.5`; [comparison and plot](docs/scripts/compare_replays.py) · `phase_controls` ([full inputs](docs/scripts/make_all.py)).
+
+Nine controls translate the same **206,000-particle Gaussian loading** through fractions of a cell, with 1,000/2,000/4,000 cells, $\Delta t\omega_p=0.01$ and $\omega_pt\leq40$. Across the three translations, maximum momentum drift is **$4.96\times10^{-5}$ / $1.45\times10^{-5}$ / $3.96\times10^{-6}nm_ecL$** on those meshes. Energy/work remains at roundoff, while nonzero-mode energy changes by **1.81–4.30%** relative to zero translation. Identical-input repeats differ by at most $4.11\times10^{-8}$ in relative $L^2$ over this short window. Independent accepted-field orbit checks verify the impulse. These results resolve early mesh-phase sensitivity; [records, force norms and limits](docs/performance.md#gaussian-grid-phase-controls) give the accuracy gates for longer runs.
+
 ## Cold exchange: a known answer
 
 A homogeneous transverse dark field drives a cold electron plasma. The full [example](examples/dark_photon.py) follows the ordinary and dark mean fields through $\omega_0t=20$ and compares both with an independent four-state matrix exponential. The largest field error is **$2.922\times10^{-4}$** of the initial dark field; closed-energy drift from the physical time-zero state is **$8.709\times10^{-5}$**. This checks the coupling, mean current and potential-energy ledger before kinetic effects enter. [Settings and arrays](docs/_static/figures/cold_exchange/run.json) are saved with the figure.

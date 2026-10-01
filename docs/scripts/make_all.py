@@ -583,6 +583,49 @@ for control in ("substep", "mesh", "refined_mesh"):
         value = controls_record["results"][f"{control}_observables"][key]["relative_l2_difference"]
         measured[f"implicit_method_{control}_{suffix}_percent"] = f"{100 * value:.4g}"
 measured["_provenance"]["implicit_method_controls"] = provenance(controls_record, controls_folder.name)
+phase_folder = EVIDENCE.parent / "implicit_grid_phase"
+phase_runs = []
+for cells in (1000, 2000, 4000):
+    anchor = ROOT / "artifacts" / f"phase_{cells}_0"
+    for phase in (0., .25, .5):
+        folder = ROOT / "artifacts" / f"phase_{cells}_{phase:g}"
+        phase_runs.append(folder)
+        run_example('docs/scripts/benchmark_implicit_drive.py', paper_loading=True, cells=cells,
+                    particles=103000, dt=.01, horizon=40., iterations=4, substeps=2, samples=1,
+                    grid_phase=phase, initial_state=anchor / 'initial_state.npz' if phase else None,
+                    output=folder)
+phase_orbits = []
+for cells in (1000, 4000):
+    for stage in ('initial', 'final'):
+        folder = ROOT / 'artifacts' / f'orbit_phase_{cells}_{stage}'
+        phase_orbits.append(folder)
+        run_example('docs/scripts/benchmark_implicit_drive.py', paper_loading=True, cells=cells,
+                    particles=103000, dt=.01, iterations=4, substeps=2,
+                    audit_state=ROOT / 'artifacts' / f'phase_{cells}_0.25' / f'{stage}_state.npz', output=folder)
+run_example('docs/scripts/compare_replays.py', phase_controls=phase_runs, orbit_audits=phase_orbits,
+            destination=phase_folder)
+phase_record = json.loads((phase_folder / 'run.json').read_text())
+phase_results = [r['results'] for r in phase_record['results']['native_runs']]
+for suffix, key in (('balance', 'max_balance_over_nmc2L'), ('gauss', 'max_gauss_over_en_eps0'),
+                    ('continuity', 'max_continuity_over_enwp'), ('force_max', 'max_step_particle_force_over_nmecLwp')):
+    measured[f'phase_{suffix}'] = f'{max(r[key] for r in phase_results):.3e}'
+for cells in (1000, 2000, 4000):
+    rows = [r['results'] for r in phase_record['results']['native_runs'] if r['settings']['cells'] == cells]
+    measured[f'phase_momentum_{cells}'] = f"{max(r['max_momentum_over_nmecL'] for r in rows):.3e}"
+errors = [r['observables']['nonzero_electric']['relative_l2_difference']
+          for r in phase_record['results']['phase_observables']]
+measured['phase_nonzero_min_percent'] = f'{100 * min(errors):.3f}'
+measured['phase_nonzero_max_percent'] = f'{100 * max(errors):.3f}'
+repeat_error = max(e['nonzero_electric']['40']['relative_l2'] for r in phase_results
+                   for e in r['execution_variability'])
+orbit_error = max(abs(r['results']['momentum_disagreement_over_nmecL'])
+                  for r in phase_record['results']['orbit_audits'])
+measured['phase_repeat_nonzero_l2'], measured['phase_orbit_impulse'] = f'{repeat_error:.3e}', f'{orbit_error:.3e}'
+warm = [t for r in phase_results for t in r['warm_primal_s']]
+measured['phase_warm_min'], measured['phase_warm_max'] = f'{min(warm):.2f}', f'{max(warm):.2f}'
+measured['phase_temp_mib'] = f"{max(r['compiler_temporary_bytes'] for r in phase_results) / 2**20:.2f}"
+measured['phase_rss_mib'] = f"{max(r['peak_rss_bytes'] for r in phase_results) / 2**20:.2f}"
+measured['_provenance']['implicit_grid_phase'] = provenance(phase_record, phase_folder.name)
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")
 
 print("Saved measured documentation substitutions", flush=True)
