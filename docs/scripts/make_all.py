@@ -440,8 +440,8 @@ for index, folder in enumerate(late_runs):
 run_example('docs/scripts/compare_replays.py', first=late_runs[0], second=late_runs[1], constraints=True,
             refined=late_runs[2], destination=late_folder)
 late_record = json.loads((late_folder / 'run.json').read_text())
-replay_measurements(late_record, (("late_repeat", "comparison", ".4f"),
-                                 ("late_dt", "refinement_comparison", ".4f")))
+replay_measurements(late_record, (
+    ("late_repeat", "comparison", ".4f"), ("late_dt", "refinement_comparison", ".4f")))
 for label, key in (("late_repeat", "comparison"), ("late_dt", "refinement_comparison")):
     a, b = late_record['results'][key]['windows'][-1]['realization_summaries']
     for observable in ('electric_mean', 'work'):
