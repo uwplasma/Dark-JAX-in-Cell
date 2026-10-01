@@ -88,10 +88,12 @@ def _initial(first, second, variant, legacy):
     state_keys = sorted(states[0].keys() | states[1].keys())
     matches = dict(loading=_hash_matches([row['loading'] for row in fingerprints], ('x', 'v')),
                    state=_hash_matches(states, state_keys))
-    required = [*matches['loading'].values(), matches['state']['w']]
+    required = [matches['loading']['x'], matches['state']['w']]
+    if variant != 'seed':
+        required.append(matches['loading']['v'])
     if variant == 'repeat':
         required.extend(matches['state'].values())
-    if variant not in ('seed', 'loading') and not all(required):
+    if variant != 'loading' and not all(required):
         raise ValueError('initial fingerprints disagree for this controlled comparison')
     return dict(verified=True, matches=matches)
 
@@ -233,7 +235,7 @@ def compare_replays(first, second, variant='repeat', windows=WINDOWS, legacy=Fal
     return result
 
 
-def publish(first, second, folder, comparison, refined=None):
+def publish(first, second, folder, comparison, refined=None, refined_variant='dt'):
     """Render saved scalars through the parent figure/provenance path; no dynamics."""
     import matplotlib
     matplotlib.use('Agg')
@@ -244,7 +246,8 @@ def publish(first, second, folder, comparison, refined=None):
     sources = [_load(path, 1e-5) for path in (first, second)]
     refinement = None
     if refined is not None:
-        refinement = compare_replays(first, refined, variant='dt', constraints='endpoint_constraints' in comparison)
+        refinement = compare_replays(first, refined, variant=refined_variant,
+                                     constraints='endpoint_constraints' in comparison)
         sources.append(_load(refined, 1e-5))
     time = sources[0][1]['t']
     width = max(1, round(2 * np.pi / sources[0][0]['settings']['output_dt_omega_p']))
@@ -256,8 +259,11 @@ def publish(first, second, folder, comparison, refined=None):
     with midnight():
         figure, axes = plt.subplots(2, 2, figsize=(10, 7), layout='constrained')
         for index, (record, data, _, _) in enumerate(sources):
-            label = f"Δtωₚ={record['settings']['dt_omega_p']:g}"
-            label += f', execution {index + 1}' if index < 2 else ''
+            settings = record['settings']
+            label = (f"Δtωₚ={settings['dt_omega_p']:g}" if comparison['variant'] in ('repeat', 'dt')
+                     else f"{settings['cells']} cells, seed {settings['seed']}")
+            if comparison['variant'] == 'repeat' and index < 2:
+                label += f', execution {index + 1}'
             style, color = ('-', '--', ':')[index], ('#0072B2', '#D55E00', '#009E73')[index]
             raw = data['nonzero_electric'] / .0005
             axes[0, 0].plot(time, raw, color=color, alpha=.15, lw=.5)
@@ -426,7 +432,8 @@ def publish_implicit(explicit, implicit, folder, refined=None):
             axis.grid(alpha=.25)
         axes[0, 0].legend(fontsize=8)
         axes[0, 1].legend(fontsize=8)
-        arrays = {f'{index}_{key}': value for index, (_, row) in enumerate(series) for key, value in row.items()}
+        arrays = {f'{index}_{key}': value for index, (_, row) in enumerate(series[:3]) for key, value in row.items()}
+        arrays.update({f'implicit_{key}': value for key, value in raw.items()})
         settings = dict(parent_revision=native['settings']['parent_revision'],
                         figure_note='Faint energy traces are raw; thick traces average approximately one plasma '
                                     'period with trimmed endpoints. All metrics use raw native samples.')
@@ -446,7 +453,8 @@ def main():
     parser.add_argument('--variant', choices=VARIANTS, default='repeat')
     parser.add_argument('--legacy', action='store_true', help='retain explicit missing-fingerprint status')
     parser.add_argument('--constraints', action='store_true', help='audit endpoint closure without applying it')
-    parser.add_argument('--refined', type=Path, help='add a controlled timestep refinement to a published figure')
+    parser.add_argument('--refined', type=Path, help='add a controlled refinement to a published figure')
+    parser.add_argument('--refined-variant', choices=VARIANTS, default='dt')
     destination = parser.add_mutually_exclusive_group(required=True)
     destination.add_argument('--output', type=Path, help='write comparison JSON only')
     destination.add_argument('--publish', type=Path, help='render a compact figure, arrays and native run records')
@@ -464,7 +472,7 @@ def main():
         return
     result = compare_replays(args.first, args.second, args.variant, legacy=args.legacy, constraints=args.constraints)
     if args.publish:
-        publish(args.first, args.second, args.publish, result, args.refined)
+        publish(args.first, args.second, args.publish, result, args.refined, args.refined_variant)
     else:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2))

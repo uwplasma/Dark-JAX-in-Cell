@@ -206,3 +206,24 @@ def test_cross_method_mismatches_are_rejected(method_records, change):
         (path / 'run.json').write_text(json.dumps(record))
     with pytest.raises(ValueError):
         implicit_comparison(*method_records)
+
+
+@pytest.mark.parametrize('corrupt', [None, 'x', 'w'])
+def test_seed_control_retains_physical_positions_and_weights(records, corrupt):
+    path = records[1]
+    record = json.loads((path / 'run.json').read_text())
+    settings = record['settings']
+    settings['seed'] = 1
+    settings['initial_fingerprints']['loading']['v'] = '7' * 64
+    settings['initial_fingerprints']['state']['u'] = '8' * 64
+    if corrupt:
+        part = 'loading' if corrupt == 'x' else 'state'
+        settings['initial_fingerprints'][part][corrupt] = '9' * 64
+    (path / 'run.json').write_text(json.dumps(record))
+    if corrupt:
+        with pytest.raises(ValueError, match='initial fingerprints disagree'):
+            compare_replays(*records, variant='seed', windows=((0, 1),))
+    else:
+        result = compare_replays(*records, variant='seed', windows=((0, 1),))
+        assert result['initial_fingerprints']['matches']['loading']['x']
+        assert not result['initial_fingerprints']['matches']['loading']['v']
