@@ -1,5 +1,8 @@
 """Work, continuity, homogeneous phase and AD checks for the validation prototype."""
 
+import json
+from types import SimpleNamespace
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -13,7 +16,7 @@ from docs.scripts.conservation import snapshot
 from docs.scripts.drive_reference import forced_cold, homogeneous
 from docs.scripts.benchmark_implicit_drive import (
     FIELD, N, WP, c, m, e, drive_state, homogeneous_box, implicit_drive_step,
-    objective, run_drive, sample, tangent_reference,
+    objective, run_drive, sample, tangent_reference, load_plasma, norm_errors, crossings,
 )
 
 
@@ -169,3 +172,29 @@ def test_thermal_initialization_remains_differentiable():
     finite = (float(signal(.001001)) - float(signal(.000999))) / .000002
     assert np.isfinite(derivative) and abs(float(derivative)) > 1e-8
     np.testing.assert_allclose(derivative, finite, rtol=3e-5, atol=1e-9)
+
+
+def test_paper_fixture_reuses_physical_loading_at_the_implicit_position_clock():
+    args = SimpleNamespace(paper_loading=True, cells=8, particles=32, dt=.02, iterations=4)
+    plasma, initial = load_plasma(args)
+    assert plasma.solver.algorithm == 'implicit' and plasma.solver.relativistic
+    assert plasma.solver.picard_iterations == 4
+    supplied = np.concatenate([np.asarray(species.x) for species in plasma.species])
+    np.testing.assert_allclose(initial.ordinary.x / plasma.domain.length,
+                               supplied / plasma.domain.length, atol=1e-15)
+    assert plasma.species[0].n == plasma.species[1].n == 32
+    np.testing.assert_allclose(np.asarray(snapshot(plasma, initial.ordinary)['rms']) / c,
+                               np.sqrt(.001 / np.array([1, 1836])), rtol=2e-14)
+    assert float(initial.ordinary.time) == float(initial.work) == 0.
+
+
+def test_execution_comparisons_keep_zero_norms_and_native_sample_endpoints():
+    time = np.arange(51.)
+    metrics = norm_errors(time, np.ones(51), np.zeros(51))
+    assert metrics['40']['samples'] == 41 and metrics['40']['final_time'] == 40.
+    assert metrics['50']['relative_l2'] is None
+    assert metrics['50']['difference_l2'] == pytest.approx(np.sqrt(51))
+    json.dumps(metrics, allow_nan=False)
+    values = np.r_[np.zeros(20), np.full(31, 1e-9)]
+    assert crossings(time, values)['1e-12'] == 20.
+    assert crossings(time, values)['0.0001'] is None

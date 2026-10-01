@@ -125,7 +125,8 @@ def homogeneous_box(cells=8, nodes=8, rings=1, dtau=.02, iterations=8, *,
 
     Gaussian velocity weights use Gauss-Hermite quadrature, as in the independent
     homogeneous oracle. Density and thermal initialization remain differentiable.
-    This isolates k=0 response; it does not resolve a nonlinear kinetic spectrum.
+    This supplies a k=0 control while spatial modes remain negligible. Its discrete
+    velocity beams can support late spatial growth; they are not a continuum plasma.
     """
     if min(cells, nodes, rings, iterations) < 1 or dtau <= 0:
         raise ValueError("positive resolution, iteration count and time step are required")
@@ -204,25 +205,74 @@ def objective(controls, steps, *, cells=8, nodes=8, rings=1, dtau=.02, iteration
     return .5 * (jnp.mean(state.ordinary.E[:, 0]) / FIELD)**2
 
 
+def windows(t):
+    """Cumulative sampled windows, including the actual final time if shorter."""
+    for end in sorted({min(float(t[-1]), limit) for limit in (40., 100., 250., 500., 1000.)}):
+        yield f"{end:g}", t <= end + 1e-9 * max(1., end)
+
+
+def norm_errors(t, observed, reference):
+    """Raw dimensionless L2 norms; a zero reference has no relative error."""
+    results = {}
+    for end, mask in windows(t):
+        delta, baseline = observed[mask] - reference[mask], reference[mask]
+        error, norm = float(np.linalg.norm(delta)), float(np.linalg.norm(baseline))
+        results[end] = dict(samples=int(mask.sum()), final_time=float(t[mask][-1]),
+                            difference_l2=error, reference_l2=norm,
+                            observed_l2=float(np.linalg.norm(observed[mask])),
+                            max_abs_difference=float(np.max(abs(delta))),
+                            relative_l2=error / norm if norm else None)
+    return results
+
+
+def crossings(t, nonzero):
+    """First recorded threshold exceedance; no interpolation between samples."""
+    return {f"{threshold:g}": float(t[np.flatnonzero(nonzero > threshold)[0]])
+            if np.any(nonzero > threshold) else None for threshold in (1e-16, 1e-12, 1e-8, 1e-4)}
+
+
+def load_plasma(args):
+    """Keep the supplied physical loading, then initialize the native implicit clock."""
+    if not args.paper_loading:
+        return homogeneous_box(args.cells, args.nodes, args.rings, args.dt, args.iterations,
+                               temperature=args.temperature, relativistic=not args.newtonian)
+    from examples.dark_reservoir import paper_plasma
+    plasma, _ = paper_plasma(args.cells, args.particles, args.dt, 0)
+    plasma = plasma.replace(solver=Solver(algorithm="implicit", relativistic=True,
+                                          picard_iterations=args.iterations, substeps=2))
+    ordinary, _ = plasma.initial_state(jax.random.PRNGKey(0))
+    return plasma, drive_state(plasma, ordinary)
+
+
 def benchmark(args):
-    plasma, initial = homogeneous_box(args.cells, args.nodes, args.rings, args.dt, args.iterations,
-                                      temperature=args.temperature, relativistic=not args.newtonian)
+    from examples.dark_reservoir import array_fingerprint
+    plasma, initial = load_plasma(args)
     drive = PrescribedDrive(1., jnp.array([args.amplitude * FIELD, 0., 0.]), WP)
     stride = max(1, round(.1 / args.dt))
     steps = stride * round(args.horizon / (stride * args.dt))
     jax.block_until_ready(initial)
+    fingerprints = {key: array_fingerprint(np.asarray(getattr(initial.ordinary, key)))
+                    for key in ("x", "u", "w", "E", "B", "rho", "time")}
+    fingerprints.update(mass=array_fingerprint(plasma.per_particle[0]),
+                        charge=array_fingerprint(plasma.per_particle[1]))
+    loading_fingerprints = {species.name: {key: array_fingerprint(getattr(species, key))
+                                           for key in ("x", "v")} for species in plasma.species}
+    scale = N * m * c**2 * plasma.domain.length
     start = perf_counter()
     executable = run_drive.lower(plasma, initial, drive, steps, stride).compile()
     compile_seconds = perf_counter() - start
-    timings = []
+    timings, executions = [], []
     for _ in range(args.samples + 1):
         start = perf_counter()
         final, history, maxima = executable(plasma, initial, drive)
         jax.block_until_ready((final, history, maxima))
         timings.append(perf_counter() - start)
+        # Transfers and scalar postprocessing are outside the synchronized timer.
+        executions.append({key: np.asarray(history[key]).copy()
+                           for key in ("t", "mean_E", "current", "nonzero_electric", "momentum")})
     history = jax.tree.map(np.asarray, history)
     t, electric = history["t"] * WP, history["mean_E"] / FIELD
-    oracle_nodes = max(64, args.nodes)
+    oracle_nodes = 64 if args.paper_loading else max(64, args.nodes)
     reference = homogeneous(t, args.amplitude, temperature=args.temperature,
                             relativistic=not args.newtonian, nodes=oracle_nodes, rtol=2e-11)
     current = history["current"] / (epsilon_0 * FIELD * WP)
@@ -231,7 +281,27 @@ def benchmark(args):
     phase_error = np.unwrap(np.angle(z)) - np.unwrap(np.angle(exact))
     phase_threshold = .01 * max(abs(exact))
     phase_resolved = (abs(exact) > phase_threshold) & (abs(z) > phase_threshold) & (t >= 2 * np.pi)
-    scale = N * m * c**2 * plasma.domain.length
+    if args.amplitude == 0:
+        phase_resolved[:] = False
+    for execution in executions:
+        execution["t"] *= WP
+        execution["mean_E"] /= FIELD
+        execution["current"] /= epsilon_0 * FIELD * WP
+        execution["nonzero_electric"] /= scale
+        execution["momentum"] *= c / scale
+        np.testing.assert_array_equal(execution["t"], t)
+    variability = [{key: norm_errors(t, execution[key], executions[0][key])
+                    for key in ("mean_E", "current", "nonzero_electric", "momentum")}
+                   for execution in executions[1:]]
+    oracle_windows = dict(mean_E=norm_errors(t, electric, reference["mean_E"]),
+                          current=norm_errors(t, current, oracle_current), phase={})
+    for end, mask in windows(t):
+        resolved = mask & phase_resolved
+        oracle_windows["phase"][end] = dict(samples=int(resolved.sum()),
+                                            max_error_rad=float(np.max(abs(phase_error[resolved])))
+                                            if resolved.any() else None,
+                                            max_nonzero_electric_over_nmc2L=float(np.max(
+                                                history["nonzero_electric"][mask]) / scale))
     maxima = np.asarray(maxima)
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     result = dict(compile_s=compile_seconds, first_primal_s=timings[0], warm_primal_s=timings[1:],
@@ -254,9 +324,18 @@ def benchmark(args):
                   phase_mask_samples=int(phase_resolved.sum()), phase_total_samples=len(t),
                   phase_radius_threshold_normalized=float(phase_threshold),
                   phase_mask="t>=2π and both |E+iJ| exceed 1% of oracle peak radius",
+                  phase_unavailable_reason=("zero drive: equilibrium oracle has no resolved oscillatory phase"
+                                            if args.amplitude == 0 else None),
                   max_sampled_nonzero_electric_over_nmc2L=float(max(history["nonzero_electric"]) / scale),
                   final_nonzero_electric_over_nmc2L=float(history["nonzero_electric"][-1] / scale),
                   nonzero_electric_convention="epsilon0 dx sum|E-mean(E)|²/2, all components; no clamp",
+                  nonzero_threshold_crossings=[crossings(t, execution["nonzero_electric"])
+                                               for execution in executions],
+                  oracle_windows=oracle_windows, execution_variability=variability,
+                  execution_comparison=("execution 0 against each later call to the same compiled callable and input; "
+                                        "norms use fixed physical scales; recorded arrays/results use the final call"),
+                  oracle_scope=("homogeneous momentum-distribution reference; late differences mix time integration, "
+                                "spatial PIC dynamics and velocity loading once nonzero modes grow"),
                   max_work_error_over_nmc2L=float(max(abs(history["work"] / scale - reference["work"]))),
                   oracle_nodes=oracle_nodes, particle_substeps=plasma.solver.substeps,
                   claim="uniform prescribed-drive prototype; phase and work checks, no implicit Proca")
@@ -306,15 +385,29 @@ def benchmark(args):
         for axis in axes.ravel():
             axis.set_xlabel("ωₚt")
         settings = {key: value for key, value in vars(args).items() if key != "output"}
+        for key in (("nodes", "rings") if args.paper_loading else ("particles",)):
+            settings.pop(key)
         settings.update(parent_revision="83d327118163833f93e2588edcb5029241f6ba2a", precision="float64",
-                        loading="weighted Gauss-Hermite velocity rings; two mobile species; fixed electron wp",
-                        wp_rad_s=WP, mass_ratio=MASS_RATIO, particles_per_species=args.cells * args.nodes * args.rings,
+                        loading=("paper_plasma: co-located spatial lattice, Gaussian velocities; "
+                                 "exact mean and variance, seed 0" if args.paper_loading else
+                                 "weighted Gauss-Hermite velocity rings; two mobile species"),
+                        wp_rad_s=WP, mass_ratio=MASS_RATIO, particles_per_species=plasma.species[0].n,
+                        length_over_c_wp=float(plasma.domain.length * WP / c),
+                        steps=steps, store_every=stride, actual_horizon=float(t[-1]),
+                        initial_fingerprints=fingerprints, position_time="native implicit integer time",
+                        physical_loading_fingerprints=loading_fingerprints,
+                        trace_scales=("E: me c wp/e; J: epsilon0 Eref wp; "
+                                      "nonzero energy: n me c² L; momentum: n me c L"),
                         thermal_parameter_definition="Gaussian velocity sigma_e squared / c squared")
         arrays = dict(t=t, electric=electric, oracle_E=reference["mean_E"], phase_error=phase_error,
                       phase_resolved=phase_resolved, balance=(history["balance"] - initial.initial_ordinary) / scale,
                       work=history["work"] / scale, oracle_work=reference["work"], current=current,
                       nonzero_electric=history["nonzero_electric"] / scale,
+                      momentum=history["momentum"] * c / scale,
                       phase_radius=abs(z), oracle_phase_radius=abs(exact))
+        arrays.update({f"execution_{index}_{key}": execution[key]
+                       for index, execution in enumerate(executions)
+                       for key in ("mean_E", "current", "nonzero_electric", "momentum")})
         save_run(args.output, "implicit_drive", settings, result, figure, **arrays)
         np.savez_compressed(args.output / "data.npz", **arrays)
         plt.close(figure)
@@ -323,7 +416,7 @@ def benchmark(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cells", type=int, default=32)
+    parser.add_argument("--cells", type=int, help="grid cells (default: 32, or 1000 with --paper-loading)")
     parser.add_argument("--nodes", type=int, default=32)
     parser.add_argument("--rings", type=int, default=1)
     parser.add_argument("--dt", type=float, default=.02)
@@ -334,14 +427,22 @@ def main():
     parser.add_argument("--samples", type=int, default=3)
     parser.add_argument("--gradient-horizon", type=float, default=0.)
     parser.add_argument("--newtonian", action="store_true")
+    parser.add_argument("--paper-loading", action="store_true", help="reuse the paper example's Gaussian plasma")
+    parser.add_argument("--particles", type=int, default=103000, help="markers per species with --paper-loading")
     parser.add_argument("--output", type=Path, default=Path("artifacts/implicit_drive"))
     args = parser.parse_args()
+    args.cells = args.cells if args.cells is not None else (1000 if args.paper_loading else 32)
     finite = np.all(np.isfinite([args.dt, args.horizon, args.amplitude, args.temperature, args.gradient_horizon]))
-    if (not finite or min(args.cells, args.nodes, args.rings, args.iterations, args.samples) < 1 or args.dt <= 0
+    if (not finite or min(args.cells, args.nodes, args.rings, args.iterations, args.samples) < 1
+            or args.dt <= 0 or args.dt > args.horizon
             or args.horizon < 2 * np.pi or args.temperature < 0 or args.gradient_horizon < 0
             or (args.gradient_horizon and args.gradient_horizon < args.dt)):
         parser.error("positive resolution/time controls, nonnegative temperature and horizon >= 2π required")
-    if not args.newtonian and 2 * args.temperature * max(abs(hermgauss(args.nodes)[0]))**2 >= 1 - 1e-5:
+    if args.paper_loading and (args.cells < 4 or args.particles < 2 or args.newtonian
+                               or args.temperature != .001 or args.gradient_horizon):
+        parser.error("paper loading requires cells >= 4, particles >= 2, relativistic T=0.001 and no gradient study")
+    if (not args.paper_loading and not args.newtonian
+            and 2 * args.temperature * max(abs(hermgauss(args.nodes)[0]))**2 >= 1 - 1e-5):
         parser.error("quadrature velocities exceed the parent's relativistic input margin")
     if args.newtonian and args.gradient_horizon:
         parser.error("gradient prototype uses the relativistic solver")
