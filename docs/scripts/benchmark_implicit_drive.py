@@ -61,6 +61,7 @@ newtonian = globals().get("newtonian", False)
 paper_loading = globals().get("paper_loading", False)
 particles = globals().get("particles", 64)
 initial_state = globals().get("initial_state", None)
+grid_phase = globals().get("grid_phase", 0.)  # Translate the same loading by this fraction of dx.
 audit_state = globals().get("audit_state", None)
 output = Path(globals().get("output", "artifacts/implicit_drive"))
 
@@ -111,7 +112,7 @@ def run_drive(plasma, initial, drive, steps, stride=1):
     """Sparse scalar histories, actual initial sample and all-step SI maxima.
 
     Maxima: work balance, particle charge, grid charge, continuity, Gauss,
-    mean Ampere residual, continuum momentum. The native state/work ledger
+    mean Ampere residual, continuum momentum, accepted particle impulse. The native state/work ledger
     can be resumed with the same model; absolute time fixes the drive phase.
     """
     if steps < 1 or stride < 1 or steps % stride:
@@ -125,17 +126,18 @@ def run_drive(plasma, initial, drive, steps, stride=1):
         after, values = state.ordinary, sample(plasma, state)
         continuity = (after.rho - before.rho) / plasma.domain.dt + divergence(current, plasma.domain.dx)
         ampere = jnp.mean((after.E - before.E) / plasma.domain.dt + current / epsilon_0, axis=0)
+        impulse = jnp.sum((plasma.per_particle[0] * before.w)[:, None] * (after.u - before.u), axis=0)
         errors = jnp.array([state.max_balance_error, abs(values["charge"] - reference["charge"]),
                             abs(values["grid_charge"] - reference["grid_charge"]), jnp.max(abs(continuity)),
                             state.max_ordinary_gauss, jnp.max(abs(ampere)),
-                            jnp.max(abs(values["momentum"] - reference["momentum"]))])
+                            jnp.max(abs(values["momentum"] - reference["momentum"])), jnp.max(abs(impulse))])
         return (state, jnp.maximum(maxima, errors)), None
 
     def chunk(carry, _):
         carry, _ = lax.scan(one, carry, None, length=stride)
         return carry, sample(plasma, carry[0])
 
-    (state, maxima), history = lax.scan(chunk, (initial, jnp.zeros(7)), None, length=steps // stride)
+    (state, maxima), history = lax.scan(chunk, (initial, jnp.zeros(8)), None, length=steps // stride)
     history = jax.tree.map(lambda a, b: jnp.concatenate((a[None], b)), reference, history)
     return state, history, maxima
 
@@ -282,6 +284,21 @@ def archived_initial(path, initial, model):
     return restored
 
 
+def translated_initial(plasma, state, phase):
+    """Move an initial loading through the grid, reclose Gauss and reset its work reference."""
+    if not np.isfinite(phase) or not 0 <= phase < 1:
+        raise ValueError('grid_phase must be finite in [0, 1)')
+    if phase == 0:
+        return state
+    if float(state.ordinary.time) != 0 or float(state.work) != 0:
+        raise ValueError('grid translation requires a zero-time, zero-work initial state')
+    old, d = state.ordinary, plasma.domain
+    x = old.x.at[:, 0].set((old.x[:, 0] + phase * d.dx + d.length / 2) % d.length - d.length / 2)
+    rho = deposit(x[:, 0], plasma.per_particle[1] * old.w, d.grid[0], d.dx, d.cells, (0, 0))
+    electric = old.E.at[:, 0].set(E_x_from_rho(rho, d.dx, (0, 0)) + jnp.mean(old.E[:, 0]))
+    return drive_state(plasma, old.replace(x=x, rho=rho, E=electric))
+
+
 def audit_orbits(args):
     """Probe one archived pure-electric step against independent NumPy orbits."""
     from docs.scripts.drive_reference import midpoint_orbits
@@ -338,6 +355,7 @@ def benchmark(args):
     drive = PrescribedDrive(1., jnp.array([args.amplitude * FIELD, 0., 0.]), WP)
     archive_model = SimpleNamespace(plasma=plasma, dark=drive)
     initial = archived_initial(args.initial_state, initial, archive_model)
+    initial = translated_initial(plasma, initial, args.grid_phase)
     stride = max(1, round(.1 / args.dt))
     steps = stride * round(args.horizon / (stride * args.dt))
     jax.block_until_ready(initial)
@@ -413,6 +431,7 @@ def benchmark(args):
                   max_gauss_over_en_eps0=float(maxima[4] * epsilon_0 / (e * N)),
                   max_mean_ampere_over_fieldwp=float(maxima[5] / (FIELD * WP)),
                   max_momentum_over_nmecL=float(maxima[6] * c / scale),
+                  max_step_particle_force_over_nmecLwp=float(maxima[7] * c / (scale * plasma.domain.dt * WP)),
                   max_mean_E_error=float(max(abs(electric - reference["mean_E"]))),
                   max_current_error=float(max(abs(current - oracle_current))),
                   max_phase_error_rad=(float(max(abs(phase_error[phase_resolved])))
@@ -523,7 +542,7 @@ def benchmark(args):
 if __name__ == "__main__":
     args = SimpleNamespace(**{key: globals()[key] for key in (
         "cells", "nodes", "rings", "dt", "iterations", "substeps", "horizon", "amplitude", "temperature",
-        "samples", "gradient_horizon", "newtonian", "paper_loading", "particles", "output")},
+        "samples", "gradient_horizon", "newtonian", "paper_loading", "particles", "grid_phase", "output")},
         initial_state=Path(initial_state) if initial_state is not None else None,
         audit_state=Path(audit_state) if audit_state is not None else None)
     finite = np.all(np.isfinite([dt, horizon, amplitude, temperature, gradient_horizon]))

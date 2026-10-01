@@ -18,6 +18,7 @@ from examples.dark_reservoir import save_compressed_state
 from docs.scripts.benchmark_implicit_drive import (
     FIELD, N, WP, c, m, e, drive_state, homogeneous_box, implicit_drive_step,
     objective, run_drive, sample, tangent_reference, load_plasma, norm_errors, crossings, archived_initial,
+    translated_initial,
 )
 
 
@@ -182,7 +183,7 @@ def test_stride_and_restart_preserve_absolute_phase_and_work_ledger(tmp_path):
         assert_state_close(dense, other, p)
     energy = N * m * c**2 * p.domain.length
     scales = np.array([energy, e * N * p.domain.length, e * N * p.domain.length,
-                       e * N * WP, e * N / epsilon_0, FIELD * WP, energy / c])
+                       e * N * WP, e * N / epsilon_0, FIELD * WP, energy / c, energy / c])
     np.testing.assert_allclose(np.asarray(maxima) / scales, np.asarray(sparse_max) / scales, atol=2e-12)
     for key in history:
         scale = (1 / WP if key == 't' else c if key in ('mean', 'rms', 'max_speed') else
@@ -326,3 +327,41 @@ def test_archived_initial_keeps_native_arrays_and_rejects_nonzero_or_mismatched_
     mismatched = initial.replace(ordinary=initial.ordinary.replace(u=initial.ordinary.u.at[0, 0].add(.01 * c)))
     with pytest.raises(AssertionError):
         archived_initial(path, mismatched, model)
+
+
+@pytest.mark.parametrize('phase', [0., .25, .5])
+def test_grid_phase_recloses_charge_without_changing_velocity_weights_or_mean_current(phase):
+    p, state = load_plasma(SimpleNamespace(paper_loading=True, cells=8, particles=32, dt=.02, iterations=8))
+    d, old = p.domain, state.ordinary
+    old = old.replace(x=old.x.at[:32, 0].add(.03 * d.dx), E=old.E.at[:, 0].add(.1 * FIELD))
+    state = drive_state(p, old)
+    shifted = translated_initial(p, state, phase)
+    if phase == 0:
+        assert shifted is state
+        return
+    np.testing.assert_allclose((np.asarray(shifted.ordinary.x[:, 0] - old.x[:, 0]) + d.length / 2) % d.length
+                               - d.length / 2, phase * d.dx, atol=2e-15 * d.length)
+    for key in ('u', 'w', 'B', 'key', 'time'):
+        np.testing.assert_array_equal(getattr(shifted.ordinary, key), getattr(old, key))
+    rho = deposit(shifted.ordinary.x[:, 0], p.per_particle[1] * old.w, d.grid[0], d.dx, d.cells, (0, 0))
+    np.testing.assert_array_equal(shifted.ordinary.rho, rho)
+    np.testing.assert_allclose(jnp.mean(shifted.ordinary.E[:, 0]) / FIELD, .1, atol=2e-15)
+    values = sample(p, shifted)
+    assert float(values['ordinary_gauss']) * epsilon_0 / (e * N) < 2e-13
+    assert float(shifted.initial_ordinary) == float(values['balance'])
+    assert float(values['current']) == float(sample(p, state)['current'])
+    accepted, _, maxima = run_drive(p, shifted, cosine(), 1)
+    impulse = np.sum(np.asarray(p.per_particle[0] * old.w)[:, None]
+                     * np.asarray(accepted.ordinary.u - old.u), axis=0)
+    np.testing.assert_allclose(maxima[7], np.max(abs(impulse)), atol=2e-14 * N * m * c * d.length)
+
+
+def test_grid_phase_rejects_invalid_phase_and_restart_clock():
+    p, state = homogeneous_box(cells=4, nodes=1, temperature=0.)
+    for phase in (-.1, 1., np.nan):
+        with pytest.raises(ValueError, match='grid_phase'):
+            translated_initial(p, state, phase)
+    for invalid in (state.replace(work=jnp.array(1.)),
+                    state.replace(ordinary=state.ordinary.replace(time=jnp.array(p.domain.dt)))):
+        with pytest.raises(ValueError, match='zero-time, zero-work'):
+            translated_initial(p, invalid, .25)
