@@ -590,4 +590,33 @@ orbit_error = max(abs(r["results"]["momentum_disagreement_over_nmecL"])
 measured["implicit_orbit_momentum_disagreement"] = f"{orbit_error:.3e}"
 measured["_provenance"]["implicit_iteration_control"] = provenance(iteration_record, iterations_folder.name)
 measured["_provenance"]["paper_implicit_comparison"] = provenance(method_record, method.name)
+controls_folder = EVIDENCE.parent / "implicit_method_controls"
+control_runs = []
+for cells, substeps in ((1000, 2), (1000, 4), (2000, 2)):
+    folder = ROOT / "artifacts" / f"implicit_mesh{cells}_sub{substeps}"
+    control_runs.append(folder)
+    command = [sys.executable, str(ROOT / "docs/scripts/benchmark_implicit_drive.py"), "--paper-loading",
+               "--cells", str(cells), "--substeps", str(substeps), "--dt", ".01", "--iterations", "4",
+               "--horizon", "40", "--samples", "1", "--output", str(folder)]
+    if cells == 1000:
+        command += ["--initial-state", str(iteration_runs[0] / "initial_state.npz")]
+    run_example(command, cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "docs/scripts/compare_replays.py"), *map(str, control_runs[:2]),
+             "--method-controls", "--refined", str(control_runs[2]), "--publish", str(controls_folder)],
+            cwd=ROOT, check=True)
+controls_record = json.loads((controls_folder / "run.json").read_text())
+for native in controls_record["results"]["native_runs"]:
+    s, values = native["settings"], native["results"]
+    prefix = f"implicit_method_{s['cells']}_{s['substeps']}"
+    for suffix, key in (("balance", "max_balance_over_nmc2L"), ("momentum", "max_momentum_over_nmecL"),
+                        ("gauss", "max_gauss_over_en_eps0"), ("continuity", "max_continuity_over_enwp")):
+        measured[f"{prefix}_{suffix}"] = f"{values[key]:.3e}"
+    measured[f"{prefix}_compile"] = f"{values['compile_s']:.2f}"
+    measured[f"{prefix}_warm"] = f"{values['warm_primal_s'][0]:.2f}"
+for control in ("substep", "mesh"):
+    for suffix, key in (("mean_E", "electric"), ("nonzero", "nonzero_electric"), ("rms", "rms")):
+        value = controls_record["results"][f"{control}_observables"][key]["relative_l2_difference"]
+        measured[f"implicit_method_{control}_{suffix}_percent"] = (
+            [f"{100 * v:.4g}" for v in value] if isinstance(value, list) else f"{100 * value:.4g}")
+measured["_provenance"]["implicit_method_controls"] = provenance(controls_record, controls_folder.name)
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")
