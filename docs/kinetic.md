@@ -262,7 +262,7 @@ Every-step energy-minus-external-work error is at most **{{ hook_work_error_perc
 
 #### Time refinement through the nonlinear transition
 
-The same loading recipe, weights, physical parameters and seed were replayed at $\Delta\tau=0.01$ through $5000$, then at $0.005$ through $1000$. Initial particle moments match exactly. Dotted/dash-dot curves in the figure show their RMS speeds and electric energies; the green third-level curves end at $1000$. The late electron/ion spread-energy means change by $-1.09\%/+0.40\%$ on halving the full-run step, while total/nonzero-$k$ electric-energy means change by $-52.70\%/-65.00\%$. Energy-minus-work defects are $0.02412\%$ and $0.02371\%$ of peak injected work. Small conservation defects do not establish late field convergence.
+The same loading recipe, weights, physical parameters and seed were replayed at $\Delta\tau=0.01$ through $5000$, then at $0.005$ through $1000$. Initial particle moments match exactly. Refinement overlays use dotted curves for RMS speeds and total electric energy, and dash-dot curves for nonzero-$k$ electric energy; the green third-level curves end at $1000$. The late electron/ion spread-energy means change by $-1.09\%/+0.40\%$ on halving the full-run step, while total/nonzero-$k$ electric-energy means change by $-52.70\%/-65.00\%$. Energy-minus-work defects are $0.02412\%$ and $0.02371\%$ of peak injected work. Small conservation defects do not establish late field convergence.
 
 For observable $X$, define the adjacent-level contraction on the indicated fixed window as
 

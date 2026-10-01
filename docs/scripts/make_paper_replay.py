@@ -117,7 +117,7 @@ with midnight():
         label = f"Δtωₚ={record['settings']['dt_omega_p']:g}"
         for key, style, kind in (('electric', ':', 'total'), ('nonzero_electric', '-.', 'nonzero k')):
             ax.plot(data['t'][trim], averaged(data[key] / .0005)[trim], style,
-                    color=color, label=f'{label}, {kind}')
+                    color=color, label=f'{label}, total/nonzero k' if kind == 'total' else '_nolegend_')
     ax.set(title='Electric-field energy', yscale='log', ylim=(.003, 70),
            ylabel=r'$U_E/(nT_{e0}L/2)$')
     ax = axes[1, 1]
@@ -130,7 +130,8 @@ with midnight():
     for ax in axes.flat:
         ax.set(xlabel=r'$\omega_p t$', xlim=(0, 5000))
         ax.grid(alpha=.25)
-        ax.legend(fontsize=9, loc='lower right' if ax is axes[0, 1] else 'best')
+        location = 'lower right' if ax is axes[0, 1] else 'upper right' if ax is axes[1, 0] else 'best'
+        ax.legend(fontsize=9, loc=location, frameon=True, facecolor='white', framealpha=.9, edgecolor='none')
     target = [np.interp(t[-1], paper[f'strong_{s}_rms_t'], paper[f'strong_{s}_rms'])
               for s in ('electron', 'ion')]
     masses = np.array([1, drive_record['settings']['mass_ratio']])
