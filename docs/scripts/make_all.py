@@ -342,6 +342,28 @@ if field_cost.exists():
         measured[f"field_{name}_first_s"] = f"{row['first_call_s']:.2f}"
         measured[f"field_{name}_rss_mib"] = f"{row['peak_rss_bytes'] / 2**20:.1f}"
     measured["_provenance"]["field_cost"] = data["settings"]
+replay_records = {}
+for setting in ('default', 'deterministic'):
+    folder = EVIDENCE.parent / 'pic_reproducibility' / setting
+    native = json.loads((folder / 'run.json').read_text())
+    values = native['results']
+    replay_records[setting] = values
+    measured['_provenance'][f'pic_replay_{setting}'] = provenance(native, f'pic_reproducibility/{setting}')
+    for kernel in ('deposition', 'short_run'):
+        row, prefix = values[kernel], f'replay_{setting}_{kernel}'
+        for key in ('compile_s', 'compiler_temporary_MiB'):
+            measured[f'{prefix}_{key}'] = f'{row[key]:.4f}'
+        factor = 1000 if kernel == 'deposition' else 1
+        samples = [factor * call['warm_s'] for call in row['calls']]
+        measured[f'{prefix}_warm'] = f'{factor * row["warm_median_s"]:.4f} [{min(samples):.4f}, {max(samples):.4f}]'
+    measured[f'replay_{setting}_rss'] = f'{values["peak_rss_bytes"] / 2**20:.2f}'
+    for key in ('numpy_max_error_over_en', 'integrated_charge_error_over_enL'):
+        measured[f'replay_{setting}_{key}'] = f'{values["deposition"][key]:.3e}'
+for kernel in ('deposition', 'short_run'):
+    cost_ratio = (replay_records['deterministic'][kernel]['warm_median_s']
+                  / replay_records['default'][kernel]['warm_median_s'])
+    measured[f'replay_{kernel}_cost_ratio'] = f'{cost_ratio:.2f}'
+
 large_cost = EVIDENCE.parent / "field_cost_large.json"
 if large_cost.exists():
     data = json.loads(large_cost.read_text())

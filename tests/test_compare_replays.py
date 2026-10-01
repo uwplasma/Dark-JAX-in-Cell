@@ -136,6 +136,17 @@ def test_timestep_loading_and_prepared_state_are_distinct(records):
     assert not result['initial_fingerprints']['matches']['state']['x']
 
 
+def test_shape_and_execution_protocol_cannot_be_hidden_in_timestep_comparison(records):
+    change_settings(records[1], shape='quintic', shape_order=5)
+    with pytest.raises(ValueError, match='share shape'):
+        compare_replays(*records, variant='dt', windows=((0, 1),))
+    result = compare_replays(*records, variant='shape', windows=((0, 1),))
+    assert result['initial_fingerprints']['verified']
+    change_settings(records[1], XLA_FLAGS='--xla_gpu_exclude_nondeterministic_ops')
+    with pytest.raises(ValueError, match='share XLA_FLAGS'):
+        compare_replays(*records, variant='shape', windows=((0, 1),))
+
+
 @pytest.mark.parametrize('change', ['potential', 'missing_key'])
 def test_repeat_checks_dark_potential_and_state_key_sets(records, change):
     for index, path in enumerate(records):

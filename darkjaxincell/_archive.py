@@ -31,6 +31,8 @@ def _model_metadata(simulation):
     if not isinstance(model, DarkField):
         data.update({"dark.amplitude": np.asarray(model.amplitude),
                      "dark.phase": np.asarray(model.phase)})
+        if model.times is not None:
+            data.update({"dark.format": np.asarray(3), "dark.times": np.asarray(model.times)})
     return data
 
 
@@ -82,7 +84,10 @@ def load_for_continuation(path, previous, following):
     """Explicit parameter jump: verify both models, reclose Gauss and start a new ledger."""
     state = load_state(path, previous)
     old, new = _model_metadata(previous), _model_metadata(following)
-    allowed = {"dark.omega", "dark.eta", "dark.amplitude", "dark.phase"}
+    if (tuple((s.name, s.n) for s in previous.plasma.species) != tuple((s.name, s.n) for s in following.plasma.species)
+            or getattr(previous.plasma.solver, "shape_order", 2) != getattr(following.plasma.solver, "shape_order", 2)):
+        raise ValueError("continuation changes particle populations or shape_order")
+    allowed = {"dark.omega", "dark.eta", "dark.amplitude", "dark.phase", "dark.times", "dark.format"}
     for key in sorted(old.keys() | new.keys()):
         if key not in allowed and (key not in old or key not in new
                                    or not np.array_equal(old[key], new[key])):

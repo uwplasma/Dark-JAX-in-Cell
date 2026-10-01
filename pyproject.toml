@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 license = {file = "LICENSE"}
 authors = [{name = "UWPlasma, UW-Madison group", email = "rogerio.jorge@wisc.edu"}]
 dependencies = [
-  "jaxincell @ git+https://github.com/uwplasma/JAX-in-Cell.git@83d327118163833f93e2588edcb5029241f6ba2a",
+  "jaxincell @ git+https://github.com/uwplasma/JAX-in-Cell.git@2d693cbd36f617545463132dd9af493d47600639",
   "tomli; python_version < '3.11'",
 ]
 

@@ -7,18 +7,38 @@ assertion of exact discrete momentum conservation. No particle history is kept.
 
 from functools import partial
 from contextlib import contextmanager
+from importlib import metadata
+import json
+from pathlib import Path
+import subprocess
 import sys
 from threading import Event, Thread
 from time import perf_counter
 
 import jax
 import jax.numpy as jnp
+import jaxincell
 from jax import lax
 from jaxincell import epsilon_0, speed_of_light as c
 from jaxincell._core import deposit
 
 from darkjaxincell import DarkField, DarkSimulation
 from darkjaxincell._proca import divergence, energy, gauss
+
+
+def parent_revision():
+    """Actual imported checkout SHA, or the installed wheel's source commit."""
+    root = Path(jaxincell.__file__).resolve().parents[1]
+    if (root / '.git').exists():
+        revision = subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip()
+        changed = subprocess.check_output(['git', '-C', str(root), 'status', '--porcelain',
+                                           '--untracked-files=no'], text=True).strip()
+        return revision + ('-dirty' if changed else '')
+    try:
+        direct = metadata.distribution('jaxincell').read_text('direct_url.json')
+    except metadata.PackageNotFoundError:
+        direct = None
+    return json.loads(direct or '{}').get('vcs_info', {}).get('commit_id', 'unknown')
 
 
 @contextmanager
@@ -72,7 +92,7 @@ def snapshot(sim, state, background=None, mode=1):
     magnetic = epsilon_0 * c**2 * dx * jnp.sum(o.B**2) / 2
     momentum = jnp.sum((m * o.w)[:, None] * o.u, axis=0)
     momentum += epsilon_0 * dx * jnp.sum(jnp.cross(centred(o.E), o.B), axis=0)
-    massive, work, coherent, dark_mode = (jnp.zeros(()) for _ in range(4))
+    massive, work, coherent, dark_mode, mean_D, mean_A = (jnp.zeros(()) for _ in range(6))
     background = (state.background if dark else -jnp.mean(o.rho)) if background is None else background
     ordinary_gauss = jnp.max(jnp.abs(divergence(o.E, dx) - (o.rho + background) / epsilon_0))
     dark_gauss = jnp.zeros(())
@@ -85,6 +105,7 @@ def snapshot(sim, state, background=None, mode=1):
                 jnp.sum(jnp.mean(state.E, axis=0)**2 + c**2 * jnp.mean(state.B, axis=0)**2)
                 + model.omega**2 * (jnp.sum(jnp.mean(state.A, axis=0)**2) + jnp.mean(state.phi)**2 / c**2))
             dark_mode = jnp.fft.fft(state.E[:, 0])[mode] / p.domain.cells
+            mean_D, mean_A = jnp.mean(state.E[:, 0]), jnp.mean(state.A[:, 0])
             momentum += epsilon_0 * dx * jnp.sum(jnp.cross(centred(state.E), state.B), axis=0)
             momentum += epsilon_0 * model.omega**2 / c**2 * dx * jnp.sum(
                 state.phi[:, None] * centred(state.A), axis=0)
@@ -100,6 +121,7 @@ def snapshot(sim, state, background=None, mode=1):
                 ordinary_gauss=ordinary_gauss, dark_gauss=dark_gauss,
                 mean_E=jnp.mean(o.E[:, 0]), mode_E=jnp.fft.fft(o.E[:, 0])[mode] / p.domain.cells,
                 dark_coherent=coherent, dark_mode_E=dark_mode,
+                mean_D=mean_D, mean_A=mean_A,
                 max_speed=jnp.max(jnp.linalg.norm(p._velocity(o.u), axis=1)))
 
 
@@ -110,10 +132,10 @@ def density_rms(sim, state):
     x = (o.x - p.domain.dt / 2 * p._velocity(o.u)
          if p.solver.algorithm == "explicit" else o.x)
     offset, values = 0, []
+    weighting = partial(deposit, shape_order=5) if getattr(p.solver, 'shape_order', 2) == 5 else deposit
     for species in p.species:
         s = slice(offset, offset + species.n)
-        density = deposit(x[s, 0], o.w[s], p.domain.grid[0], p.domain.dx,
-                          p.domain.cells, (0, 0))
+        density = weighting(x[s, 0], o.w[s], p.domain.grid[0], p.domain.dx, p.domain.cells, (0, 0))
         values.append(jnp.std(density) / jnp.mean(density))
         offset += species.n
     return jnp.stack(values)
@@ -134,12 +156,13 @@ def coarse_spread(sim, state, scales, groups=None, *, with_density=False):
     x = (o.x - p.domain.dt / 2 * p._velocity(o.u)
          if p.solver.algorithm == "explicit" else o.x)
     velocity = p._velocity(o.u)[:, 0]
+    weighting = partial(deposit, shape_order=5) if getattr(p.solver, 'shape_order', 2) == 5 else deposit
     moments, offset = [], 0
     for species in p.species:
         s = slice(offset, offset + species.n)
-        moments.append(jnp.stack([deposit(x[s, 0], o.w[s] * velocity[s]**power,
-                                          p.domain.grid[0], p.domain.dx, p.domain.cells, (0, 0))
-                                  for power in range(3)]))
+        moments.append(jnp.stack([
+            weighting(x[s, 0], o.w[s] * velocity[s]**power, p.domain.grid[0], p.domain.dx, p.domain.cells, (0, 0))
+            for power in range(3)]))
         offset += species.n
     k = 2 * jnp.pi * jnp.fft.rfftfreq(p.domain.cells, p.domain.dx)
     energies, contrasts = [], []

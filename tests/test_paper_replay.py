@@ -78,10 +78,11 @@ def test_fixed_physical_momentum_seed_is_neutral_resolved_and_differentiable():
         paper_plasma(64, 16, .01, 3, .05, 16)
 
 
-def test_seed_current_removes_the_momentum_kick_and_matches_charge_frechet():
+@pytest.mark.parametrize('order', [2, 5])
+def test_seed_current_removes_the_momentum_kick_and_matches_charge_frechet(order):
     from jaxincell._core import deposit
-    plain, _ = paper_plasma(64, 256, .01, 3)
-    seeded, _ = paper_plasma(64, 256, .01, 3, .05, 2, .37)
+    plain, _ = paper_plasma(64, 256, .01, 3, shape_order=order)
+    seeded, _ = paper_plasma(64, 256, .01, 3, .05, 2, .37, order)
     state, _ = seeded.initial_state(random.PRNGKey(0))
     result = seed_noise(seeded, state, .05, 2, .37)
     mass, charge = map(np.asarray, seeded.per_particle)
@@ -99,20 +100,22 @@ def test_seed_current_removes_the_momentum_kick_and_matches_charge_frechet():
     # Differentiate actual charge deposition along thermal velocities; continuity fixes face current.
     delta = 1e-6 / 1e9
     rho = [(np.asarray(deposit(x + sign * delta * thermal, charge * np.asarray(state.w),
-                               d.grid[0], d.dx, d.cells, (0, 0)))) for sign in (-1, 1)]
+                               d.grid[0], d.dx, d.cells, (0, 0), order))) for sign in (-1, 1)]
     rho_dot = np.mean((rho[1] - rho[0]) * np.exp(-1j * k * np.asarray(d.grid))) / (2 * delta)
     exact_face = -rho_dot / (1j * 2 * np.sin(k * d.dx / 2) / d.dx * e * density * c)
     observed_face = complex(*result['continuity_face']['total']['thermal_current'])
     np.testing.assert_allclose(observed_face, exact_face, rtol=2e-6)
-    with pytest.raises(ValueError, match='quadratic deposition'):
+    with pytest.raises(ValueError, match='quadratic/quintic deposition'):
         seed_noise(seeded.replace(solver=seeded.solver.replace(filter_passes=1)), state, .05, 2, .37)
 
 
 @pytest.mark.parametrize('coupling', [None, .1])
-def test_seeded_scalar_archive_separates_thermal_loading_and_internal_work(tmp_path, coupling):
+@pytest.mark.parametrize('order', [2, 5])
+def test_seeded_scalar_archive_separates_thermal_loading_and_internal_work(tmp_path, coupling, order):
     from docs.scripts.compare_replays import _load
     history, settings, result = paper_case(tmp_path, 32, 256, .02, 1, 3, .03, coupling,
-                                           block_horizon=.5, momentum_seed=.05, seed_mode=2, seed_phase=.37)
+                                           block_horizon=.5, momentum_seed=.05, seed_mode=2, seed_phase=.37,
+                                           shape_order=order)
     _load(tmp_path, 1e-8)
     np.testing.assert_allclose(result['initial_seed_noise']['thermal_temperature_over_mec2'], .001, rtol=2e-13)
     np.testing.assert_allclose(settings['initial_rms_over_c'], history['rms'][0], rtol=2e-13)
@@ -126,6 +129,7 @@ def test_seeded_scalar_archive_separates_thermal_loading_and_internal_work(tmp_p
     assert result['max_dark_work_defect_over_nmc2L'] >= 0
     assert result['max_ordinary_work_defect_over_nmc2L'] >= 0
     assert settings['mode_basis'] == 'physical exp(-ikx) at faces'
+    assert settings['shape_order'] == order
     from docs.scripts.compare_replays import _normalization
     changed = {**settings, 'thermal_temperature_over_mec2': [.001, .0010000001]}
     with pytest.raises(ValueError, match='reconstructed thermal'):

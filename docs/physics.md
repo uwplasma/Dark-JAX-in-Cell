@@ -37,6 +37,19 @@ Initialization sets the longitudinal electric fields from both Gauss laws. A sup
 
 For source-free fields the mass adds a frequency even in a homogeneous box. The field-only stability bound is $\Delta t\sqrt{4c^2/\Delta x^2+\Omega_D^2}<2$; construction uses a 1.9 margin. Resolve plasma and gyro frequencies separately. No implicit or SOLVAX solve is used in this explicit step.
 
+### Particle weighting
+
+The pinned parent [quintic-weighting revision](https://github.com/uwplasma/JAX-in-Cell/commit/2d693cbd36f617545463132dd9af493d47600639) adds the periodic explicit option `Solver(shape_order=5)`; `shape_order=2` retains the quadratic default. Quintic cell weights are the centred degree-five B-spline, with six-point support:
+
+$$
+W_5(s)=\frac{1}{120}\sum_{j=0}^{6}(-1)^j\binom{6}{j}(s+3-j)_+^5,
+\qquad (a)_+=\max(a,0).
+$$
+
+Production evaluates positive cell polynomials to avoid cancellation. These are the cell-integrated weights in [SHARP, Appendix B](https://arxiv.org/html/1702.04732v2#A2.T2). Charge and transverse current use the same weights; gathered electric fields use the parent's face-to-centre average. Continuity fixes longitudinal current, including its physical mean. This implements the weighting and centre-field gather of SHARP's Equations 14–15 and 23; its Simpson force quadrature and complete algorithm are separate choices. Higher weighting order alone does not establish late conversion accuracy.
+
+Independent spline values and derivatives, partition of unity, deposit/gather transpose, translation force, current/charge, startup, both Gauss laws, derivatives and complete restarts are tested. A cross-revision startup/eight-step test finds all 189 recorded default arrays bitwise identical. Quintic ordinary archives use format 2 and are rejected by older readers; quadratic ordinary archives retain format 1. The [paper producer](../examples/dark_reservoir.py) accepts `shape_order=5`; it records the actual imported parent revision and execution flags. [Native comparison](scripts/compare_replays.py) uses `variant='shape'` and requires identical physical loading, source, runtime, clocks and remaining controls. Late weighting convergence remains a measured refinement question.
+
 ### Constraint propagation and divergence control
 
 For each source interval $h$, define the continuity and Gauss residuals

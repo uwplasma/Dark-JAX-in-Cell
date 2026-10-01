@@ -96,11 +96,31 @@ def _check_field_model(model, domain):
     _check_phi_mean(model.initial_phi)
 
 
+def _waveform_shape(model):
+    """Validate concrete knots; traced time trials need an external monotonicity check."""
+    shape = np.shape(model.times)
+    if len(shape) != 1 or shape[0] < 2:
+        raise ValueError("tabulated drive times must be a 1D array with at least two knots")
+    if jnp.iscomplexobj(model.times):
+        raise ValueError("tabulated drive times must be real")
+    for name in ("omega", "phase"):
+        value = _plain_scalar(getattr(model, name), f"drive {name}")
+        if value is not None and value != 0:
+            raise ValueError("tabulated drive requires omega=phase=0")
+    if not isinstance(model.times, jax.core.Tracer):
+        times = np.asarray(model.times)
+        if not np.all(np.isfinite(times)) or np.any(np.diff(times) <= 0):
+            raise ValueError("tabulated drive times must be finite and strictly increasing")
+    return shape[0], 3
+
+
 def _check_drive_model(model):
     for name in ("eta", "omega", "phase"):
         _plain_scalar(getattr(model, name), f"drive {name}")
-    if jnp.shape(model.amplitude) != (3,):
-        raise ValueError("prescribed amplitude must be a three-component E vector")
+    shape = (3,) if model.times is None else _waveform_shape(model)
+    if np.shape(model.amplitude) != shape:
+        raise ValueError("prescribed amplitude must be a three-component E vector" if model.times is None
+                         else "tabulated amplitude must have shape (knots, 3)")
     if not isinstance(model.amplitude, jax.core.Tracer):
         if not np.all(np.isfinite(np.asarray(model.amplitude))):
             raise ValueError("prescribed amplitude must be finite")
@@ -130,12 +150,24 @@ class PrescribedDrive:
 
     ``amplitude`` has shape ``(3,)``. This is a prescribed force with external
     work, not a dark reservoir.
+
+    With ``times`` in seconds, ``amplitude`` is ``(knots, 3)`` and gives bare field
+    samples in V/m. Samples interpolate linearly, with constant endpoint continuation;
+    set ``omega=phase=0``. Cover the physical run horizon when constructing a control.
     """
 
     eta: object
     amplitude: object
     omega: object
     phase: object = 0.0
+    times: object = None
+
+    def at(self, time):
+        """Bare prescribed E at a scalar time; the force multiplies this by ``eta``."""
+        amplitude = jnp.asarray(self.amplitude)
+        if self.times is None:
+            return amplitude * jnp.cos(self.omega * time + self.phase)
+        return jnp.stack([jnp.interp(time, jnp.asarray(self.times), amplitude[:, i]) for i in range(3)], axis=-1)
 
 
 @pytree_dataclass(static=())
@@ -289,7 +321,7 @@ class DarkSimulation:
             work1 = -model.eta * h * dx * jnp.sum(J1 * (state.E + E_D) / 2)
             effective_E, effective_B = E + model.eta * E_D, B + model.eta * B_D
         else:
-            drive = jnp.asarray(model.amplitude) * jnp.cos(model.omega * (o.time + h) + model.phase)
+            drive = model.at(o.time + h)
             effective_E, effective_B = E + model.eta * drive, B
         fields = p._fields_at(o.x, effective_E, effective_B, rho_half)
         u = p._accelerate(o.u, fields, o.qm, d.dt)

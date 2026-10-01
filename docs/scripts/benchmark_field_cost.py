@@ -9,6 +9,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
+from functools import partial
 from statistics import median
 from time import perf_counter
 
@@ -34,34 +35,42 @@ cells = globals().get("cells", 2000)
 dt = globals().get("dt", .005)
 seed = globals().get("seed", 0)
 initial_state = globals().get("initial_state", None)
+shape_order = globals().get("shape_order", 2)
 particles = globals().get("particles", 206000 if replay else 128)
 steps = globals().get("steps", 100 if replay else 16)
 stride = globals().get("stride", steps if replay else 4)
 output = Path(globals().get("output", "artifacts/reproducibility" if replay else OUTPUT))
 
 
-def numpy_deposit(x, amounts, first, dx, cells):
-    """Independent periodic quadratic deposition with serial NumPy accumulation."""
+def numpy_deposit(x, amounts, first, dx, cells, shape_order=2):
+    """Independent periodic spline deposition with serial NumPy accumulation."""
     coordinate = (x - first) / dx
-    nearest = np.floor(coordinate + .5).astype(np.int64)
-    offset = coordinate - nearest
-    weights = np.stack((.5 * (.5 - offset)**2, .75 - offset**2, .5 * (.5 + offset)**2), axis=1)
+    if shape_order == 2:
+        nearest = np.floor(coordinate + .5).astype(np.int64)
+        offset = coordinate - nearest
+        indices = nearest[:, None] + np.arange(-1, 2)
+        weights = np.stack((.5 * (.5 - offset)**2, .75 - offset**2, .5 * (.5 + offset)**2), axis=1)
+    elif shape_order == 5:
+        from scipy.interpolate import BSpline
+        indices = np.floor(coordinate).astype(np.int64)[:, None] + np.arange(-2, 4)
+        basis = BSpline.basis_element(np.arange(7) - 3, extrapolate=False)
+        weights = np.nan_to_num(basis(coordinate[:, None] - indices))
+    else:
+        raise ValueError('shape_order must be 2 or 5')
     result = np.zeros(cells, dtype=amounts.dtype)
-    for column, shift in enumerate((-1, 0, 1)):
-        np.add.at(result, (nearest + shift) % cells, amounts / dx * weights[:, column])
+    for column in range(weights.shape[1]):
+        np.add.at(result, indices[:, column] % cells, amounts / dx * weights[:, column])
     return result
 
 
-def measure_replay(cells, particles, dt, steps, stride, seed, initial_state):
+def measure_replay(cells, particles, dt, steps, stride, seed, initial_state, shape_order=2):
     """Test within-process repeatability; XLA_FLAGS must be set before importing JAX."""
     sys.path.insert(0, str(ROOT))
     from jaxincell._core import deposit
     from examples.dark_reservoir import array_fingerprint, paper_initial, paper_plasma
-    from docs.scripts.conservation import measured_run, snapshot
+    from docs.scripts.conservation import measured_run, parent_revision, snapshot
     jax.config.update("jax_enable_x64", True)
-    plasma, wp = paper_plasma(cells, particles, dt, seed)
-    if getattr(plasma.solver, 'shape_order', 2) != 2:
-        raise ValueError('the independent reproducibility check requires quadratic deposition')
+    plasma, wp = paper_plasma(cells, particles, dt, seed, shape_order=shape_order)
     field = mass_electron * c * wp / e
     sim = DarkSimulation(plasma, PrescribedDrive(1., jnp.array([.03 * np.sqrt(.001) * field, 0., 0.]), wp))
     start, fingerprints = paper_initial(sim, seed, initial_state)
@@ -98,10 +107,11 @@ def measure_replay(cells, particles, dt, steps, stride, seed, initial_state):
 
     d, charge_scale = plasma.domain, e * float(plasma.species[0].density)
     x, amounts = start.ordinary.x[:, 0], plasma.per_particle[1] * start.ordinary.w
-    charge = jax.jit(lambda positions, charges: deposit(positions, charges, d.grid[0], d.dx, cells, (0, 0)))
+    weighting = partial(deposit, shape_order=5) if shape_order == 5 else deposit
+    charge = jax.jit(lambda positions, charges: weighting(positions, charges, d.grid[0], d.dx, cells, (0, 0)))
     deposition, values = repeat(lambda: charge.lower(x, amounts), (x, amounts))
     rho = next(iter(values.values()))
-    expected = numpy_deposit(np.asarray(x), np.asarray(amounts), float(d.grid[0]), float(d.dx), cells)
+    expected = numpy_deposit(np.asarray(x), np.asarray(amounts), float(d.grid[0]), float(d.dx), cells, shape_order)
     error = float(np.max(abs(rho - expected)) / charge_scale)
     deposition.update(numpy_max_error_over_en=error, numpy_tolerance_over_en=1e-11, numpy_check_passed=error <= 1e-11,
                       integrated_charge_error_over_enL=float(
@@ -115,7 +125,8 @@ def measure_replay(cells, particles, dt, steps, stride, seed, initial_state):
         except metadata.PackageNotFoundError:
             packages[name] = None
     settings = dict(cells=cells, particles_per_species=particles, dt_omega_p=dt, steps=steps, stride=stride, seed=seed,
-                    drive_quiver_over_sigma=.03, coupling=None, initial_fingerprints=fingerprints,
+                    drive_quiver_over_sigma=.03, coupling=None, shape_order=shape_order,
+                    parent_revision=parent_revision(), initial_fingerprints=fingerprints,
                     initial_leaf_sha256={key: array_fingerprint(a) for key, a in arrays(start).items()},
                     initial_state_source='complete zero-time archive' if initial_state else 'native initialization',
                     XLA_FLAGS=' '.join(token if '/' not in token and '\\' not in token
@@ -229,7 +240,7 @@ if __name__ == "__main__":
     if replay:
         if storage or storage_all or all_cases:
             raise ValueError('replay must run alone in its process')
-        measure_replay(cells, particles, dt, steps, stride, seed, initial_state)
+        measure_replay(cells, particles, dt, steps, stride, seed, initial_state, shape_order)
     elif storage:
         print(json.dumps(measure_storage(storage, particles, steps, stride)))
     elif storage_all or all_cases:

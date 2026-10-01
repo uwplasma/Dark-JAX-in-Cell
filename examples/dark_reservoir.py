@@ -10,8 +10,10 @@ study preset; the paper preset uses 103,000 markers per species through 5,000.
 """
 
 import hashlib
+import os
 from pathlib import Path
 import resource
+import shlex
 import time
 
 import jax.numpy as jnp
@@ -21,6 +23,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.integrate import solve_ivp
+from scipy.interpolate import BSpline
 from scipy.linalg import expm
 from scipy.stats import linregress
 import sys
@@ -34,7 +37,7 @@ from darkjaxincell._proca import energy as dark_energy
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "docs" / "scripts"))
 from pair_reference import (coupled_response, growth, relativistic_response,
                             seeded_response)  # noqa: E402
-from conservation import coarse_spread, elapsed_progress, measured_run, snapshot  # noqa: E402
+from conservation import coarse_spread, elapsed_progress, measured_run, parent_revision, snapshot  # noqa: E402
 from drive_reference import forced_cold, gaussian_tangent, homogeneous  # noqa: E402
 
 
@@ -57,6 +60,7 @@ initial_state = None if initial_state is None else Path(initial_state)
 momentum_seed = globals().get('momentum_seed', 0.)  # Electron δu / initial σe; zero keeps the paper loading.
 seed_mode = globals().get('seed_mode', 16)
 seed_phase = globals().get('seed_phase', 0.)
+shape_order = globals().get('shape_order', 2)  # 5 selects the optional parent quintic weighting.
 
 
 def pair_plasma(cells, particles_per_cell, dtau, seed, relativistic=False):
@@ -178,7 +182,7 @@ def pair_experiment(cells, particles_per_cell, dtau, horizon, seed=2e-4,
                   [np.asarray(species[0].v[:, 0]), np.asarray(species[1].v[:, 0])])) / c))}
     settings = {"model": "ordinary neutral electron-positron waterbag",
                 "reference": "Cruz, Grismayer and Silva, arXiv:2104.04490, Fig. 2",
-                "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+                "parent_revision": parent_revision(),
                 "omega0_rad_s": omega_0, "omega_p_each_over_omega0": 1 / np.sqrt(2),
                 "length_c_over_omega0": 70, "cells": cells,
                 "particles_per_cell_per_species": particles_per_cell,
@@ -281,7 +285,7 @@ def pair_dark_experiment(cells, particles_per_cell, dtau, horizon,
               "max_final_speed_over_c": float(np.max(abs(final_velocity)) / c),
               "initial_dark_over_matched_ordinary_field_energy": 1 / eta**2}
     settings = {"model": "neutral waterbag pair plasma with a bare homogeneous Proca reservoir",
-                "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+                "parent_revision": parent_revision(),
                 "omega0_rad_s": omega_0, "length_c_over_omega0": 70,
                 "cells": cells, "particles_per_cell_per_species": particles_per_cell,
                 "dt_omega0": dtau, "horizon_omega0": float(t[-1]),
@@ -630,7 +634,7 @@ def paper_geometry_pilot(folder):
         plt.close(fig)
 
 
-def paper_plasma(cells, particles, dtau, seed, momentum_seed=0., seed_mode=16, seed_phase=0.):
+def paper_plasma(cells, particles, dtau, seed, momentum_seed=0., seed_mode=16, seed_phase=0., shape_order=2):
     """Appendix B plasma: RMS sigma, exact mass ratio, unseeded Gaussian velocities."""
     if not isinstance(cells, (int, np.integer)) or cells < 4:
         raise ValueError("paper cells must be an integer >= 4")
@@ -638,6 +642,8 @@ def paper_plasma(cells, particles, dtau, seed, momentum_seed=0., seed_mode=16, s
         raise ValueError("paper particles per species must be an integer >= 2")
     if not np.isfinite(dtau) or dtau <= 0:
         raise ValueError("paper dt must be finite and positive")
+    if shape_order not in (2, 5):
+        raise ValueError('paper shape_order must be 2 or 5')
     for value in (momentum_seed, seed_phase):
         if not isinstance(value, core.Tracer) and not np.isfinite(value):
             raise ValueError('physical momentum seed and phase must be finite')
@@ -663,8 +669,8 @@ def paper_plasma(cells, particles, dtau, seed, momentum_seed=0., seed_mode=16, s
             velocity = u / jnp.sqrt(1 + (u / c)**2)
         v = jnp.zeros((particles, 3)).at[:, 0].set(jnp.asarray(velocity))
         species.append(Species(name, particles, charge, mass, density, x=x, v=v))
-    return Simulation(Domain(length=length, cells=cells, time_step=dtau / wp),
-                      tuple(species), Solver(relativistic=True)), wp
+    solver = Solver(relativistic=True) if shape_order == 2 else Solver(relativistic=True, shape_order=5)
+    return Simulation(Domain(length=length, cells=cells, time_step=dtau / wp), tuple(species), solver), wp
 
 
 def array_fingerprint(array):
@@ -679,9 +685,10 @@ def seed_noise(plasma, ordinary, fraction, mode, phase):
     """Measure the initial physical seed against thermal current, without evolving particles."""
     d = plasma.domain
     s = plasma.solver
-    if (s.algorithm != 'explicit' or getattr(s, 'shape_order', 2) != 2 or s.filter_passes
+    order = getattr(s, 'shape_order', 2)
+    if (s.algorithm != 'explicit' or order not in (2, 5) or s.filter_passes
             or d.field_bc != (0, 0) or d.particle_bc != (0, 0)):
-        raise ValueError('seed current audit requires explicit, unfiltered periodic quadratic deposition')
+        raise ValueError('seed current audit requires explicit, unfiltered periodic quadratic/quintic deposition')
     u, w = np.asarray(ordinary.u), np.asarray(ordinary.w)
     mass, charge = map(np.asarray, plasma.per_particle)
     velocity = u / np.sqrt(1 + np.sum((u / c)**2, axis=1))[:, None]
@@ -694,10 +701,16 @@ def seed_noise(plasma, ordinary, fraction, mode, phase):
     amount = charge * w / (e * float(plasma.species[0].density) * d.length * c)
     centres = np.asarray(d.grid)
     coordinate = (x - centres[0]) / d.dx
-    nearest = np.floor(coordinate + .5).astype(int)
-    offset = coordinate - nearest
-    indices = (nearest[:, None] + np.array([-1, 0, 1])) % d.cells
-    derivative = np.stack((offset - .5, -2 * offset, offset + .5), axis=1) / d.dx
+    if order == 2:
+        nearest = np.floor(coordinate + .5).astype(int)
+        offset = coordinate - nearest
+        indices = nearest[:, None] + np.array([-1, 0, 1])
+        derivative = np.stack((offset - .5, -2 * offset, offset + .5), axis=1) / d.dx
+    else:
+        indices = np.floor(coordinate).astype(int)[:, None] + np.arange(-2, 4)
+        basis = BSpline.basis_element(np.arange(7) - 3, extrapolate=False)
+        derivative = np.nan_to_num(basis.derivative()(coordinate[:, None] - indices)) / d.dx
+    indices %= d.cells
     kernel = np.sum(derivative * np.exp(-1j * k * centres[indices]), axis=1)
     bases = dict(particle=np.exp(-1j * k * x),
                  continuity_face=-kernel / (1j * 2 * np.sin(k * d.dx / 2) / d.dx))
@@ -804,13 +817,13 @@ def seed_reference(history, amplitude, coupling, seed, mode, phase):
 
 def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
                block_horizon=None, local_moments=False, initial_state=None,
-               momentum_seed=0., seed_mode=16, seed_phase=0.):
+               momentum_seed=0., seed_mode=16, seed_phase=0., shape_order=2):
     """Hook Fig. 2 drive with reduced moments, work and both constraint ledgers."""
     if not np.isfinite(horizon) or horizon <= 0 or not np.isfinite(ratio) or ratio < 0:
         raise ValueError("paper horizon must be positive and drive ratio nonnegative, both finite")
     if eta is not None and (not np.isfinite(eta) or eta <= 0):
         raise ValueError("paper finite-reservoir coupling must be finite and positive")
-    plasma, wp = paper_plasma(cells, particles, dtau, seed, momentum_seed, seed_mode, seed_phase)
+    plasma, wp = paper_plasma(cells, particles, dtau, seed, momentum_seed, seed_mode, seed_phase, shape_order)
     amplitude = ratio * np.sqrt(1e-3)
     field_scale = mass_electron * c * wp / e
     force = amplitude * field_scale
@@ -914,10 +927,15 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
                     recorded_mode=seed_mode if momentum_seed else 1,
                     mode_basis='physical exp(-ikx) at faces' if momentum_seed else 'native fft index basis',
                     pusher='relativistic Boris; electric 1V uses the same momentum kick as Vay',
-                    shape='quadratic parent spline; paper uses fifth-order',
+                    shape='quadratic parent spline; paper uses fifth-order' if shape_order == 2
+                    else 'quintic cell weights with face-centred gather; not the complete SHARP algorithm',
+                    shape_order=shape_order,
+                    XLA_FLAGS=' '.join(token if '/' not in token and '\\' not in token
+                                       else token.split('=')[0] + '=<path omitted>'
+                                       for token in shlex.split(os.environ.get('XLA_FLAGS', ''))),
                     inferred_t_noise=(40 / (amplitude * np.sqrt(3 * particles * cells))
                                       if amplitude else None),
-                    parent_revision='83d327118163833f93e2588edcb5029241f6ba2a')
+                    parent_revision=parent_revision())
     with midnight():
         fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout='constrained')
         axes[0, 0].plot(t, history['electric'] - history['electric'][0], label='electric change')
@@ -962,7 +980,8 @@ if __name__ == "__main__":
     if study == 'paper':
         with elapsed_progress("Resonant replay"):
             paper_case(output, cells, particles, dt, horizon, seed, drive_ratio,
-                       coupling, block_horizon, local_moments, initial_state, momentum_seed, seed_mode, seed_phase)
+                       coupling, block_horizon, local_moments, initial_state,
+                       momentum_seed, seed_mode, seed_phase, shape_order)
     elif study == 'pair':
         pair_figure(output, full)
     elif study == 'pair_dark':

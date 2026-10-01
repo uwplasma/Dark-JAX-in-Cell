@@ -30,7 +30,7 @@ LOCAL_SERIES = ('local_spread', 'local_density_rms')
 PARAMETERS = ('cells', 'particles_per_species', 'seed', 'dt_omega_p', 'output_dt_omega_p',
               'length_c_over_omega_p', 'mass_ratio', 'T_each_over_mec2', 'coupling',
               'drive_quiver_over_sigma', 'force_quiver_over_c', 'loading', 'pusher', 'shape', 'parent_revision')
-VARIANTS = dict(repeat=None, dt='dt_omega_p', seed='seed', mesh='cells', loading='particles_per_species')
+VARIANTS = dict(repeat=None, dt='dt_omega_p', seed='seed', mesh='cells', loading='particles_per_species', shape='shape')
 
 
 def fingerprint(array):
@@ -158,8 +158,10 @@ def window_summary(data, selected, coupled=False):
 def _controls(records, data, variant, tolerance):
     """Equal horizons/cadences preserve sampling and compile-allocation controls."""
     settings = [record['settings'] for record in records]
-    for key in PARAMETERS:
-        if key != VARIANTS[variant] and settings[0][key] != settings[1][key]:
+    controls = [{'shape_order': 2, 'XLA_FLAGS': '', **row} for row in settings]
+    allowed = (VARIANTS[variant], 'shape_order' if variant == 'shape' else None)
+    for key in (*PARAMETERS, 'shape_order', 'XLA_FLAGS'):
+        if key not in allowed and controls[0][key] != controls[1][key]:
             raise ValueError(f'controlled comparisons must share {key}')
     for key in ('momentum_seed_over_sigma_e', 'seed_mode', 'seed_phase'):
         default = 0. if key == 'momentum_seed_over_sigma_e' else None

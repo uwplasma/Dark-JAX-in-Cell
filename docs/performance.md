@@ -326,3 +326,33 @@ With midpoint fields, compatible curls and the divergence/gradient adjoint cance
 Archive the complete initial state and fix dtype, package versions, chunk length, output shapes and sampling when comparing repeated execution. Reuse one compiled callable to separate execution variability from changes of executable. JAX specializes compilation to argument shapes and static values ([compilation guide](https://docs.jax.dev/en/latest/201/jit.html)); changing a static scan horizon can produce another executable. A fixed-shape chunk can be reused across longer runs, with output transferred between chunks.
 
 The parent deposit uses repeated-index `.at.add` updates, whose accumulation order can be implementation-dependent ([JAX indexing semantics](https://docs.jax.dev/en/latest/_autosummary/jax.numpy.ndarray.at.html)). That API permits variability but does not identify the cause of the observed prefix differences. [JAX's compatibility policy](https://docs.jax.dev/en/latest/api_compatibility.html#numerics-and-randomness) also leaves exact numerics and PRNG samples unguaranteed across versions. Record the archived inputs and compiled configuration before attributing a nonlinear trajectory difference to a particular operation.
+
+#### Bounded GPU repeatability test
+
+The [default](_static/figures/pic_reproducibility/default/run.json) and [flagged](_static/figures/pic_reproducibility/deterministic/run.json) controls use an RTX A4000, float64 and version 0.6.2 of JAX, jaxlib, CUDA12 plugin and PJRT. Both restore identical loading fingerprints and all **29 numerical initial-state leaves**. Each process compiles the quadratic deposit once and the prescribed-drive PIC run once, then calls each object three times from its original inputs. The PIC control has 2,000 cells, 206,000 particles per species, $\Delta t\omega_p=0.005$, 100 steps and initial/final scalar output: its horizon is only $0.5/\omega_p$.
+
+| Measurement | Default | `--xla_gpu_exclude_nondeterministic_ops` |
+|---|---:|---:|
+| Deposit compile (s) | {{ replay_default_deposition_compile_s }} | {{ replay_deterministic_deposition_compile_s }} |
+| Deposit warm median, range (ms) | {{ replay_default_deposition_warm }} | {{ replay_deterministic_deposition_warm }} |
+| Deposit compiler temporary memory (MiB) | {{ replay_default_deposition_compiler_temporary_MiB }} | {{ replay_deterministic_deposition_compiler_temporary_MiB }} |
+| PIC compile (s) | {{ replay_default_short_run_compile_s }} | {{ replay_deterministic_short_run_compile_s }} |
+| PIC warm median, range (s) | {{ replay_default_short_run_warm }} | {{ replay_deterministic_short_run_warm }} |
+| PIC compiler temporary memory (MiB) | {{ replay_default_short_run_compiler_temporary_MiB }} | {{ replay_deterministic_short_run_compiler_temporary_MiB }} |
+| Process peak RSS (MiB) | {{ replay_default_rss }} | {{ replay_deterministic_rss }} |
+| Three deposit outputs bitwise identical | No | Yes |
+| Three complete PIC outputs bitwise identical | No | Yes |
+| Independent NumPy deposit error, $\max\lvert\delta\rho\rvert/(en)$ | `{{ replay_default_numpy_max_error_over_en }}` | `{{ replay_deterministic_numpy_max_error_over_en }}` |
+| Integrated deposit charge error, $\lvert\delta Q\rvert/(enL)$ | `{{ replay_default_integrated_charge_error_over_enL }}` | `{{ replay_deterministic_integrated_charge_error_over_enL }}` |
+| Loading and complete initial leaf hashes | Identical between controls | Identical between controls |
+| Computation source | [3243e71](https://github.com/uwplasma/Dark-JAX-in-Cell/tree/3243e71731603f7f78b17c5f6c273820a3b9fe74) | Same |
+
+[Benchmark script](scripts/benchmark_field_cost.py) · `replay=True`, `cells=2000`, `particles=206000`, `steps=100`, `stride=100`, `dt=0.005`, `seed=0`, with `initial_state` pointing to the same complete zero-time archive. Set these named inputs in the script and use separate processes for the two controls. For the flagged process, set the environment before Python imports JAX:
+
+```sh
+XLA_FLAGS=--xla_gpu_exclude_nondeterministic_ops python docs/scripts/benchmark_field_cost.py
+```
+
+Warm times synchronize the device and exclude host copies and hashing. Ranges cover three calls, not confidence intervals; process RSS includes initialization, both kernels and host reference work. The deposit passes the independent $10^{-11}en$ tolerance in both controls. PIC equality compares all 51 returned numerical leaves, including final state, diagnostics and all-step maxima. The measured median cost ratios are {{ replay_deposition_cost_ratio }}× for deposition and {{ replay_short_run_cost_ratio }}× for this short PIC workload. They do not establish costs on other devices, shapes or long horizons, nor cross-process or cross-version bitwise agreement. This test leaves the cause of the earlier nonlinear trajectory differences unresolved; a long, matched-input comparison is still required before selecting a production setting.
+
+[JAX 0.6.2 pins XLA](https://github.com/jax-ml/jax/blob/jax-v0.6.2/third_party/xla/workspace.bzl#L22) to `3d5ece6`. At that revision, the [flag definition](https://github.com/openxla/xla/blob/3d5ece64321630dade7ff733ae1353fc3c83d9cc/xla/xla.proto#L501) and [upstream test](https://github.com/openxla/xla/blob/3d5ece64321630dade7ff733ae1353fc3c83d9cc/xla/service/gpu/determinism_test.cc#L225) distinguish deterministic execution from compilation autotuning: this exclusion flag keeps autotuning enabled. The [current OpenXLA guide](https://openxla.org/xla/determinism), updated July 2026, describes additional autotuning behavior and must not be treated as the pinned release's contract. Unsupported deterministic lowerings can reject compilation; the two recorded kernels compile successfully on the recorded package/device combination.

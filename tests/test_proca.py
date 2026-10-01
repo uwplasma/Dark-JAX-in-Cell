@@ -362,6 +362,19 @@ store_particles = false
     assert result["dark_gauss_max_V_m2"] is None
     assert np.isfinite(result["energy_drift"])
     assert result["max_balance_error_J_m2"] >= 0
+    check("[dark]\neta = 0.1\nomega = 1e9\ntimes = [0.0, 1e-9]\n", "belong")
+    sim, run = check("[dark]\nmodel = 'drive'\neta = 0.1\nomega = 0.0\n"
+                     "times = [0.0, 1e-9]\namplitude = [[1e-5, 0.0, 0.0], [0.0, 2e-5, 0.0]]\n")
+    np.testing.assert_allclose(sim.dark.at(.25e-9), [7.5e-6, 5e-6, 0.], atol=1e-20, rtol=0)
+    folder = tmp_path / "waveform"
+    assert main([str(source), "--save", str(folder)]) == 0
+    state = load_state(folder / "restart.npz", sim)
+    reference = sim.run(**run).state
+    np.testing.assert_allclose(state.ordinary.E, reference.ordinary.E, rtol=2e-13, atol=1e-18)
+    np.testing.assert_allclose(state.work, reference.work, rtol=2e-13, atol=1e-25)
+    with np.load(folder / "restart.npz", allow_pickle=False) as data:
+        assert data["dark.format"] == 3
+        np.testing.assert_array_equal(data["dark.times"], sim.dark.times)
 
 
 def test_compatible_kick_drift_and_continuity():
@@ -533,6 +546,201 @@ def test_prescribed_drive_requires_vector_amplitude():
     traced = jax.jit(lambda amplitude: DarkSimulation(
         base, PrescribedDrive(0.1, amplitude, OMEGA)).dark.amplitude)
     np.testing.assert_allclose(traced(jnp.array([1e-5, 0.0, 0.0])), [1e-5, 0, 0])
+
+
+def waveform_plasma():
+    """A cold neutral pair has an exact homogeneous, three-component response."""
+    length = 2 * np.pi * c / OMEGA
+    x, v = quiet_start(32, length)
+    populations = (Species.electrons(32, N_REF / 2).replace(x=x, v=v),
+                   Species("positive", 32, 1, mass_electron, N_REF / 2, x=x, v=v))
+    return Simulation(Domain(length, 8, time_step=.04 / OMEGA), populations)
+
+
+def waveform_reference(force, dt=.04):
+    """Independent cold leapfrog recurrence, in electron-plasma units."""
+    field, current, work, fields, currents = np.zeros(3), np.zeros(3), 0., [], []
+    for value in force:
+        midpoint = field - dt * current / 2
+        following = current + dt * (midpoint + value)
+        average = (current + following) / 2
+        field = midpoint - dt * following / 2
+        work += dt * np.dot(average, value)
+        fields.append(field.copy())
+        currents.append(average)
+        current = following
+    return np.asarray(fields), np.asarray(currents), current, work
+
+
+def test_tabulated_drive_interpolation_and_cosine_default():
+    knots = jnp.array([-.03, .13, .27])
+    values = jnp.array([[.02, -.01, .015], [-.01, .03, .005], [.025, .02, -.01]])
+    model = PrescribedDrive(.4, values, 0., times=knots)
+    queries = jnp.array([-.1, -.03, .05, .2, .27, .5])
+    expected = np.array([values[0], values[0], (values[0] + values[1]) / 2,
+                         (values[1] + values[2]) / 2, values[2], values[2]])
+    np.testing.assert_allclose(jax.vmap(model.at)(queries), expected, atol=2e-17, rtol=0)
+    base = plasma()
+    traced = jax.jit(lambda drive: DarkSimulation(base, drive).dark.at(.05))
+    np.testing.assert_allclose(traced(model), expected[2], atol=2e-17, rtol=0)
+    cosine = PrescribedDrive(.4, values[0], .7, .2)
+    for time in queries:
+        np.testing.assert_array_equal(cosine.at(time), values[0] * jnp.cos(.7 * time + .2))
+
+
+@pytest.mark.parametrize("times, amplitude, omega, phase, message", [
+    (0., np.zeros((2, 3)), 0., 0., "1D"),
+    ([0.], np.zeros((1, 3)), 0., 0., "two knots"),
+    ([[0., 1.]], np.zeros((2, 3)), 0., 0., "1D"),
+    ([0., np.nan], np.zeros((2, 3)), 0., 0., "finite"),
+    ([0., 0.], np.zeros((2, 3)), 0., 0., "increasing"),
+    ([1., 0.], np.zeros((2, 3)), 0., 0., "increasing"),
+    ([0j, 1j], np.zeros((2, 3)), 0., 0., "real"),
+    ([0., 1.], np.zeros(3), 0., 0., "knots, 3"),
+    ([0., 1.], np.full((2, 3), np.inf), 0., 0., "finite"),
+    ([0., 1.], np.zeros((2, 3)), 1., 0., "omega=phase=0"),
+    ([0., 1.], np.zeros((2, 3)), 0., .1, "omega=phase=0"),
+])
+def test_invalid_tabulated_drive(times, amplitude, omega, phase, message):
+    with pytest.raises(ValueError, match=message):
+        DarkSimulation(plasma(), PrescribedDrive(.4, amplitude, omega, phase, times))
+
+
+def test_tabulated_drive_neutral_impulse_current_constraints_and_work():
+    base, eta = waveform_plasma(), .4
+    scale = mass_electron * c * OMEGA / e
+    knots = np.array([-.03, .13, .27])
+    values = np.array([[.02, -.01, .015], [-.01, .03, .005], [.025, .02, -.01]])
+    force = eta * np.stack([np.interp((np.arange(8) + .5) * .04, knots, values[:, i])
+                            for i in range(3)], axis=1)
+    fields, currents, final_current, work = waveform_reference(force)
+    model = PrescribedDrive(eta, scale * values, 0., times=knots / OMEGA)
+    out = DarkSimulation(base, model).run(8)
+    energy_scale = N_REF * mass_electron * c**2 * base.domain.length
+    np.testing.assert_allclose(out.ordinary.E.mean(axis=1) / scale, fields, atol=2e-13, rtol=0)
+    np.testing.assert_allclose(out.ordinary.J.mean(axis=1) / (epsilon_0 * scale * OMEGA),
+                               currents, atol=2e-13, rtol=0)
+    np.testing.assert_allclose(out.state.ordinary.u[:32] / c, np.tile(-final_current, (32, 1)),
+                               atol=2e-13, rtol=0)
+    np.testing.assert_allclose(out.state.ordinary.u[32:] / c, np.tile(final_current, (32, 1)),
+                               atol=2e-13, rtol=0)
+    np.testing.assert_allclose(out.work[-1] / energy_scale, work, atol=2e-14, rtol=0)
+    # The explicit clock has a known modified-energy defect; do not hide it as exact physical energy.
+    np.testing.assert_allclose(out.energy()["closed_balance_error"][-1] / energy_scale,
+                               .04**2 * np.dot(final_current, final_current) / 8, atol=2e-14, rtol=0)
+    charge_scale = e * N_REF * base.domain.length
+    np.testing.assert_allclose(np.sum(np.asarray(out.ordinary.charge * out.state.ordinary.w)) / charge_scale,
+                               0., atol=2e-13, rtol=0)
+    np.testing.assert_allclose(out.ordinary.rho.sum(axis=1) * base.domain.dx / charge_scale,
+                               0., atol=2e-13, rtol=0)
+    momentum = np.sum(np.asarray(out.state.ordinary.w)[:, None]
+                      * np.asarray(out.state.ordinary.u), axis=0)
+    np.testing.assert_allclose(momentum / (N_REF * c * base.domain.length), 0., atol=2e-13, rtol=0)
+    assert float(out.state.max_ordinary_gauss) / (e * N_REF / epsilon_0) < 2e-13
+    assert out.state.E is None and float(out.state.max_dark_gauss) == 0
+    with pytest.raises(ValueError, match="no dark Gauss law"):
+        out.dark_gauss()
+
+
+def test_tabulated_drive_complete_restart_and_parameter_jump(tmp_path):
+    base = waveform_plasma()
+    model = PrescribedDrive(.4, jnp.array([[1e-5, 2e-5, -1e-5], [2e-5, -1e-5, 3e-5]]),
+                            0., times=jnp.array([0., .4 / OMEGA]))
+    sim = DarkSimulation(base, model)
+    whole, first = sim.run(8), sim.run(3)
+    path = save_state(tmp_path / "waveform", first.state, sim)
+    restored = load_state(path, sim)
+    jax.tree.map(lambda a, b: np.testing.assert_array_equal(a, b), restored, first.state)
+    tail = sim.run(5, state=restored)
+    np.testing.assert_allclose(tail.ordinary.E, whole.ordinary.E[3:], rtol=2e-13, atol=1e-18)
+    np.testing.assert_allclose(tail.work, whole.work[3:], rtol=2e-13, atol=1e-25)
+    for key in ("initial_ordinary", "initial_dark", "initial_projection_norm", "background"):
+        np.testing.assert_array_equal(getattr(tail.state, key), getattr(whole.state, key))
+    np.testing.assert_allclose(tail.state.ordinary.u, whole.state.ordinary.u, rtol=2e-13, atol=1e-12)
+    np.testing.assert_array_equal(tail.state.ordinary.time, whole.state.ordinary.time)
+    assert int(tail.state.ordinary.steps) == 8
+    with np.load(path, allow_pickle=False) as data:
+        saved = {key: data[key] for key in data.files}
+    assert saved["dark.format"] == 3
+    np.testing.assert_array_equal(saved["dark.times"], model.times)
+    np.testing.assert_array_equal(saved["dark.amplitude"], model.amplitude)
+    for changed, key in ((model.replace(times=model.times * 1.1), "times"),
+                         (model.replace(amplitude=2 * model.amplitude), "amplitude")):
+        following = DarkSimulation(base, changed)
+        with pytest.raises(ValueError, match=f"dark.{key}"):
+            load_state(path, following)
+        continuation = load_for_continuation(path, sim, following)
+        np.testing.assert_array_equal(continuation.ordinary.E, first.state.ordinary.E)
+        assert float(continuation.ordinary.time) == float(first.state.ordinary.time)
+        assert float(continuation.work) == float(continuation.max_balance_error) == 0
+    del saved["dark.times"]
+    np.savez(path, **saved)
+    with pytest.raises(ValueError, match="dark.times"):
+        load_state(path, sim)
+    cosine = DarkSimulation(base, PrescribedDrive(.4, jnp.array([1e-5, 0., 0.]), 0.))
+    path = save_state(tmp_path / "cosine", cosine.initial_state(jax.random.PRNGKey(0))[0], cosine)
+    with np.load(path, allow_pickle=False) as data:
+        assert data["dark.format"] == 2 and "dark.times" not in data.files
+    assert load_for_continuation(path, cosine, sim).E is None
+    different = base.replace(species=tuple(s.replace(n=64, x=None, v=None) for s in base.species))
+    with pytest.raises(ValueError, match="populations"):
+        load_for_continuation(path, cosine, DarkSimulation(different, model))
+
+
+@pytest.mark.parametrize("order", [2, 5])
+def test_tabulated_drive_continuation_preserves_particle_shape(tmp_path, order):
+    base = waveform_plasma()
+    if not hasattr(base.solver, "shape_order"):
+        pytest.skip("requires the optional quintic parent feature")
+    model = PrescribedDrive(.4, jnp.zeros((2, 3)), 0., times=jnp.array([0., .4 / OMEGA]))
+    previous = DarkSimulation(base.replace(solver=base.solver.replace(shape_order=order)), model)
+    following = DarkSimulation(base.replace(solver=base.solver.replace(shape_order=7 - order)), model)
+    state, _ = previous.initial_state(jax.random.PRNGKey(0))
+    path = save_state(tmp_path / "shape", state, previous)
+    # A drive parameter jump retains the spatial discretization of the saved charge/current.
+    with pytest.raises(ValueError, match="shape_order"):
+        load_state(path, following)
+    with pytest.raises(ValueError, match="shape_order"):
+        load_for_continuation(path, previous, following)
+
+
+def test_tabulated_drive_physical_objective_has_independent_frechet_derivative():
+    base = waveform_plasma()
+    field_scale = mass_electron * c * OMEGA / e
+    energy_scale = N_REF * mass_electron * c**2 * base.domain.length
+    knots = np.array([-.03, .13, .37])
+    values = np.array([[.02, -.01, .015], [-.01, .03, .005], [.025, .02, -.01]])
+    direction = np.array([[.01, .03, -.02], [-.01, .01, .02], [.02, -.02, .01]])
+    knot_direction, eta, eta_direction = np.array([.02, -.01, .01]), .4, .03
+
+    def objective(samples, coupling, times):
+        drive = PrescribedDrive(coupling, field_scale * samples, 0., times=times / OMEGA)
+        return DarkSimulation(base, drive).run(8, store_particles=False).energy()["total"][-1] / energy_scale
+
+    force, tangent = [], []
+    for time in (np.arange(8) + .5) * .04:
+        left = np.searchsorted(knots, time) - 1
+        alpha = (time - knots[left]) / (knots[left + 1] - knots[left])
+        value = (1 - alpha) * values[left] + alpha * values[left + 1]
+        d_alpha = -((1 - alpha) * knot_direction[left] + alpha * knot_direction[left + 1]) / (
+            knots[left + 1] - knots[left])
+        change = ((1 - alpha) * direction[left] + alpha * direction[left + 1]
+                  + (values[left + 1] - values[left]) * d_alpha)
+        force.append(eta * value)
+        tangent.append(eta * change + eta_direction * value)
+    fields, _, current, _ = waveform_reference(force)
+    d_fields, _, d_current, _ = waveform_reference(tangent)
+    expected = np.dot(fields[-1], d_fields[-1]) + np.dot(current, d_current)
+    value, derivatives = jax.value_and_grad(objective, argnums=(0, 1, 2))(values, eta, knots)
+    automatic = np.sum(derivatives[0] * direction) + derivatives[1] * eta_direction + np.dot(
+        derivatives[2], knot_direction)
+    np.testing.assert_allclose(value, .5 * (np.dot(fields[-1], fields[-1]) + np.dot(current, current)),
+                               atol=2e-14, rtol=0)
+    np.testing.assert_allclose(automatic, expected, atol=2e-13, rtol=1e-10)
+    h = 2e-5
+    finite = (objective(values + h * direction, eta + h * eta_direction, knots + h * knot_direction)
+              - objective(values - h * direction, eta - h * eta_direction, knots - h * knot_direction)) / (2 * h)
+    np.testing.assert_allclose(automatic, finite, atol=2e-12, rtol=2e-7)
 
 
 def test_continuation_requires_matching_complete_field_state():

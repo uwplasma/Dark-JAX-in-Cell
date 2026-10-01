@@ -70,7 +70,7 @@ A prescribed dark drive is a separate external-force control with a work ledger;
 
 ## Numerical method and constraints
 
-The solver is periodic, explicit **1D3V PIC**: fields vary along one spatial coordinate, while particles carry three velocity components. At each step, JAX-in-Cell's quadratic, three-cell weighting transfers charge to the grid and gathers fields back to particles. Current deposition balances changing cell charge with current flowing across cell faces and preserves the box's physical mean current. A Boris push advances particles in the combined ordinary and dark Lorentz force.
+The solver is periodic, explicit **1D3V PIC**: fields vary along one spatial coordinate, while particles carry three velocity components. JAX-in-Cell transfers charge and gathers fields with quadratic, three-cell weights by default; `Solver(shape_order=5)` selects six-cell quintic weights. Current deposition balances changing cell charge with current flowing across cell faces and preserves the box's physical mean current. A Boris push advances particles in the combined ordinary and dark Lorentz force. [Weighting and its SHARP comparison](docs/physics.md#particle-weighting) describe the optional scheme and its validation limits.
 
 The ordinary electric and magnetic fields follow staggered Ampère and Faraday updates. Dark $\mathbf E_D,\mathbf A_D$ live on grid faces and $\mathbf B_D,\phi_D$ at cell centres; symmetric Proca kick and drift updates surround the particle push. Initialization projects the longitudinal dark electric field onto Gauss' law and reports the correction size. Charge-conserving current and compatible grid derivatives then carry both Gauss constraints through the run, while the potential update maintains $\mathbf B_D=\nabla\times\mathbf A_D$. The energy ledger includes particle, Maxwell and full Proca field and potential energies, referenced to the actual initial state; all-step conservation and Gauss maxima survive sparse output and restart. The examples use collisionless particles and unsmoothed sources. [Discrete equations, stability and measured energy drift](docs/physics.md) describe the scheme in detail.
 
@@ -329,6 +329,12 @@ The [field tests](tests/test_proca.py) compare longitudinal and both transverse 
 The [isolated field-step benchmark](docs/_static/figures/field_cost.json) uses 8,192 particles on 128 cells for 256 steps: median warm CPU times are **176 ms** for the parent and **219 ms** for active Proca. A [131,072-particle replay](docs/_static/figures/field_cost_large.json) gives **5.30 s** and **5.71 s**, with host load varying too much to infer a reliable overhead ratio. These are *timing workloads*; the two-stream movie advances 262,144 particles, and the refined kinetic bump run advances 240,000. A separate [955-step gradient recurrence](docs/_static/figures/recurrence_benchmark.json) compares native JAX checkpointing with SOLVAX. SOLVAX agrees on value and derivative but offers no clear benefit over native segmented JAX, so it remains optional. [Compile, memory and device details](docs/performance.md) are reported with the measurements.
 
 [Field and storage benchmark](docs/scripts/benchmark_field_cost.py); [gradient recurrence benchmark](docs/scripts/benchmark_recurrence.py). Their input blocks select the recorded workloads.
+
+### GPU execution repeatability
+
+On an RTX A4000 with JAX/CUDA packages 0.6.2, three calls to one compiled deposition kernel and one compiled **100-step, 412,000-particle PIC run** produce different bits under default settings. With `--xla_gpu_exclude_nondeterministic_ops`, all three outputs match bitwise in each kernel. Median PIC time changes from **0.422 s to 2.296 s (5.44×)**. Both controls restore identical archived inputs; this short test does not establish late-time convergence or explain earlier trajectory differences. [Timings, correctness and version-specific limits](docs/performance.md#bounded-gpu-repeatability-test).
+
+[Benchmark script](docs/scripts/benchmark_field_cost.py) · `replay=True`, `cells=2000`, `particles=206000`, `steps=100`, `stride=100`, `dt=0.005`. Set `XLA_FLAGS=--xla_gpu_exclude_nondeterministic_ops` before starting Python for the flagged control; [complete input protocol](docs/performance.md#bounded-gpu-repeatability-test).
 
 ## Related codes and scope
 

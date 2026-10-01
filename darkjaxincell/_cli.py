@@ -33,7 +33,8 @@ def load_toml(path, *, eta=None, omega=None):
     if re.search(r"(?m)^\s*\[", source[match.end():]):
         raise ValueError("[dark] must be the final table")
     dark = tomllib.loads(section)["dark"]
-    unknown = set(dark) - {"model", "omega", "eta", "initial_E", "initial_A", "initial_phi", "amplitude", "phase"}
+    unknown = set(dark) - {
+        "model", "omega", "eta", "initial_E", "initial_A", "initial_phi", "amplitude", "phase", "times"}
     if unknown:
         raise ValueError(f"unknown [dark] keys: {', '.join(sorted(unknown))}")
     with tempfile.NamedTemporaryFile(mode="w", suffix=".toml") as plasma_file:
@@ -53,8 +54,8 @@ def load_toml(path, *, eta=None, omega=None):
 def _dark_model(dark, cells, coupling, frequency):
     """Make the selected dark field while rejecting mode-specific stray keys."""
     if dark.get("model", "field") == "field":
-        if "amplitude" in dark or "phase" in dark:
-            raise ValueError("amplitude and phase belong to model = 'drive'")
+        if any(name in dark for name in ("amplitude", "phase", "times")):
+            raise ValueError("amplitude, phase and times belong to model = 'drive'")
         shape = (cells, 3)
         fields = {name: jnp.broadcast_to(jnp.asarray(dark[name], float), shape)
                   for name in ("initial_E", "initial_A") if name in dark}
@@ -67,7 +68,8 @@ def _dark_model(dark, cells, coupling, frequency):
         if "amplitude" not in dark:
             raise ValueError("a prescribed drive needs amplitude")
         return PrescribedDrive(coupling, jnp.asarray(dark["amplitude"], float),
-                               frequency, dark.get("phase", 0.0))
+                               frequency, dark.get("phase", 0.0),
+                               None if "times" not in dark else jnp.asarray(dark["times"], float))
     raise ValueError("[dark] model must be 'field' or 'drive'")
 
 
