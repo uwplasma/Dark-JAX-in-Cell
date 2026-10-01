@@ -293,10 +293,11 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
             if 'local_spread' in data:
                 for species, name, species_color in ((0, 'electrons', '#6A3D9A'), (1, 'ions', '#009E73')):
                     spread = data['local_spread'][:, species, 0] / data['local_spread'][0, species, 0]
-                    axes[0, 1].plot(time, spread, style, color=species_color, label=f'{name}, {label}')
+                    axes[0, 1].plot(time, spread, style, color=species_color,
+                                    label=name if index == 0 else '_nolegend_')
                     density = data['local_density_rms'][:, species, 0]
                     axes[1, 0].plot(time[trim], average(density), style, color=species_color,
-                                    label=f'{name}, {label}')
+                                    label=name if index == 0 else '_nolegend_')
             defect = (data['balance'] - data['balance'][0]) / max(abs(data['work']).max(), 1e-30)
             axes[1, 1].plot(time, defect, style, color=color, label=label)
         axes[0, 0].set(ylabel=r'$U_{E,k\ne0}/(nT_{e0}L/2)$', title='Nonzero-mode electric energy',
@@ -316,7 +317,8 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
         settings = dict(variant=comparison['variant'], parent_revision=sources[0][0]['settings']['parent_revision'],
                         figure_average_samples=width, figure_average_span_omega_p=width * np.median(np.diff(time)),
                         figure_note='Faint energy traces are raw; energy and density averages trim endpoints. '
-                                    'Local spread is raw; all comparison metrics use raw native samples.')
+                                    'Local spread is raw; line styles identify controls, purple/green identify '
+                                    'electrons/ions. All comparison metrics use raw native samples.')
         result = dict(comparison=comparison, native_runs=[source[0] for source in sources],
                       claim='Controlled numerical sensitivity study; no convergence or statistical uncertainty claim')
         if refinement is not None:
