@@ -17,6 +17,7 @@ import platform
 import resource
 import sys
 from time import perf_counter
+from types import SimpleNamespace
 
 import jax
 import jax.numpy as jnp
@@ -245,9 +246,10 @@ def load_plasma(args):
 
 
 def benchmark(args):
-    from examples.dark_reservoir import array_fingerprint
+    from examples.dark_reservoir import array_fingerprint, save_compressed_state
     plasma, initial = load_plasma(args)
     drive = PrescribedDrive(1., jnp.array([args.amplitude * FIELD, 0., 0.]), WP)
+    archive_model = SimpleNamespace(plasma=plasma, dark=drive)
     stride = max(1, round(.1 / args.dt))
     steps = stride * round(args.horizon / (stride * args.dt))
     jax.block_until_ready(initial)
@@ -258,6 +260,7 @@ def benchmark(args):
     loading_fingerprints = {species.name: {key: array_fingerprint(getattr(species, key))
                                            for key in ("x", "v")} for species in plasma.species}
     scale = N * m * c**2 * plasma.domain.length
+    save_compressed_state(args.output / "initial_state.npz", initial, archive_model)
     start = perf_counter()
     executable = run_drive.lower(plasma, initial, drive, steps, stride).compile()
     compile_seconds = perf_counter() - start
@@ -270,6 +273,7 @@ def benchmark(args):
         # Transfers and scalar postprocessing are outside the synchronized timer.
         executions.append({key: np.asarray(history[key]).copy()
                            for key in ("t", "mean_E", "current", "nonzero_electric", "momentum")})
+    save_compressed_state(args.output / "final_state.npz", final, archive_model)
     history = jax.tree.map(np.asarray, history)
     t, electric = history["t"] * WP, history["mean_E"] / FIELD
     oracle_nodes = 64 if args.paper_loading else max(64, args.nodes)
@@ -394,6 +398,8 @@ def benchmark(args):
                         wp_rad_s=WP, mass_ratio=MASS_RATIO, particles_per_species=plasma.species[0].n,
                         length_over_c_wp=float(plasma.domain.length * WP / c),
                         steps=steps, store_every=stride, actual_horizon=float(t[-1]),
+                        native_archives=["initial_state.npz", "final_state.npz"],
+                        archive_final_execution=args.samples,
                         initial_fingerprints=fingerprints, position_time="native implicit integer time",
                         physical_loading_fingerprints=loading_fingerprints,
                         trace_scales=("E: me c wp/e; J: epsilon0 Eref wp; "

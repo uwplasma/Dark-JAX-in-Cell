@@ -10,10 +10,11 @@ import pytest
 from jaxincell import Solver, epsilon_0
 from jaxincell._core import deposit, E_x_from_rho
 
-from darkjaxincell import PrescribedDrive
+from darkjaxincell import PrescribedDrive, load_state
 from darkjaxincell._proca import divergence
 from docs.scripts.conservation import snapshot
 from docs.scripts.drive_reference import forced_cold, homogeneous
+from examples.dark_reservoir import save_compressed_state
 from docs.scripts.benchmark_implicit_drive import (
     FIELD, N, WP, c, m, e, drive_state, homogeneous_box, implicit_drive_step,
     objective, run_drive, sample, tangent_reference, load_plasma, norm_errors, crossings,
@@ -124,13 +125,17 @@ def test_relativistic_warm_response_and_all_step_constraints():
     assert float(maxima[6]) * c / scale < 1e-12
 
 
-def test_stride_and_restart_preserve_absolute_phase_and_work_ledger():
+def test_stride_and_restart_preserve_absolute_phase_and_work_ledger(tmp_path):
     p, state = homogeneous_box(nodes=4)
     model = cosine()
     dense, history, maxima = run_drive(p, state, model, 64, 1)
     sparse, reduced, sparse_max = run_drive(p, state, model, 64, 8)
     first, _, _ = run_drive(p, state, model, 32, 8)
-    restarted, resumed, _ = run_drive(p, first, model, 32, 8)
+    metadata = SimpleNamespace(plasma=p, dark=model)
+    save_compressed_state(tmp_path / 'midpoint.npz', first, metadata)
+    restored = load_state(tmp_path / 'midpoint.npz', metadata)
+    jax.tree.map(np.testing.assert_array_equal, first, restored)
+    restarted, resumed, _ = run_drive(p, restored, model, 32, 8)
     for other in (sparse, restarted):
         assert_state_close(dense, other, p)
     energy = N * m * c**2 * p.domain.length
