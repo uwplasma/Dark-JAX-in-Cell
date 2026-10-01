@@ -217,12 +217,13 @@ def norm_errors(t, observed, reference):
     results = {}
     for end, mask in windows(t):
         delta, baseline = observed[mask] - reference[mask], reference[mask]
-        error, norm = float(np.linalg.norm(delta)), float(np.linalg.norm(baseline))
+        error, norm = np.linalg.norm(delta, axis=0), np.linalg.norm(baseline, axis=0)
+        relative = np.divide(error, norm, out=np.full_like(error, np.nan), where=norm > 0)
         results[end] = dict(samples=int(mask.sum()), final_time=float(t[mask][-1]),
-                            difference_l2=error, reference_l2=norm,
-                            observed_l2=float(np.linalg.norm(observed[mask])),
-                            max_abs_difference=float(np.max(abs(delta))),
-                            relative_l2=error / norm if norm else None)
+                            difference_l2=error.tolist(), reference_l2=norm.tolist(),
+                            observed_l2=np.linalg.norm(observed[mask], axis=0).tolist(),
+                            max_abs_difference=np.max(abs(delta), axis=0).tolist(),
+                            relative_l2=np.where(np.isfinite(relative), relative, None).tolist())
     return results
 
 
@@ -264,15 +265,18 @@ def benchmark(args):
     start = perf_counter()
     executable = run_drive.lower(plasma, initial, drive, steps, stride).compile()
     compile_seconds = perf_counter() - start
+    print(f"Compiled in {compile_seconds:.2f} s; {args.samples + 1} executions of {steps} steps", flush=True)
     timings, executions = [], []
+    trace_keys = ("mean_E", "current", "nonzero_electric", "momentum", "mean", "rms")
     for _ in range(args.samples + 1):
         start = perf_counter()
         final, history, maxima = executable(plasma, initial, drive)
         jax.block_until_ready((final, history, maxima))
         timings.append(perf_counter() - start)
+        print(f"Execution {len(timings)}/{args.samples + 1}: {timings[-1]:.3f} s", flush=True)
         # Transfers and scalar postprocessing are outside the synchronized timer.
         executions.append({key: np.asarray(history[key]).copy()
-                           for key in ("t", "mean_E", "current", "nonzero_electric", "momentum")})
+                           for key in ("t", *trace_keys)})
     save_compressed_state(args.output / "final_state.npz", final, archive_model)
     history = jax.tree.map(np.asarray, history)
     t, electric = history["t"] * WP, history["mean_E"] / FIELD
@@ -293,9 +297,11 @@ def benchmark(args):
         execution["current"] /= epsilon_0 * FIELD * WP
         execution["nonzero_electric"] /= scale
         execution["momentum"] *= c / scale
+        execution["mean"] /= c
+        execution["rms"] /= c
         np.testing.assert_array_equal(execution["t"], t)
     variability = [{key: norm_errors(t, execution[key], executions[0][key])
-                    for key in ("mean_E", "current", "nonzero_electric", "momentum")}
+                    for key in trace_keys}
                    for execution in executions[1:]]
     oracle_windows = dict(mean_E=norm_errors(t, electric, reference["mean_E"]),
                           current=norm_errors(t, current, oracle_current), phase={})
@@ -402,18 +408,23 @@ def benchmark(args):
                         archive_final_execution=args.samples,
                         initial_fingerprints=fingerprints, position_time="native implicit integer time",
                         physical_loading_fingerprints=loading_fingerprints,
+                        species_order=[species.name for species in plasma.species],
                         trace_scales=("E: me c wp/e; J: epsilon0 Eref wp; "
-                                      "nonzero energy: n me c² L; momentum: n me c L"),
+                                      "nonzero/kinetic/spread energy: n me c² L; momentum: n me c L; mean/rms: c"),
+                        velocity_spread_energy_definition="0.5 (ms/me) (sigma_s/c)²; lab frame, each species' "
+                                                          "global mean removed; not a relativistic temperature",
                         thermal_parameter_definition="Gaussian velocity sigma_e squared / c squared")
         arrays = dict(t=t, electric=electric, oracle_E=reference["mean_E"], phase_error=phase_error,
                       phase_resolved=phase_resolved, balance=(history["balance"] - initial.initial_ordinary) / scale,
                       work=history["work"] / scale, oracle_work=reference["work"], current=current,
                       nonzero_electric=history["nonzero_electric"] / scale,
                       momentum=history["momentum"] * c / scale,
+                      mean=history["mean"] / c, rms=history["rms"] / c, kinetic=history["kinetic"] / scale,
+                      velocity_spread_energy=.5 * np.array([1., MASS_RATIO]) * (history["rms"] / c)**2,
                       phase_radius=abs(z), oracle_phase_radius=abs(exact))
         arrays.update({f"execution_{index}_{key}": execution[key]
                        for index, execution in enumerate(executions)
-                       for key in ("mean_E", "current", "nonzero_electric", "momentum")})
+                       for key in trace_keys})
         save_run(args.output, "implicit_drive", settings, result, figure, **arrays)
         np.savez_compressed(args.output / "data.npz", **arrays)
         plt.close(figure)

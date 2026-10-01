@@ -203,3 +203,10 @@ def test_execution_comparisons_keep_zero_norms_and_native_sample_endpoints():
     values = np.r_[np.zeros(20), np.full(31, 1e-9)]
     assert crossings(time, values)['1e-12'] == 20.
     assert crossings(time, values)['0.0001'] is None
+    vector = np.column_stack((np.ones(51), np.full(51, 3.)))
+    reference = np.column_stack((np.zeros(51), np.ones(51)))
+    metrics = norm_errors(time, vector, reference)['50']
+    np.testing.assert_allclose(metrics['difference_l2'], np.sqrt(51) * np.array([1., 2.]))
+    assert metrics['relative_l2'] == [None, 2.]
+    assert metrics['max_abs_difference'] == [1., 2.]
+    json.dumps(metrics, allow_nan=False)
