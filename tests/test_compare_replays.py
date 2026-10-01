@@ -185,15 +185,19 @@ def test_cross_method_native_units_and_momentum_offset(method_records):
     assert str(method_records[0]) not in json.dumps(result, allow_nan=False)
 
 
-@pytest.mark.parametrize('change', ['clock', 'initial', 'amplitude', 'runtime', 'finite'])
+@pytest.mark.parametrize('change', ['clock', 'initial', 'amplitude', 'runtime', 'finite', 'shape', 'execution'])
 def test_cross_method_mismatches_are_rejected(method_records, change):
     path = method_records[1]
-    if change in ('clock', 'finite'):
+    if change in ('clock', 'finite', 'shape', 'execution'):
         with np.load(path / 'data.npz') as stored:
             data = dict(stored)
         data['t'][1] += .001 if change == 'clock' else 0
         if change == 'finite':
             data['electric'][2] = np.nan
+        if change == 'shape':
+            data['electric'] = data['electric'][:, None]
+        if change == 'execution':
+            data['execution_0_mean_E'] = np.zeros((5, 1))
         np.savez_compressed(path / 'data.npz', **data)
     else:
         record = json.loads((path / 'run.json').read_text())

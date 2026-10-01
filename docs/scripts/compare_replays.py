@@ -235,7 +235,15 @@ def compare_replays(first, second, variant='repeat', windows=WINDOWS, legacy=Fal
     return result
 
 
-def publish(first, second, folder, comparison, refined=None, refined_variant='dt'):
+def _replay_label(settings, variant, index):
+    """Name the measured resolution and the controlled seed or execution."""
+    if variant in ('repeat', 'dt'):
+        label = f"Δtωₚ={settings['dt_omega_p']:g}"
+        return label + f', execution {index + 1}' if variant == 'repeat' and index < 2 else label
+    return f"{settings['cells']} cells, {settings['particles_per_species'] // 1000}k/species, seed {settings['seed']}"
+
+
+def publish(first, second, folder, comparison, refined=None, refined_variant='dt', loading_refined=None):
     """Render saved scalars through the parent figure/provenance path; no dynamics."""
     import matplotlib
     matplotlib.use('Agg')
@@ -249,6 +257,11 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
         refinement = compare_replays(first, refined, variant=refined_variant,
                                      constraints='endpoint_constraints' in comparison)
         sources.append(_load(refined, 1e-5))
+    loading = None
+    if loading_refined is not None:
+        loading = compare_replays(second, loading_refined, variant='loading',
+                                  constraints='endpoint_constraints' in comparison)
+        sources.append(_load(loading_refined, 1e-5))
     time = sources[0][1]['t']
     width = max(1, round(2 * np.pi / sources[0][0]['settings']['output_dt_omega_p']))
     trim = slice(width, -width)
@@ -259,12 +272,8 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
     with midnight():
         figure, axes = plt.subplots(2, 2, figsize=(10, 7), layout='constrained')
         for index, (record, data, _, _) in enumerate(sources):
-            settings = record['settings']
-            label = (f"Δtωₚ={settings['dt_omega_p']:g}" if comparison['variant'] in ('repeat', 'dt')
-                     else f"{settings['cells']} cells, seed {settings['seed']}")
-            if comparison['variant'] == 'repeat' and index < 2:
-                label += f', execution {index + 1}'
-            style, color = ('-', '--', ':')[index], ('#0072B2', '#D55E00', '#009E73')[index]
+            label = _replay_label(record['settings'], comparison['variant'], index)
+            style, color = ('-', '--', ':', '-.')[index], ('#0072B2', '#D55E00', '#009E73', '#6A3D9A')[index]
             raw = data['nonzero_electric'] / .0005
             axes[0, 0].plot(time, raw, color=color, alpha=.15, lw=.5)
             axes[0, 0].plot(time[trim], average(raw), style, color=color, label=label)
@@ -287,7 +296,7 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
             axis.set(xlabel=r'$\omega_pt$', xlim=(0, time[-1]))
             axis.grid(alpha=.25)
             axis.legend(fontsize=8)
-        arrays = {f'{name}_{key}': value for name, source in zip(('first', 'second', 'refined'), sources)
+        arrays = {f'{name}_{key}': value for name, source in zip(('first', 'second', 'refined', 'loading'), sources)
                   for key, value in source[1].items()}
         settings = dict(variant=comparison['variant'], parent_revision=sources[0][0]['settings']['parent_revision'],
                         figure_average_samples=width, figure_average_span_omega_p=width * np.median(np.diff(time)),
@@ -297,6 +306,8 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
                       claim='Controlled numerical sensitivity study; no convergence or statistical uncertainty claim')
         if refinement is not None:
             result['refinement_comparison'] = refinement
+        if loading is not None:
+            result['loading_comparison'] = loading
         save_run(folder, 'controlled_paper_replay', settings, result, figure, **arrays)
         np.savez_compressed(Path(folder) / 'data.npz', **arrays)
         plt.close(figure)
@@ -337,6 +348,13 @@ def implicit_comparison(explicit, implicit, tolerance=1e-5):
     record = json.loads((path / 'run.json').read_text())
     with np.load(path / 'data.npz', allow_pickle=False) as stored:
         data = dict(stored)
+    count = len(data['t'])
+    for key, value in data.items():
+        shape = ((count, 3) if key.endswith('momentum') else (count, 2)
+                 if key in ('mean', 'rms', 'kinetic', 'velocity_spread_energy')
+                 or key.endswith(('_mean', '_rms')) else (count,))
+        if value.shape != shape or not np.all(np.isfinite(value)):
+            raise ValueError(f'implicit {key} requires finite native shape {shape}')
     matches = _implicit_controls(ordinary[0], record)
     a, b = ordinary[0]['settings'], record['settings']
     time = ordinary[1]['t']
@@ -378,6 +396,7 @@ def implicit_comparison(explicit, implicit, tolerance=1e-5):
                   native_data_sha256=[ordinary[2], hashlib.sha256((path / 'data.npz').read_bytes()).hexdigest()],
                   notes='Raw native samples, no interpolation or phase alignment. Momentum subtracts each '
                         'actual initial value. Energy is normalized by n me c² L and momentum by n me c L. '
+                        'The peak-work denominator uses the common output cadence, not all-step work. '
                         'Implicit all-step maxima describe its final timed call; its repeat traces use one '
                         'compiled callable. No species-heating estimate is inferred from field/work histories. '
                         'Cross-method differences do not establish convergence or identify an error cause.')
@@ -393,17 +412,19 @@ def publish_implicit(explicit, implicit, folder, refined=None):
     from jaxincell import save_run
 
     result, native, record, first, second, raw = implicit_comparison(explicit, implicit)
-    records, series = [native, record], [('explicit .01', first), ('implicit .01, warm', second)]
+    explicit_label = f"explicit Δtωₚ={native['settings']['dt_omega_p']:g}"
+    implicit_label = f"implicit Δtωₚ={record['settings']['dt']:g}"
+    records, series = [native, record], [(explicit_label, first), (implicit_label + ', warm', second)]
     if refined is not None:
         compare_replays(explicit, refined, variant='dt')
         refinement, fine_record, _, fine, _, _ = implicit_comparison(refined, implicit)
         result['refined_method_comparison'] = refinement
         records.append(fine_record)
-        series.append(('explicit .005', fine))
+        series.append((f"explicit Δtωₚ={fine_record['settings']['dt_omega_p']:g}", fine))
     initial = dict(t=raw['t'], mean_E=raw['execution_0_mean_E'],
                    nonzero_electric=raw['execution_0_nonzero_electric'],
                    momentum=raw['execution_0_momentum'] - raw['execution_0_momentum'][0])
-    series.append(('implicit .01, first', initial))
+    series.append((implicit_label + ', first', initial))
     colors = ('#0072B2', '#6A3D9A', '#009E73', '#D55E00')
     with midnight():
         fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout='constrained')
@@ -455,14 +476,15 @@ def main():
     parser.add_argument('--constraints', action='store_true', help='audit endpoint closure without applying it')
     parser.add_argument('--refined', type=Path, help='add a controlled refinement to a published figure')
     parser.add_argument('--refined-variant', choices=VARIANTS, default='dt')
+    parser.add_argument('--loading-refined', type=Path, help='change particle count relative to the second record')
     destination = parser.add_mutually_exclusive_group(required=True)
     destination.add_argument('--output', type=Path, help='write comparison JSON only')
     destination.add_argument('--publish', type=Path, help='render a compact figure, arrays and native run records')
     args = parser.parse_args()
-    if args.refined and not args.publish:
-        parser.error('--refined requires --publish')
+    if (args.refined or args.loading_refined) and not args.publish:
+        parser.error('refinements require --publish')
     if args.implicit:
-        if args.constraints or args.legacy or args.variant != 'repeat':
+        if args.constraints or args.legacy or args.variant != 'repeat' or args.loading_refined:
             parser.error('--implicit uses its own physical-loading and native-clock contract')
         if args.publish:
             publish_implicit(args.first, args.second, args.publish, args.refined)
@@ -472,7 +494,7 @@ def main():
         return
     result = compare_replays(args.first, args.second, args.variant, legacy=args.legacy, constraints=args.constraints)
     if args.publish:
-        publish(args.first, args.second, args.publish, result, args.refined, args.refined_variant)
+        publish(args.first, args.second, args.publish, result, args.refined, args.refined_variant, args.loading_refined)
     else:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2))

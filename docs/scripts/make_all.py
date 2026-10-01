@@ -26,6 +26,26 @@ def provenance(record, folder):
     return {**{key: record[key] for key in keys}, "run": f"{folder}/run.json"}
 
 
+def replay_measurements(record, labels):
+    """Use raw controlled norms and fixed physical smoothing scales in the docs."""
+    for label, key, fmt in labels:
+        comparison = record["results"][key]
+        for window in comparison["windows"]:
+            start, end = window["window_omega_p"]
+            for observable in ("mean_E", "electric", "nonzero_electric"):
+                error = window["observables"][observable]["relative_l2_difference"]
+                measured[f"{label}_{start}_{end}_{observable}_l2_percent"] = format(100 * error, fmt)
+        late = comparison["windows"][-1]["observables"]
+        for observable, suffix in (("nonzero_electric", "nonzero"), ("local_spread", "local_spread")):
+            values = late[observable]
+            change = 100 * (np.asarray(values["comparison_mean"]) / np.asarray(values["reference_mean"]) - 1)
+            if observable == "nonzero_electric":
+                measured[f"{label}_{suffix}_mean_change_percent"] = f"{float(change):.2f}"
+            else:
+                for species in range(2):
+                    measured[f"{label}_{suffix}_{species}_mean_change_percent"] = f"{change[species, 0]:.3f}"
+
+
 run_example([sys.executable, str(ROOT / "examples" / "dark_photon.py"), "--full",
              "--output", str(EVIDENCE)], cwd=ROOT, check=True)
 record = json.loads((EVIDENCE / "run.json").read_text())
@@ -426,26 +446,35 @@ run_example([sys.executable, str(ROOT / "docs" / "scripts" / "compare_replays.py
              str(fixed_first), str(fixed_repeat), "--constraints", "--refined", str(fixed_fine),
              "--publish", str(controls)], cwd=ROOT, check=True)
 control_record = json.loads((controls / "run.json").read_text())
-for label, key, fmt in (("hook_fixed", "comparison", ".6g"),
-                        ("hook_fixed_dt", "refinement_comparison", ".4f")):
-    comparison = control_record["results"][key]
-    for window in comparison["windows"]:
-        start, end = window["window_omega_p"]
-        for observable in ("mean_E", "electric", "nonzero_electric"):
-            error = window["observables"][observable]["relative_l2_difference"]
-            measured[f"{label}_{start}_{end}_{observable}_l2_percent"] = format(100 * error, fmt)
-    late = comparison["windows"][-1]["observables"]
-    energy = late["nonzero_electric"]
-    measured[f"{label}_nonzero_mean_change_percent"] = (
-        f"{100 * (energy['comparison_mean'] / energy['reference_mean'] - 1):.2f}")
-    spread = late["local_spread"]
-    for species in range(2):
-        measured[f"{label}_local_spread_{species}_mean_change_percent"] = (
-            f"{100 * (spread['comparison_mean'][species][0] / spread['reference_mean'][species][0] - 1):.3f}")
+replay_measurements(control_record, (("hook_fixed", "comparison", ".6g"),
+                                     ("hook_fixed_dt", "refinement_comparison", ".4f")))
 audits = [row["ordinary"] for row in control_record["results"]["comparison"]["endpoint_constraints"]]
 measured["hook_fixed_projection_field"] = f"{max(row['max_correction_over_field_scale'] for row in audits):.2e}"
 measured["hook_fixed_projection_energy"] = f"{max(abs(row['energy_change_over_scale']) for row in audits):.2e}"
 measured["_provenance"]["replay_controls"] = provenance(control_record, "replay_controls")
+resolution = EVIDENCE.parent / "replay_resolution"
+mesh, seed, loading = [ROOT / "artifacts" / name for name in
+                       ("paper_fixed_mesh", "paper_fixed_seed", "paper_fixed_particles")]
+for folder, cells, loading_seed, particles in ((mesh, "2000", "0", "103000"),
+                                               (seed, "1000", "1", "103000"),
+                                               (loading, "2000", "0", "206000")):
+    run_example([sys.executable, str(ROOT / "examples" / "dark_reservoir.py"), "--paper", "--full",
+                 "--cells", cells, "--seed", loading_seed, "--particles", particles, "--dt", ".005",
+                 "--horizon", "1000",
+                 "--block-horizon", "100", "--local-moments", "--output", str(folder)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "docs" / "scripts" / "compare_replays.py"), str(fixed_fine),
+             str(mesh), "--variant", "mesh", "--constraints", "--refined", str(seed),
+             "--refined-variant", "seed", "--loading-refined", str(loading), "--publish", str(resolution)],
+            cwd=ROOT, check=True)
+resolution_record = json.loads((resolution / "run.json").read_text())
+replay_measurements(resolution_record, (("hook_mesh", "comparison", ".4f"),
+                                        ("hook_seed", "refinement_comparison", ".4f"),
+                                        ("hook_loading", "loading_comparison", ".4f")))
+for index, label in enumerate(("fine", "mesh", "seed", "loading")):
+    native = resolution_record["results"]["native_runs"][index]["results"]
+    measured[f"hook_resolution_{label}_balance"] = f"{native['max_energy_work_defect_over_initial_thermal'] * .001:.2e}"
+    measured[f"hook_resolution_{label}_momentum"] = f"{native['max_momentum_defect_over_nmecL']:.2e}"
+measured["_provenance"]["replay_resolution"] = provenance(resolution_record, resolution.name)
 pic = EVIDENCE.parent / "pic_conservation"
 run_example([sys.executable, str(ROOT / "docs" / "scripts" / "benchmark_pic_conservation.py"),
              "--full", "--samples", "1", "--output", str(pic)], cwd=ROOT, check=True)
@@ -502,4 +531,26 @@ for label in ("dt04", "dt02"):
         error = np.linalg.norm((arrays["electric"] - arrays["oracle_E"])[mask])
         measured[f"{prefix}_early_wave_percent"] = f"{100 * error / np.linalg.norm(arrays['oracle_E'][mask]):.4f}"
     measured["_provenance"][prefix] = provenance(record, folder.name)
+implicit_paper = ROOT / "artifacts" / "implicit_paper"
+method = EVIDENCE.parent / "paper_implicit_comparison"
+run_example([sys.executable, str(ROOT / "docs" / "scripts" / "benchmark_implicit_drive.py"),
+             "--paper-loading", "--dt", ".01", "--iterations", "4", "--horizon", "1000", "--samples", "1",
+             "--output", str(implicit_paper)], cwd=ROOT, check=True)
+run_example([sys.executable, str(ROOT / "docs" / "scripts" / "compare_replays.py"), str(fixed_first),
+             str(implicit_paper), "--implicit", "--refined", str(fixed_fine), "--publish", str(method)],
+            cwd=ROOT, check=True)
+method_record = json.loads((method / "run.json").read_text())
+implicit_result = method_record["results"]["native_runs"][1]["results"]
+for suffix, key, fmt in (("balance", "max_balance_over_nmc2L", ".2e"),
+                         ("momentum", "max_momentum_over_nmecL", ".2e"),
+                         ("gauss", "max_gauss_over_en_eps0", ".2e"), ("compile", "compile_s", ".2f")):
+    measured[f"implicit_paper_{suffix}"] = format(implicit_result[key], fmt)
+measured["implicit_paper_warm"] = f"{np.median(implicit_result['warm_primal_s']):.2f}"
+for suffix, key in (("mean_E", "mean_E"), ("nonzero", "nonzero_electric")):
+    measured[f"implicit_paper_repeat_{suffix}_percent"] = (
+        f"{100 * implicit_result['execution_variability'][0][key]['1000']['relative_l2']:.2f}")
+    for window in method_record["results"]["comparison"]["windows"]:
+        value = window["observables"][key]["relative_l2_difference"]
+        measured[f"implicit_paper_vs_explicit_{suffix}_{window['end_omega_p']}"] = f"{100 * value:.3f}"
+measured["_provenance"]["paper_implicit_comparison"] = provenance(method_record, method.name)
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")
