@@ -1,0 +1,352 @@
+"""Validation prototype: a uniform cosine force on the parent's implicit PIC.
+
+For F held at the step midpoint, U(E+F)-U(E)=epsilon0*dx*sum(E.F+F.F/2).
+Periodic Ampere gives sum(delta E)=-dt*sum(J)/epsilon0. Hence
+delta U_physical-dt*dx*sum(J.F) is exactly the shifted parent energy defect.
+Its accepted continuity current keeps Gauss at finite Picard count; energy
+additionally needs the orbit/field iteration to converge. This is a prescribed
+external force, with work supplied externally, not implicit Proca evolution.
+"""
+
+import argparse
+from functools import partial
+import json
+import os
+from pathlib import Path
+import platform
+import resource
+import sys
+from time import perf_counter
+
+import jax
+import jax.numpy as jnp
+from jax import lax
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+from numpy.polynomial.hermite import hermgauss  # noqa: E402
+from scipy.integrate import solve_ivp  # noqa: E402
+from jaxincell import (Domain, Simulation, Solver, Species, elementary_charge as e, epsilon_0,  # noqa: E402
+                       mass_electron as m, save_run, speed_of_light as c)  # noqa: E402
+from jaxincell._core import deposit, E_x_from_rho  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from darkjaxincell import PrescribedDrive, midnight  # noqa: E402
+from darkjaxincell._simulation import DarkState  # noqa: E402
+from darkjaxincell._proca import divergence  # noqa: E402
+from docs.scripts.conservation import snapshot  # noqa: E402
+from docs.scripts.drive_reference import homogeneous  # noqa: E402
+
+
+WP, MASS_RATIO = 1e9, 1836.
+N = epsilon_0 * m * WP**2 / e**2
+FIELD = m * c * WP / e
+
+
+def drive_state(plasma, ordinary):
+    """Start the existing complete work ledger at native integer-time positions."""
+    values = snapshot(plasma, ordinary)
+    zero = jnp.zeros(())
+    return DarkState(ordinary, None, None, None, None, -jnp.mean(ordinary.rho), zero,
+                     values["balance"], zero, zero, zero, values["ordinary_gauss"], zero)
+
+
+def implicit_drive_step(plasma, state, drive):
+    """Reuse one parent orbit solve and return its accepted midpoint current."""
+    d, s = plasma.domain, plasma.solver
+    if (s.algorithm != "implicit" or s.electrostatic or s.field_solver != "ampere" or s.filter_passes
+            or d.field_bc != (0, 0) or d.particle_bc != (0, 0) or plasma.collisions is not None
+            or plasma.sources or plasma.external_E is not None or plasma.external_B is not None):
+        raise ValueError("prototype requires periodic implicit electromagnetic Ampere PIC without other sources")
+    if not isinstance(drive, PrescribedDrive) or jnp.shape(drive.amplitude) != (3,):
+        raise ValueError("prototype requires a uniform three-component PrescribedDrive")
+    old = state.ordinary
+    force = drive.eta * jnp.asarray(drive.amplitude) * jnp.cos(
+        drive.omega * (old.time + d.dt / 2) + drive.phase)
+    ordinary, output = plasma._implicit_step(old.replace(E=old.E + force), plasma.per_particle)
+    current = output[5]
+    ordinary = ordinary.replace(E=ordinary.E - force)
+    work = state.work + d.dt * d.dx * jnp.sum(current * force)
+    values = snapshot(plasma, ordinary, state.background)
+    return state.replace(ordinary=ordinary, work=work,
+                         max_balance_error=jnp.maximum(state.max_balance_error,
+                                                       abs(values["balance"] - work - state.initial_ordinary)),
+                         max_ordinary_gauss=jnp.maximum(state.max_ordinary_gauss, values["ordinary_gauss"])), current
+
+
+def sample(plasma, state):
+    values = snapshot(plasma, state.ordinary, state.background)
+    current = jnp.sum(plasma.per_particle[1] * state.ordinary.w
+                      * plasma._velocity(state.ordinary.u)[:, 0]) / plasma.domain.length
+    fluctuation = state.ordinary.E - jnp.mean(state.ordinary.E, axis=0)
+    nonzero = epsilon_0 * plasma.domain.dx * jnp.sum(fluctuation**2) / 2
+    return {**values, "balance": values["balance"] - state.work, "work": state.work,
+            "current": current, "nonzero_electric": nonzero}
+
+
+@partial(jax.jit, static_argnames=("steps", "stride"))
+def run_drive(plasma, initial, drive, steps, stride=1):
+    """Sparse scalar histories, actual initial sample and all-step SI maxima.
+
+    Maxima: work balance, particle charge, grid charge, continuity, Gauss,
+    mean Ampere residual, continuum momentum. The native state/work ledger
+    can be resumed with the same model; absolute time fixes the drive phase.
+    """
+    if steps < 1 or stride < 1 or steps % stride:
+        raise ValueError("steps must be positive and divisible by stride")
+    reference = sample(plasma, initial)
+
+    def one(carry, _):
+        state, maxima = carry
+        before = state.ordinary
+        state, current = implicit_drive_step(plasma, state, drive)
+        after, values = state.ordinary, sample(plasma, state)
+        continuity = (after.rho - before.rho) / plasma.domain.dt + divergence(current, plasma.domain.dx)
+        ampere = jnp.mean((after.E - before.E) / plasma.domain.dt + current / epsilon_0, axis=0)
+        errors = jnp.array([state.max_balance_error, abs(values["charge"] - reference["charge"]),
+                            abs(values["grid_charge"] - reference["grid_charge"]), jnp.max(abs(continuity)),
+                            state.max_ordinary_gauss, jnp.max(abs(ampere)),
+                            jnp.max(abs(values["momentum"] - reference["momentum"]))])
+        return (state, jnp.maximum(maxima, errors)), None
+
+    def chunk(carry, _):
+        carry, _ = lax.scan(one, carry, None, length=stride)
+        return carry, sample(plasma, carry[0])
+
+    (state, maxima), history = lax.scan(chunk, (initial, jnp.zeros(7)), None, length=steps // stride)
+    history = jax.tree.map(lambda a, b: jnp.concatenate((a[None], b)), reference, history)
+    return state, history, maxima
+
+
+def homogeneous_box(cells=8, nodes=8, rings=1, dtau=.02, iterations=8, *,
+                    temperature=1e-3, density=1., relativistic=True):
+    """Replicate each weighted velocity quadrature uniformly over the periodic grid.
+
+    Gaussian velocity weights use Gauss-Hermite quadrature, as in the independent
+    homogeneous oracle. Density and thermal initialization remain differentiable.
+    This isolates k=0 response; it does not resolve a nonlinear kinetic spectrum.
+    """
+    if min(cells, nodes, rings, iterations) < 1 or dtau <= 0:
+        raise ValueError("positive resolution, iteration count and time step are required")
+    points, weights = hermgauss(nodes)
+    for value, label in ((temperature, "thermal width"), (density, "density")):
+        if not isinstance(value, jax.core.Tracer):
+            number = np.asarray(value)
+            if number.shape != () or not np.isfinite(number) or number < 0 or (label == "density" and number == 0):
+                raise ValueError("finite nonnegative thermal width and positive density are required")
+    if not isinstance(temperature, jax.core.Tracer) and relativistic:
+        if 2 * float(temperature) * max(abs(points))**2 >= 1 - 1e-5:
+            raise ValueError("quadrature velocities exceed the parent's relativistic input margin")
+    weights /= np.sqrt(np.pi)
+    length, markers = 2 * np.pi * c / WP, cells * rings
+    x = -length / 2 + (np.arange(markers) + .5) * length / markers
+    positions = jnp.zeros((nodes * markers, 3)).at[:, 0].set(jnp.tile(jnp.asarray(x), nodes))
+    populations = []
+    for name, charge, ratio in (("electrons", -1, 1.), ("ions", 1, MASS_RATIO)):
+        velocity = jnp.repeat(jnp.sqrt(2 * temperature / ratio) * jnp.asarray(points) * c, markers)
+        v = jnp.zeros_like(positions).at[:, 0].set(velocity)
+        populations.append(Species(name, nodes * markers, charge, ratio * m, density * N, x=positions, v=v))
+    plasma = Simulation(Domain(length, cells, time_step=dtau / WP), tuple(populations),
+                        Solver(algorithm="implicit", relativistic=relativistic,
+                               picard_iterations=iterations, substeps=2))
+    ordinary, (_, q) = plasma.initial_state(jax.random.PRNGKey(0))
+    w = density * N * length / markers * jnp.tile(jnp.repeat(jnp.asarray(weights), markers), 2)
+    rho = deposit(ordinary.x[:, 0], q * w, plasma.domain.grid[0], plasma.domain.dx, cells, (0, 0))
+    ordinary = ordinary.replace(w=w, rho=rho, E=ordinary.E.at[:, 0].set(E_x_from_rho(rho, plasma.domain.dx, (0, 0))))
+    return plasma, drive_state(plasma, ordinary)
+
+
+def tangent_reference(times, controls, temperature=1e-3, nodes=64, relativistic=True):
+    """Independent ODE/Frechet response to amplitude, density, frequency and phase.
+
+    Momentum-distribution response: I'=E+A*cos(omega*t+phase), E'=-n*(vi-ve).
+    The analytic derivative dv/du=gamma^-3 propagates the four sensitivities.
+    All units use the fixed initial electron reference wp, c and n me c squared.
+    """
+    amplitude, density, omega, phase = np.asarray(controls)
+    points, weights = hermgauss(nodes)
+    weights /= np.sqrt(np.pi)
+    velocity = np.sqrt(2 * temperature / np.array([1., MASS_RATIO])[:, None]) * points
+    if relativistic and np.max(abs(velocity)) >= 1:
+        raise ValueError("quadrature velocities exceed c")
+    initial = velocity / np.sqrt(1 - velocity**2) if relativistic else velocity
+
+    def rhs(time, state):
+        electric, impulse = state[:2]
+        u = initial + np.array([-1., 1 / MASS_RATIO])[:, None] * impulse
+        gamma = np.sqrt(1 + u**2) if relativistic else np.ones_like(u)
+        mean = (u / gamma) @ weights
+        response = mean[1] - mean[0]
+        slope = density * ((gamma[0]**-3 + gamma[1]**-3 / MASS_RATIO) @ weights)
+        cosine, sine = np.cos(omega * time + phase), np.sin(omega * time + phase)
+        sensitivity = state[2:].reshape(2, 4)
+        current_derivative = slope * sensitivity[1] + np.array([0., response, 0., 0.])
+        force_derivative = np.array([cosine, 0., -amplitude * time * sine, -amplitude * sine])
+        return np.r_[-density * response, electric + amplitude * cosine,
+                     -current_derivative, sensitivity[0] + force_derivative]
+
+    solution = solve_ivp(rhs, (0., float(times[-1])), np.zeros(10), t_eval=times,
+                         method="DOP853", rtol=2e-11, atol=2e-13)
+    if not solution.success:
+        raise RuntimeError(solution.message)
+    return dict(mean_E=solution.y[0], impulse=solution.y[1],
+                energy_gradient=solution.y[0, -1] * solution.y[2:6, -1], nfev=solution.nfev)
+
+
+def objective(controls, steps, *, cells=8, nodes=8, rings=1, dtau=.02, iterations=8, temperature=1e-3):
+    """Physical final mean-field energy, including density weights and initialization."""
+    plasma, state = homogeneous_box(cells, nodes, rings, dtau, iterations,
+                                    temperature=temperature, density=controls[1])
+    drive = PrescribedDrive(1., jnp.array([controls[0] * FIELD, 0., 0.]), controls[2] * WP, controls[3])
+    step = jax.checkpoint(lambda carry: implicit_drive_step(plasma, carry, drive)[0])
+    state = lax.fori_loop(0, steps, lambda _, carry: step(carry), state)
+    return .5 * (jnp.mean(state.ordinary.E[:, 0]) / FIELD)**2
+
+
+def benchmark(args):
+    plasma, initial = homogeneous_box(args.cells, args.nodes, args.rings, args.dt, args.iterations,
+                                      temperature=args.temperature, relativistic=not args.newtonian)
+    drive = PrescribedDrive(1., jnp.array([args.amplitude * FIELD, 0., 0.]), WP)
+    stride = max(1, round(.1 / args.dt))
+    steps = stride * round(args.horizon / (stride * args.dt))
+    jax.block_until_ready(initial)
+    start = perf_counter()
+    executable = run_drive.lower(plasma, initial, drive, steps, stride).compile()
+    compile_seconds = perf_counter() - start
+    timings = []
+    for _ in range(args.samples + 1):
+        start = perf_counter()
+        final, history, maxima = executable(plasma, initial, drive)
+        jax.block_until_ready((final, history, maxima))
+        timings.append(perf_counter() - start)
+    history = jax.tree.map(np.asarray, history)
+    t, electric = history["t"] * WP, history["mean_E"] / FIELD
+    oracle_nodes = max(64, args.nodes)
+    reference = homogeneous(t, args.amplitude, temperature=args.temperature,
+                            relativistic=not args.newtonian, nodes=oracle_nodes, rtol=2e-11)
+    current = history["current"] / (epsilon_0 * FIELD * WP)
+    oracle_current = reference["mean"][:, 1] - reference["mean"][:, 0]
+    z, exact = electric + 1j * current, reference["mean_E"] + 1j * oracle_current
+    phase_error = np.unwrap(np.angle(z)) - np.unwrap(np.angle(exact))
+    phase_threshold = .01 * max(abs(exact))
+    phase_resolved = (abs(exact) > phase_threshold) & (abs(z) > phase_threshold) & (t >= 2 * np.pi)
+    scale = N * m * c**2 * plasma.domain.length
+    maxima = np.asarray(maxima)
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    result = dict(compile_s=compile_seconds, first_primal_s=timings[0], warm_primal_s=timings[1:],
+                  compiler_temporary_bytes=executable.memory_analysis().temp_size_in_bytes,
+                  peak_rss_bytes=int(rss if platform.system() == "Darwin" else rss * 1024),
+                  host_load=os.getloadavg(),
+                  device_kinds=[device.device_kind for device in jax.devices()],
+                  max_balance_over_nmc2L=float(maxima[0] / scale),
+                  max_particle_charge_change_over_enL=float(maxima[1] / (e * N * plasma.domain.length)),
+                  max_grid_charge_change_over_enL=float(maxima[2] / (e * N * plasma.domain.length)),
+                  max_continuity_over_enwp=float(maxima[3] / (e * N * WP)),
+                  max_gauss_over_en_eps0=float(maxima[4] * epsilon_0 / (e * N)),
+                  max_mean_ampere_over_fieldwp=float(maxima[5] / (FIELD * WP)),
+                  max_momentum_over_nmecL=float(maxima[6] * c / scale),
+                  max_mean_E_error=float(max(abs(electric - reference["mean_E"]))),
+                  max_current_error=float(max(abs(current - oracle_current))),
+                  max_phase_error_rad=(float(max(abs(phase_error[phase_resolved])))
+                                       if phase_resolved.any() else None),
+                  phase_definition="unwrapped arg(E+iJ) against oracle; exclude near-zero radius and startup",
+                  phase_mask_samples=int(phase_resolved.sum()), phase_total_samples=len(t),
+                  phase_radius_threshold_normalized=float(phase_threshold),
+                  phase_mask="t>=2π and both |E+iJ| exceed 1% of oracle peak radius",
+                  max_sampled_nonzero_electric_over_nmc2L=float(max(history["nonzero_electric"]) / scale),
+                  final_nonzero_electric_over_nmc2L=float(history["nonzero_electric"][-1] / scale),
+                  nonzero_electric_convention="epsilon0 dx sum|E-mean(E)|²/2, all components; no clamp",
+                  max_work_error_over_nmc2L=float(max(abs(history["work"] / scale - reference["work"]))),
+                  oracle_nodes=oracle_nodes, particle_substeps=plasma.solver.substeps,
+                  claim="uniform prescribed-drive prototype; phase and work checks, no implicit Proca")
+    if args.gradient_horizon:
+        controls = jnp.array([args.amplitude, 1., 1., 0.])
+        gradient_steps = round(args.gradient_horizon / args.dt)
+        signal = partial(objective, steps=gradient_steps, cells=args.cells, nodes=args.nodes, rings=args.rings,
+                         dtau=args.dt, iterations=args.iterations, temperature=args.temperature)
+        start = perf_counter()
+        gradient_executable = jax.jit(jax.value_and_grad(signal)).lower(controls).compile()
+        gradient_compile = perf_counter() - start
+        gradient_timings = []
+        for _ in range(args.samples + 1):
+            start = perf_counter()
+            value, gradient = gradient_executable(controls)
+            jax.block_until_ready((value, gradient))
+            gradient_timings.append(perf_counter() - start)
+        oracle = tangent_reference(np.array([0., gradient_steps * args.dt]), np.asarray(controls),
+                                   temperature=args.temperature, nodes=args.nodes)
+        primal = jax.jit(signal)
+        finite = []
+        for i in range(4):
+            h = 1e-5 * max(abs(float(controls[i])), .1)
+            perturbation = jnp.zeros(4).at[i].set(h)
+            finite.append((float(primal(controls + perturbation)) - float(primal(controls - perturbation))) / (2 * h))
+        rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        result.update(gradient_compile_s=gradient_compile, gradient_first_primal_s=gradient_timings[0],
+                      gradient_warm_s=gradient_timings[1:], gradient_horizon=gradient_steps * args.dt,
+                      objective=float(value), automatic_gradient=np.asarray(gradient).tolist(),
+                      frechet_gradient=oracle["energy_gradient"].tolist(),
+                      finite_difference_gradient=finite,
+                      gradient_peak_rss_bytes=int(rss if platform.system() == "Darwin" else rss * 1024),
+                      gradient_temporary_bytes=gradient_executable.memory_analysis().temp_size_in_bytes)
+    with midnight():
+        figure, axes = plt.subplots(2, 2, figsize=(10, 6), layout="constrained")
+        early = t <= 20
+        axes[0, 0].plot(t[early], electric[early], label="implicit PIC")
+        axes[0, 0].plot(t[early], reference["mean_E"][early], "--", label="homogeneous oracle")
+        axes[0, 0].set_ylabel("mean E / (mₑcωₚ/e)")
+        axes[0, 0].legend()
+        axes[0, 1].plot(t, electric - reference["mean_E"])
+        axes[0, 1].set_ylabel("PIC − oracle mean E")
+        axes[1, 0].plot(t, (history["balance"] - initial.initial_ordinary) / scale)
+        axes[1, 0].set_ylabel("(ΔU − W) / (nmₑc²L)")
+        axes[1, 1].plot(t[phase_resolved], phase_error[phase_resolved])
+        axes[1, 1].set_ylabel("state-plane phase error [rad]")
+        for axis in axes.ravel():
+            axis.set_xlabel("ωₚt")
+        settings = {key: value for key, value in vars(args).items() if key != "output"}
+        settings.update(parent_revision="83d327118163833f93e2588edcb5029241f6ba2a", precision="float64",
+                        loading="weighted Gauss-Hermite velocity rings; two mobile species; fixed electron wp",
+                        wp_rad_s=WP, mass_ratio=MASS_RATIO, particles_per_species=args.cells * args.nodes * args.rings,
+                        thermal_parameter_definition="Gaussian velocity sigma_e squared / c squared")
+        arrays = dict(t=t, electric=electric, oracle_E=reference["mean_E"], phase_error=phase_error,
+                      phase_resolved=phase_resolved, balance=(history["balance"] - initial.initial_ordinary) / scale,
+                      work=history["work"] / scale, oracle_work=reference["work"], current=current,
+                      nonzero_electric=history["nonzero_electric"] / scale,
+                      phase_radius=abs(z), oracle_phase_radius=abs(exact))
+        save_run(args.output, "implicit_drive", settings, result, figure, **arrays)
+        np.savez_compressed(args.output / "data.npz", **arrays)
+        plt.close(figure)
+    print(json.dumps(result, indent=2))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cells", type=int, default=32)
+    parser.add_argument("--nodes", type=int, default=32)
+    parser.add_argument("--rings", type=int, default=1)
+    parser.add_argument("--dt", type=float, default=.02)
+    parser.add_argument("--iterations", type=int, default=8)
+    parser.add_argument("--horizon", type=float, default=80.)
+    parser.add_argument("--amplitude", type=float, default=.03 * np.sqrt(.001))
+    parser.add_argument("--temperature", type=float, default=.001)
+    parser.add_argument("--samples", type=int, default=3)
+    parser.add_argument("--gradient-horizon", type=float, default=0.)
+    parser.add_argument("--newtonian", action="store_true")
+    parser.add_argument("--output", type=Path, default=Path("artifacts/implicit_drive"))
+    args = parser.parse_args()
+    finite = np.all(np.isfinite([args.dt, args.horizon, args.amplitude, args.temperature, args.gradient_horizon]))
+    if (not finite or min(args.cells, args.nodes, args.rings, args.iterations, args.samples) < 1 or args.dt <= 0
+            or args.horizon < 2 * np.pi or args.temperature < 0 or args.gradient_horizon < 0
+            or (args.gradient_horizon and args.gradient_horizon < args.dt)):
+        parser.error("positive resolution/time controls, nonnegative temperature and horizon >= 2π required")
+    if not args.newtonian and 2 * args.temperature * max(abs(hermgauss(args.nodes)[0]))**2 >= 1 - 1e-5:
+        parser.error("quadrature velocities exceed the parent's relativistic input margin")
+    if args.newtonian and args.gradient_horizon:
+        parser.error("gradient prototype uses the relativistic solver")
+    benchmark(args)
+
+
+if __name__ == "__main__":
+    main()

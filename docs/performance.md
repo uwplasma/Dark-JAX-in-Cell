@@ -121,4 +121,25 @@ python docs/scripts/benchmark_pic_conservation.py --overhead --particles 40000
 
 The [long resonant-drive replay](kinetic.md#time-refinement-through-the-nonlinear-transition) recovers early second-order behavior but fails the nonlinear field-convergence check. A same-step prefix replay also develops finite trajectory differences. Those gates remain necessary before transferring this short benchmark's timestep or cost conclusions to a late driven result.
 
-An implicit method must also resolve the physical phase and growth. Roundoff energy alone is insufficient for a late kinetic result. [Christlieb, Chacón and Gong](https://arxiv.org/abs/2606.15035), Section 5.3 and Figures 2–3, isolate particle, mesh and orbit-chain-rule defects: their unsplit-orbit control retains Gauss while accumulating energy error. This is a useful model for the two sector work ledgers here. [Ricketson and Hu's relativistic explicit correction](https://arxiv.org/abs/2605.18542), Section 3.1, can enforce particle work locally but its analytic correction need not have a real solution. Adopting it would require a new coupled work derivation, charge-conserving trajectories and derivative checks, rather than adjusting the total energy after a run.
+### Choosing a coupled method
+
+The smallest next conservation test couples the parent's implicit PIC method to the uniform prescribed drive, checking external work against the analytic cold response and refining timestep and Picard count separately. A conservative dynamical Proca extension requires one accepted orbit current and conjugate particle work:
+
+$$
+\Delta K=h\Delta x\sum_i\overline{\mathbf J}_i\cdot
+(\overline{\mathbf E}_i+\eta\overline{\mathbf E}_{D,i}).
+$$
+
+With midpoint fields, compatible curls and the divergence/gradient adjoint cancel the field terms against this work. The particles and both fields must converge together while preserving both [Gauss laws](physics.md#constraint-propagation-and-divergence-control). Vacuum midpoint energy conservation and phase tests establish only the field part of this construction; the coupled method must resolve physical oscillation phase and growth.
+
+[ECSIM](https://arxiv.org/abs/1602.06326) uses a linear mass-matrix field solve for energy conservation, without guaranteeing local charge. [ChECSIM](https://doi.org/10.1016/j.jcp.2021.110912) adds compatible deposition/coupling to conserve both, with a different finite-element discretization. [iVPIC, Sections 3.1–3.3](https://arxiv.org/html/1903.01565v2) combines implicit particles with leapfrog fields to retain light-wave dispersion under the CFL restriction; its conserved magnetic energy uses staggered-time products. These ordinary Maxwell methods need a separate Proca work derivation.
+
+[Christlieb, Chacón and Gong, Sections 4–5.3](https://arxiv.org/html/2606.15035v1) isolate orbit-chain-rule and mesh/particle work defects in nonrelativistic potential-based PIC: their unsplit-orbit control retains Gauss while accumulating energy error. [Ricketson and Hu's relativistic explicit correction, Section 3.1](https://arxiv.org/html/2605.18542v1) enforces local particle work when its analytic correction is real. Adoption requires tracking correction failures, charge-conserving trajectories, momentum, phase and derivatives.
+
+[SHARP](https://arxiv.org/abs/1702.04732v2) motivates matched higher-order particle shapes and joint grid/loading refinement. [Adams, Werner and Cary](https://arxiv.org/html/2503.13697v2) show that higher-order field differences alone do not remove grid instability in their explicit electrostatic schemes. [Schmitz, Sections 3–4](https://arxiv.org/html/2603.06509v1) compares relativistic pushers and higher-order compositions in prescribed fields; improving the pusher alone does not establish the order or conservation of a coupled PIC update.
+
+### Repeated execution and compiled horizons
+
+Archive the complete initial state and fix dtype, package versions, chunk length, output shapes and sampling when comparing repeated execution. Reuse one compiled callable to separate execution variability from changes of executable. JAX specializes compilation to argument shapes and static values ([compilation guide](https://docs.jax.dev/en/latest/201/jit.html)); changing a static scan horizon can produce another executable. A fixed-shape chunk can be reused across longer runs, with output transferred between chunks.
+
+The parent deposit uses repeated-index `.at.add` updates, whose accumulation order can be implementation-dependent ([JAX indexing semantics](https://docs.jax.dev/en/latest/_autosummary/jax.numpy.ndarray.at.html)). That API permits variability but does not identify the cause of the observed prefix differences. [JAX's compatibility policy](https://docs.jax.dev/en/latest/api_compatibility.html#numerics-and-randomness) also leaves exact numerics and PRNG samples unguaranteed across versions. Record the archived inputs and compiled configuration before attributing a nonlinear trajectory difference to a particular operation.

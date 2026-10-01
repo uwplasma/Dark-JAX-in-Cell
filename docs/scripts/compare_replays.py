@@ -1,0 +1,312 @@
+"""Compare native paper replays at equal horizons without shifting or interpolating."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+
+import numpy as np
+
+WINDOWS = ((0, 100), (0, 250), (0, 500), (0, 1000), (800, 1000))
+SERIES = ('mean_E', 'rms', 'electric', 'nonzero_electric', 'density_rms')
+LOCAL_SERIES = ('local_spread', 'local_density_rms')
+PARAMETERS = ('cells', 'particles_per_species', 'seed', 'dt_omega_p', 'output_dt_omega_p',
+              'length_c_over_omega_p', 'mass_ratio', 'T_each_over_mec2', 'coupling',
+              'drive_quiver_over_sigma', 'force_quiver_over_c', 'loading', 'pusher', 'shape', 'parent_revision')
+VARIANTS = dict(repeat=None, dt='dt_omega_p', seed='seed', mesh='cells', loading='particles_per_species')
+
+
+def fingerprint(array):
+    """SHA256 of dtype, shape and native contiguous bytes; never a rounded curve."""
+    array = np.asarray(array)
+    header = json.dumps(dict(dtype=array.dtype.str, shape=array.shape), sort_keys=True).encode()
+    return hashlib.sha256(header + np.ascontiguousarray(array).tobytes()).hexdigest()
+
+
+def _load(folder, tolerance):
+    folder = Path(folder)
+    record = json.loads((folder / 'run.json').read_text())
+    with np.load(folder / 'data.npz', allow_pickle=False) as stored:
+        data = {key: stored[key] for key in stored.files}
+    time, settings = data['t'], record['settings']
+    if time.ndim != 1 or len(time) < 2 or time[0] != 0 or np.any(np.diff(time) <= 0):
+        raise ValueError('native clocks must begin at zero and increase')
+    if not all(np.all(np.isfinite(data[key])) for key in ('t', *SERIES, 'spread', 'mean', 'kinetic')):
+        raise ValueError('native scalar histories must be finite')
+    if not np.allclose(np.diff(time), settings['output_dt_omega_p'], rtol=0, atol=tolerance):
+        raise ValueError('native cadence differs from recorded physical cadence')
+    if abs(time[-1] - settings['horizon_omega_p']) > tolerance:
+        raise ValueError('native horizon differs from its record')
+    _normalization(data, settings)
+    scales = settings.get('local_spread_lengths_c_over_wp', [])
+    for key in LOCAL_SERIES:
+        if key in data and (data[key].shape != (len(time), 2, len(scales))
+                            or not np.all(np.isfinite(data[key]))):
+            raise ValueError('local moments require finite species/physical-scale histories')
+    return (record, data, hashlib.sha256((folder / 'data.npz').read_bytes()).hexdigest(),
+            hashlib.sha256((folder / 'run.json').read_bytes()).hexdigest())
+
+
+def _normalization(data, settings):
+    """Anchor energy/field units to the physical RMS loading and native work ledger."""
+    mass = np.array([1., settings['mass_ratio']])
+    if not np.allclose(data['spread'], .5 * mass * data['rms']**2, rtol=2e-12, atol=1e-30):
+        raise ValueError('spread and RMS do not share the stated energy normalization')
+    if not np.allclose(mass * data['rms'][0]**2, settings['T_each_over_mec2'], rtol=2e-12):
+        raise ValueError('initial RMS differs from the physical temperature loading')
+    if not np.allclose(data['nonzero_electric'], data['electric'] - data['mean_E']**2 / 2,
+                       rtol=2e-12, atol=1e-30):
+        raise ValueError('electric components do not share the stated field normalization')
+    if all(key in data for key in ('balance', 'magnetic', 'dark', 'work')):
+        expected = data['electric'] + data['magnetic'] + data['dark'] + data['kinetic'].sum(axis=1) - data['work']
+        if not np.allclose(data['balance'], expected, rtol=2e-12, atol=1e-30):
+            raise ValueError('energy/work ledger does not share one normalization')
+
+
+def _hash_matches(rows, keys):
+    matches = {}
+    for key in keys:
+        values = [row.get(key) for row in rows]
+        if any(value is not None and (len(value) != 64 or not set(value) <= set('0123456789abcdef'))
+               for value in values):
+            raise ValueError('initial fingerprints must be SHA256 strings')
+        matches[key] = None not in values and values[0] == values[1]
+    return matches
+
+
+def _initial(first, second, variant, legacy):
+    fingerprints = [settings.get('initial_fingerprints') for settings in (first, second)]
+    if not all(fingerprints):
+        if not legacy:
+            raise ValueError('initial fingerprints are required; legacy records cannot verify exact loading')
+        return dict(verified=False, reason='legacy records lack initial particle fingerprints')
+    states = [row['state'] for row in fingerprints]
+    ordinary = {'x', 'u', 'w', 'E', 'B', 'rho'}
+    if any(not ordinary <= row.keys() for row in states):
+        raise ValueError('initial fingerprints lack required ordinary state keys')
+    if variant == 'repeat' and states[0].keys() != states[1].keys():
+        raise ValueError('repeat initial state fingerprint key sets disagree')
+    state_keys = sorted(states[0].keys() | states[1].keys())
+    matches = dict(loading=_hash_matches([row['loading'] for row in fingerprints], ('x', 'v')),
+                   state=_hash_matches(states, state_keys))
+    required = [*matches['loading'].values(), matches['state']['w']]
+    if variant == 'repeat':
+        required.extend(matches['state'].values())
+    if variant not in ('seed', 'loading') and not all(required):
+        raise ValueError('initial fingerprints disagree for this controlled comparison')
+    return dict(verified=True, matches=matches)
+
+
+def metrics(first, second):
+    """Absolute differences remain available when a reference norm vanishes."""
+    norm = np.linalg.norm(first, axis=0)
+    difference = np.linalg.norm(second - first, axis=0)
+    relative = np.divide(difference, norm, out=np.full_like(difference, np.nan), where=norm > 0)
+    return dict(l2_difference=difference.tolist(), reference_l2_norm=norm.tolist(),
+                relative_l2_difference=np.where(np.isfinite(relative), relative, None).tolist(),
+                max_absolute_difference=np.max(abs(second - first), axis=0).tolist(),
+                reference_mean=np.mean(first, axis=0).tolist(), comparison_mean=np.mean(second, axis=0).tolist())
+
+
+def _controls(records, data, variant, tolerance):
+    """Equal horizons/cadences preserve sampling and compile-allocation controls."""
+    settings = [record['settings'] for record in records]
+    for key in PARAMETERS:
+        if key != VARIANTS[variant] and settings[0][key] != settings[1][key]:
+            raise ValueError(f'controlled comparisons must share {key}')
+    for key in ('git', 'jax', 'jaxincell', 'numpy', 'jax_enable_x64', 'backend'):
+        if records[0][key] != records[1][key]:
+            raise ValueError(f'controlled comparisons must share runtime/source {key}')
+    if (data[0]['t'].shape != data[1]['t'].shape
+            or not np.allclose(data[0]['t'], data[1]['t'], rtol=0, atol=tolerance)):
+        raise ValueError('equal native horizons and clocks are required')
+    _protocol(settings, variant, tolerance)
+    return settings
+
+
+def _protocol(settings, variant, tolerance):
+    for key in ('block_horizon_omega_p', 'local_moments_output_dt_omega_p', 'local_spread_lengths_c_over_wp',
+                'normalization'):
+        if settings[0].get(key) != settings[1].get(key):
+            raise ValueError(f'comparisons must share physical {key}')
+    if variant != 'dt' and settings[0].get('block_steps') != settings[1].get('block_steps'):
+        raise ValueError('repeat/control compilations must share block_steps')
+    for setting in settings:
+        if setting.get('block_steps') is not None:
+            if abs(setting['block_steps'] * setting['dt_omega_p'] - setting['block_horizon_omega_p']) > tolerance:
+                raise ValueError('block steps and physical block horizon disagree')
+
+
+def _projection(E, residual, dx, normalization):
+    """Mean-preserving longitudinal closure; the incompatible mean remains visible."""
+    delta = -dx * np.cumsum(residual - np.mean(residual))
+    delta -= np.mean(delta)
+    eps = normalization['epsilon0_F_m']
+    charge_scale = normalization['charge_density_C_m3'] / eps
+    after = residual + (delta - np.roll(delta, 1)) / dx
+    return dict(mean_residual_over_charge_scale=float(np.mean(residual) / charge_scale),
+                max_residual_over_charge_scale=float(np.max(abs(residual)) / charge_scale),
+                max_remaining_residual_over_charge_scale=float(np.max(abs(after)) / charge_scale),
+                max_correction_over_field_scale=float(np.max(abs(delta)) / normalization['field_scale_V_m']),
+                energy_change_over_scale=float(eps * dx * np.sum(E[:, 0] * delta + .5 * delta**2)
+                                               / normalization['energy_scale_J_m2']))
+
+
+def constraint_audit(folder, record):
+    """Quantify an endpoint closure correction without applying it to any state."""
+    normalization = record['settings'].get('normalization')
+    if normalization is None:
+        return dict(available=False, reason='actual imported normalization constants were not recorded')
+    path = Path(folder) / 'final_state.npz'
+    if not path.is_file():
+        return dict(available=False, reason='no native final archive')
+    with np.load(path, allow_pickle=False) as state:
+        settings = record['settings']
+        if (int(state['cells']) != settings['cells']
+                or abs(float(state['time']) * normalization['omega_p_rad_s'] - settings['horizon_omega_p']) > 1e-5):
+            raise ValueError('endpoint archive does not match the native record horizon/grid')
+        dx = float(state['dark.length']) / int(state['cells'])
+        rho = state['rho'] + state['dark.background']
+        eps, c = normalization['epsilon0_F_m'], normalization['c_m_s']
+        E = state['E']
+        residual = (E[:, 0] - np.roll(E[:, 0], 1)) / dx - rho / eps
+        result = dict(available=True, ordinary=_projection(E, residual, dx, normalization))
+        if str(state['dark.mode']) == 'field':
+            E, phi, omega, eta = [state['dark.' + key] for key in ('E', 'phi', 'omega', 'eta')]
+            residual = (E[:, 0] - np.roll(E[:, 0], 1)) / dx + omega**2 / c**2 * phi - eta * rho / eps
+            result['dark'] = _projection(E, residual, dx, normalization)
+            result['dark']['unchanged_phi_energy_over_scale'] = float(
+                eps * dx * omega**2 / (2 * c**2) * np.sum(phi**2) / normalization['energy_scale_J_m2'])
+            result['dark']['phi_energy_change'] = 0.
+    result.update(archive_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                  note='Only a mean-zero longitudinal diagnostic. Particles, potentials and fields remain unchanged; '
+                       'the residual mean cannot be corrected by periodic divergence. Endpoint size does not '
+                       'bound dynamical amplification of earlier roundoff.')
+    return result
+
+
+def compare_replays(first, second, variant='repeat', windows=WINDOWS, legacy=False, tolerance=1e-5,
+                    constraints=False):
+    """Change one declared parameter; validate native clocks, loading and units first."""
+    if variant not in VARIANTS:
+        raise ValueError('unknown comparison variant')
+    a, b = [_load(folder, tolerance) for folder in (first, second)]
+    records, data = [a[0], b[0]], [a[1], b[1]]
+    settings = _controls(records, data, variant, tolerance)
+    initial = _initial(*settings, variant, legacy)
+    time = data[0]['t']
+    selected_windows = []
+    for start, end in windows:
+        if start < -tolerance or start >= end or end > time[-1] + tolerance:
+            raise ValueError('comparison windows must fit the native horizon')
+        selected = (time >= start - tolerance) & (time <= end + tolerance)
+        if not np.any(selected):
+            raise ValueError('comparison windows need native samples')
+        series = [*SERIES, *[key for key in LOCAL_SERIES if key in data[0] and key in data[1]]]
+        selected_windows.append(dict(
+            window_omega_p=[start, end], samples=int(selected.sum()),
+            observables={key: metrics(data[0][key][selected], data[1][key][selected]) for key in series}))
+    endpoint = {key: dict(first=data[0][key].tolist(), second=data[1][key].tolist(),
+                          difference=(data[1][key] - data[0][key]).tolist())
+                for key in ('local_spread_initial', 'local_spread_final') if key in data[0] and key in data[1]}
+    result = dict(
+        variant=variant, initial_fingerprints=initial, windows=selected_windows,
+        maximum_clock_difference=float(np.max(abs(data[0]['t'] - data[1]['t']))),
+        fixed_scale_endpoints=endpoint, physical_scales_c_over_wp=settings[0].get('local_spread_lengths_c_over_wp'),
+        scalar_fingerprints={key: dict(initial=[fingerprint(row[key][0]) for row in data],
+                                       history=[fingerprint(row[key]) for row in data])
+                             for key in SERIES},
+        sources=[dict(git=record['git'], parent=setting['parent_revision'], data_sha256=source[2], run_sha256=source[3],
+                      varied_parameter=setting.get(VARIANTS[variant]),
+                      block_steps=setting.get('block_steps'), block_horizon=setting.get('block_horizon_omega_p'))
+                 for record, setting, source in zip(records, settings, (a, b))],
+        native_all_step_maxima=[
+            {key: value for key, value in record['results'].items()
+             if key.startswith('max_') and key != 'max_speed_over_c'} for record in records],
+        notes=('Native aligned samples, no interpolation, time shifts or curve fitting. Density RMS is at the '
+               'numerical grid scale; local moments use the recorded physical Gaussian lengths. Fingerprint equality '
+               'requires the same dtype/runtime. One repeat is not an uncertainty estimate; field saturation and '
+               'small conservation defects do not establish convergence. Null relative errors have zero '
+               'reference norm.'))
+    if constraints:
+        result['endpoint_constraints'] = [constraint_audit(folder, record)
+                                          for folder, record in zip((first, second), records)]
+    return result
+
+
+def publish(first, second, folder, comparison):
+    """Render saved scalars through the parent figure/provenance path; no dynamics."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from darkjaxincell import midnight
+    from jaxincell import save_run
+
+    sources = [_load(path, 1e-5) for path in (first, second)]
+    time = sources[0][1]['t']
+    width = max(1, round(2 * np.pi / sources[0][0]['settings']['output_dt_omega_p']))
+    trim = slice(width, -width)
+
+    def average(values):
+        return np.convolve(values, np.ones(width) / width, mode='same')[trim]
+
+    with midnight():
+        figure, axes = plt.subplots(2, 2, figsize=(10, 7), layout='constrained')
+        for index, (record, data, _, _) in enumerate(sources):
+            label, style = f'execution {index + 1}', '-' if index == 0 else '--'
+            color = ('#0072B2', '#D55E00')[index]
+            raw = data['nonzero_electric'] / .0005
+            axes[0, 0].plot(time, raw, color=color, alpha=.15, lw=.5)
+            axes[0, 0].plot(time[trim], average(raw), style, color=color, label=label)
+            if 'local_spread' in data:
+                for species, name, species_color in ((0, 'electrons', '#6A3D9A'), (1, 'ions', '#009E73')):
+                    spread = data['local_spread'][:, species, 0] / data['local_spread'][0, species, 0]
+                    axes[0, 1].plot(time, spread, style, color=species_color, label=f'{name}, {label}')
+                    density = data['local_density_rms'][:, species, 0]
+                    axes[1, 0].plot(time[trim], average(density), style, color=species_color,
+                                    label=f'{name}, {label}')
+            defect = (data['balance'] - data['balance'][0]) / max(abs(data['work']).max(), 1e-30)
+            axes[1, 1].plot(time, defect, style, color=color, label=label)
+        axes[0, 0].set(ylabel=r'$U_{E,k\ne0}/(nT_{e0}L/2)$', title='Nonzero-mode electric energy',
+                       yscale='log')
+        axes[0, 1].set(ylabel=r'$U_{\rm local}(t)/U_{\rm local}(0)$', title=r'Local spread at $2\lambda_{D0}$',
+                       yscale='log')
+        axes[1, 0].set(ylabel='smoothed density RMS / mean', title=r'Density at $2\lambda_{D0}$')
+        axes[1, 1].set(ylabel=r'$(\Delta U-W)/\max|W|$', title='Energy and external work')
+        for axis in axes.flat:
+            axis.set(xlabel=r'$\omega_pt$', xlim=(0, time[-1]))
+            axis.grid(alpha=.25)
+            axis.legend(fontsize=8)
+        arrays = {f'{name}_{key}': value for name, source in zip(('first', 'second'), sources)
+                  for key, value in source[1].items()}
+        settings = dict(variant=comparison['variant'], parent_revision=sources[0][0]['settings']['parent_revision'],
+                        figure_average_samples=width, figure_average_span_omega_p=width * np.median(np.diff(time)),
+                        figure_note='Faint energy traces are raw; energy and density averages trim endpoints. '
+                                    'Local spread is raw; all comparison metrics use raw native samples.')
+        result = dict(comparison=comparison, native_runs=[source[0] for source in sources],
+                      claim='Controlled numerical sensitivity study; no convergence or statistical uncertainty claim')
+        save_run(folder, 'controlled_paper_replay', settings, result, figure, **arrays)
+        np.savez_compressed(Path(folder) / 'data.npz', **arrays)
+        plt.close(figure)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('first', type=Path)
+    parser.add_argument('second', type=Path)
+    parser.add_argument('--variant', choices=VARIANTS, default='repeat')
+    parser.add_argument('--legacy', action='store_true', help='retain explicit missing-fingerprint status')
+    parser.add_argument('--constraints', action='store_true', help='audit endpoint closure without applying it')
+    destination = parser.add_mutually_exclusive_group(required=True)
+    destination.add_argument('--output', type=Path, help='write comparison JSON only')
+    destination.add_argument('--publish', type=Path, help='render a compact figure, arrays and native run records')
+    args = parser.parse_args()
+    result = compare_replays(args.first, args.second, args.variant, legacy=args.legacy, constraints=args.constraints)
+    if args.publish:
+        publish(args.first, args.second, args.publish, result)
+    else:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(result, indent=2))
+
+
+if __name__ == '__main__':
+    main()
