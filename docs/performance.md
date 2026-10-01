@@ -74,10 +74,48 @@ The present tests favour keeping the explicit coupled step while improving spati
 
 The pinned parent provides an ordinary Crank–Nicolson PIC method with fixed Picard iterations and particle substeps. Its longitudinal force is the discrete gradient conjugate to the trajectory continuity current; transverse current is the transpose of the field gather. Once the particle orbit and fields converge together, particle work cancels mesh work. This is the mechanism of [Chen, Chacón and Barnes](https://arxiv.org/abs/1101.3701) and the discrete-gradient construction of [Kormann and Sonnendrücker](https://arxiv.org/abs/1910.04000). Energy and Gauss can be conserved together while momentum has a finite error. The coupled Proca method uses the explicit compatible split described in [the equations](physics.md).
 
-The [coupled benchmark](scripts/benchmark_pic_conservation.py) uses identical warm counterstreaming electrons and mobile ions for explicit ordinary, implicit ordinary and explicit Proca cases. It records every-step energy/work, particle and grid charge, continuity, both Gauss laws and continuum total momentum; first-mode phase and growth are checked against the multispecies kinetic determinant. The full preset varies Picard count, timestep and grid, with separate compiler and synchronized warm timings and executable/process memory. A second mode compares the reduced validation runner against production sparse particle output:
+### Conservation with the same particles
+
+The [coupled benchmark](scripts/benchmark_pic_conservation.py) loads two warm electron beams and mobile ions identically in each row: 8,192 markers per population, $u_e=\pm0.05c$, $\sigma_e=0.003c$, $m_i/m_e=1836$, $T_i=T_e$, $ku_e/\omega_p=0.5$ and a $10^{-4}$ density seed on one beam. Here $\omega_p$ is the total **electron** plasma frequency. The inherited three-velocity solver evolves a longitudinal, Newtonian experiment through $\omega_pt=40$. The massive-field counterpart has $\Omega_D/\omega_p=0.7$, $\eta=0.3$ and the specified bare initialization $E_D=\eta E$, $\phi_D=0$. These Proca rows change the physical interaction; the ordinary rows compare algorithms for the same equations.
+
+![Energy, momentum, first electric mode and transient phase for identical particle loading](_static/figures/pic_conservation/figure.png)
+
+The upper panels show sampled defects in complete energy and continuum momentum; the table uses maxima from **every step**. The lower panels show the first complex electric mode and its phase relative to $\omega_pt=8$. Dashed amplitude segments use the kinetic pole growth rate over the fit window. A flat phase would describe a pure symmetric growing eigenmode; the curved traces expose the loading transient.
+
+| Method | Cells | $\Delta t\omega_p$ | Max $|\Delta U|/U_0$ | Max $|\Delta P|/(nm_ecL)$ | Fitted $\gamma/\omega_p$ | Fitted $\omega_r/\omega_p$ |
+|---|---:|---:|---:|---:|---:|---:|
+| Ordinary explicit | 128 | 0.002 | {{ pic_explicit_energy }} | {{ pic_explicit_momentum }} | {{ pic_explicit_growth }} | {{ pic_explicit_frequency }} |
+| Ordinary implicit, 4 iterations | 128 | 0.002 | {{ pic_implicit4_energy }} | {{ pic_implicit4_momentum }} | {{ pic_implicit4_growth }} | {{ pic_implicit4_frequency }} |
+| Ordinary implicit, 8 iterations | 128 | 0.002 | {{ pic_implicit8_energy }} | {{ pic_implicit8_momentum }} | {{ pic_implicit8_growth }} | {{ pic_implicit8_frequency }} |
+| Ordinary implicit, 8 iterations | 128 | 0.02 | {{ pic_implicit_large_energy }} | {{ pic_implicit_large_momentum }} | {{ pic_implicit_large_growth }} | {{ pic_implicit_large_frequency }} |
+| Proca explicit | 128 | 0.002 | {{ pic_proca_energy }} | {{ pic_proca_momentum }} | {{ pic_proca_growth }} | {{ pic_proca_frequency }} |
+| Proca explicit | 128 | 0.001 | {{ pic_proca_halfstep_energy }} | {{ pic_proca_halfstep_momentum }} | {{ pic_proca_halfstep_growth }} | {{ pic_proca_halfstep_frequency }} |
+| Proca explicit | 256 | 0.002 | {{ pic_proca_fine_energy }} | {{ pic_proca_fine_momentum }} | {{ pic_proca_fine_growth }} | {{ pic_proca_fine_frequency }} |
+
+The ordinary implicit solver uses two particle substeps. At $\Delta t\omega_p=0.002$, one Picard iteration gives $8.79\times10^{-4}$ energy error, two give $9.50\times10^{-10}$, and four, eight and twelve reach roundoff. Increasing the count beyond four changes the fitted growth by less than $2\times10^{-11}$; it leaves the finite momentum defect. This reproduces the energy/charge mechanism of the cited implicit methods without demonstrating exact discrete momentum conservation. The explicit momentum agreement is specific to this neutral longitudinal loading; the separate travelling-wave check exercises the longitudinal Proca potential term.
+
+Across all twelve rows, particle charge is unchanged, grid charge changes by at most $3.67\times10^{-16}enL$, and grid/particle charge differs by at most $3.65\times10^{-16}enL$. The continuity residual is below $4.57\times10^{-13}en\omega_p$; ordinary and dark Gauss residuals are below $2.65\times10^{-13}en/\epsilon_0$ and $6.59\times10^{-14}en/\epsilon_0$. These normalizations use the fixed total electron density $n$. For Proca, the dark-sector defect $|\Delta U_D-W_D|/U_0$ falls from $2.08\times10^{-11}$ to $5.20\times10^{-12}$ when the step halves. The larger complete-energy defect falls about fourfold on grid doubling and is almost unchanged by time refinement. The spatial particle/mesh work error dominates this experiment.
+
+### Growth, phase and cost
+
+The multispecies kinetic determinant gives $\gamma/\omega_p=0.3383986$ for ordinary Maxwell and $0.3478317$ for the coupled field, with $\omega_r\simeq0$. Its root routine uses the combined electron-plus-ion plasma frequency; the record converts to the electron convention by $\sqrt{1+1/1836}$. Fits use all 81 samples in the inclusive window $8\le\omega_pt\le16$. Their regression standard errors are approximately 0.0030; the ordinary and Proca slopes differ from their poles by about 2.4% and 1.3%. The phase excursions reach 0.42 and 0.35 radians despite small average frequencies. These are transient initial-value traces, with unresolved preparation and fit-window error. The small mixed-minus-ordinary growth shift is consequently **not confirmed** by this benchmark.
+
+Time refinement from $\Delta t\omega_p=0.002$ to 0.001 changes the ordinary explicit growth by $1.6\times10^{-8}$ and the Proca growth by $1.2\times10^{-8}$. Earlier strict floating-point endpoint selection dropped two samples in some rows and produced a spurious time-fit difference; [the record](_static/figures/pic_conservation/run.json) preserves those original fits and the corrected analysis hash. Increasing the implicit step tenfold changes growth by $6.6\times10^{-6}$ in this short growing-mode test. Resolving driven oscillation phase and late nonlinear observables needs separate long-time checks.
+
+| Method | $\Delta t\omega_p$ | Compile (s) | Synchronized warm run (s) | Compiler temporaries (MiB) | Process peak (MiB) |
+|---|---:|---:|---:|---:|---:|
+| Ordinary explicit | 0.002 | {{ pic_explicit_compile }} | {{ pic_explicit_warm }} | {{ pic_explicit_temp_mib }} | {{ pic_explicit_rss_mib }} |
+| Ordinary implicit, 4 iterations | 0.002 | {{ pic_implicit4_compile }} | {{ pic_implicit4_warm }} | {{ pic_implicit4_temp_mib }} | {{ pic_implicit4_rss_mib }} |
+| Ordinary implicit, 8 iterations | 0.002 | {{ pic_implicit8_compile }} | {{ pic_implicit8_warm }} | {{ pic_implicit8_temp_mib }} | {{ pic_implicit8_rss_mib }} |
+| Ordinary implicit, 8 iterations | 0.02 | {{ pic_implicit_large_compile }} | {{ pic_implicit_large_warm }} | {{ pic_implicit_large_temp_mib }} | {{ pic_implicit_large_rss_mib }} |
+
+Each row ran in a fresh process with JAX 0.6.2, float64 and one synchronized warm sample on an RTX A4000 GPU. Compilation is separated from execution, and the entire reduced diagnostic run is consumed. Other device activity and one timing sample limit performance conclusions: the large-step implicit and small-step explicit times are similar here, without an established speed advantage. Compiler temporaries exclude the runtime, imports and allocator; process peak includes them. Complete timings, first executions, memory, constraints and all twelve rows are in the [computation record](_static/figures/pic_conservation/run.json) and [compressed scalar histories](_static/figures/pic_conservation/data.npz).
+
+Reproduce the campaign serially, or refit and render its saved arrays without running dynamics. The default full benchmark takes three warm samples; this evidence used one. A separate overhead mode compares the reduced validation runner against production sparse particle output and checks the final energy and all-step energy maximum agree:
 
 ```sh
-python docs/scripts/benchmark_pic_conservation.py --full
+python docs/scripts/benchmark_pic_conservation.py --full --samples 1
+python docs/scripts/benchmark_pic_conservation.py --render --output docs/_static/figures/pic_conservation
 python docs/scripts/benchmark_pic_conservation.py --overhead --particles 40000
 ```
 

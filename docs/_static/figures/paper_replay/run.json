@@ -1,0 +1,122 @@
+{
+ "jaxincell": "unknown",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "9c9fc1f992f7281df5717f5c89f25bdcc7bb0c36",
+ "example": "hook_parameter_replay_summary",
+ "settings": {
+  "raw_computation_git": "926aee55ab932e17ce16420e447089670f328fa6",
+  "computation": {
+   "drive": {
+    "git": "926aee55ab932e17ce16420e447089670f328fa6",
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu"
+   },
+   "zero": {
+    "git": "926aee55ab932e17ce16420e447089670f328fa6",
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu"
+   }
+  },
+  "cells": 1000,
+  "total_markers": 206000,
+  "dt_omega_p": 0.02,
+  "reference": "arXiv:2510.13956v1 Figure 2, original 2025 PDF",
+  "reference_note": "PDF vector curves, not raw author simulation data; RMS comparison uses B2",
+  "reference_pdf_sha256": "475e9b8f8856d8f5abd68ef98fabe2c52e33990889e079d5653ffe31d1f02af8",
+  "reference_visibility_filter": "Only vertices inside panel clipping rectangle; final x-boundary interpolation retained when visible. No early extrapolation from clipped lines.",
+  "reference_axis_calibration": {
+   "x_pdf_zero": 346.6741943359375,
+   "x_pdf_5000": 532.43798828125,
+   "strong_electric": {
+    "pdf_path_index": 287,
+    "log10_y_at_pdf_y0": -1,
+    "pdf_y0": 121.9530258178711,
+    "pdf_y_per_decade": 22.14783554077148,
+    "at_5000_approx": 0.00033188907850716413,
+    "max_approx": 0.0032476800286099627,
+    "visible_pdf_y_bounds": [
+     111.38581085205078,
+     222.125
+    ]
+   },
+   "strong_electron_rms": {
+    "pdf_path_index": 302,
+    "log10_y_at_pdf_y0": -1,
+    "pdf_y0": 131.38253784179688,
+    "pdf_y_per_decade": 40.188568115234375,
+    "at_5000_approx": 0.2018463610208144,
+    "max_approx": 0.20289922999159948,
+    "visible_pdf_y_bounds": [
+     111.38581085205078,
+     222.125
+    ]
+   },
+   "strong_ion_rms": {
+    "pdf_path_index": 303,
+    "log10_y_at_pdf_y0": -1,
+    "pdf_y0": 131.38253784179688,
+    "pdf_y_per_decade": 40.188568115234375,
+    "at_5000_approx": 0.0008819327586121184,
+    "max_approx": 0.0008837093987770679,
+    "visible_pdf_y_bounds": [
+     111.38581085205078,
+     222.125
+    ]
+   }
+  },
+  "energy_density_plot_average_samples": 13,
+  "average_width_omega_p": 6.50000000000739,
+  "input_sha256": {
+   "drive": "81057315c5541bd996f61c961e5db216a95f0c81b055a20bae580afdef0cdf8f",
+   "zero": "96ff52c24a5fbe71fcc9df60118f133898421f3e751650a106dc3111010f5ad6",
+   "paper": "e818f8e971bb53dddce895aa2b4034aed8e02468e8d842ea32290845e29a7d17"
+  },
+  "analysis_sha256": "7fcd3ef21d5927b55da015b88f65112dc15944f14810b515630f0bc89804d7ab"
+ },
+ "results": {
+  "final_rms_over_c": [
+   0.19256370337914447,
+   0.0008341203203376177
+  ],
+  "digitized_final_rms_over_c": [
+   0.20184636102488318,
+   0.0008819327586119599
+  ],
+  "final_rms_relative_difference": [
+   -0.045988729242408155,
+   -0.05421324676678574
+  ],
+  "all_step_conservation": {
+   "max_energy_work_defect_over_initial_thermal": 0.005584839764803169,
+   "max_momentum_defect_over_nmecL": 1.3213832029188892e-14,
+   "max_particle_charge_change_over_enL": 0.0,
+   "max_grid_charge_change_over_enL": 1.169955258477763e-16,
+   "max_continuity_over_enwp": 2.131841189376215e-14,
+   "max_ordinary_gauss_over_en_eps0": 1.47678532261567e-13,
+   "max_dark_gauss_over_en_eps0": 0.0,
+   "max_energy_work_defect_over_peak_injected_work": 0.00024118715436475735
+  },
+  "no_drive_late_global_spread_over_initial": 1.0025081073297404,
+  "late_global_spread_over_initial": [
+   36.093485622944684,
+   1.2741429060641223
+  ],
+  "refinements": [],
+  "claim": "Figure 2 parameter replay; grid, timestep, loading and seed convergence pending"
+ }
+}

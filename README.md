@@ -68,6 +68,21 @@ The solver is periodic, explicit **1D3V PIC**: fields vary along one spatial coo
 
 The ordinary electric and magnetic fields follow staggered Ampère and Faraday updates. Dark $\mathbf E_D,\mathbf A_D$ live on grid faces and $\mathbf B_D,\phi_D$ at cell centres; symmetric Proca kick and drift updates surround the particle push. Initialization projects the longitudinal dark electric field onto Gauss' law and reports the correction size. Charge-conserving current and compatible grid derivatives then carry both Gauss constraints through the run, while the potential update maintains $\mathbf B_D=\nabla\times\mathbf A_D$. The energy ledger includes particle, Maxwell and full Proca field and potential energies, referenced to the actual initial state; all-step conservation and Gauss maxima survive sparse output and restart. The examples use collisionless particles and unsmoothed sources. [Discrete equations, stability and measured energy drift](docs/physics.md) describe the scheme in detail.
 
+## Conservation and the choice of timestep
+
+The [coupled benchmark](docs/scripts/benchmark_pic_conservation.py) follows identical warm electron streams and mobile ions for $40/\omega_p$, using 24,576 particles. Ordinary explicit and implicit PIC solve the same Maxwell problem; the Proca rows add $\eta=0.3$, $\Omega_D=0.7\omega_p$. The closed energy includes the massive-field potentials above, and longitudinal momentum includes $\epsilon_0\Omega_D^2\int\phi_D A_{D,x}\,dx/c^2$.
+
+<img src="docs/_static/figures/pic_conservation/figure.png" width="800" alt="Complete energy, momentum, electric-mode growth and phase for explicit, implicit and Proca particle-in-cell methods">
+
+| Method | Cells | $\Delta t\omega_p$ | Maximum $|\Delta U|/U_0$ | Maximum $|\Delta P|/(nm_ecL)$ |
+|---|---:|---:|---:|---:|
+| Ordinary explicit | 128 | 0.002 | $7.46\times10^{-4}$ | $2.94\times10^{-17}$ |
+| Ordinary implicit, four iterations | 128 | 0.002 | $8.53\times10^{-16}$ | $7.13\times10^{-7}$ |
+| Proca explicit | 128 | 0.002 | $7.98\times10^{-4}$ | $2.34\times10^{-17}$ |
+| Proca explicit | 256 | 0.002 | $2.06\times10^{-4}$ | $2.97\times10^{-17}$ |
+
+Charge, continuity and both Gauss residuals remain below $4.6\times10^{-13}$ in their stated normalizations. The implicit energy/charge balance agrees with the [discrete-gradient PIC construction](https://arxiv.org/abs/1910.04000), while momentum has a finite error. On this GPU workload, four implicit iterations cost about five times the explicit run at the same step; a tenfold larger step recovers that cost, with phase and nonlinear accuracy still requiring validation. Proca total-energy error falls about fourfold on grid doubling; its much smaller dark-sector work defect falls fourfold on timestep halving. These measurements favour spatial refinement of the explicit companion before changing its clock. [All twelve rows, timings, phase accuracy and method limits](docs/performance.md#coupled-kinetic-methods).
+
 ## Cold exchange: a known answer
 
 A homogeneous transverse dark field drives a cold electron plasma. The full [example](examples/dark_photon.py) follows the ordinary and dark mean fields through $\omega_0t=20$ and compares both with an independent four-state matrix exponential. The largest field error is **$2.922\times10^{-4}$** of the initial dark field; closed-energy drift from the physical time-zero state is **$8.709\times10^{-5}$**. This checks the coupling, mean current and potential-energy ledger before kinetic effects enter. [Settings and arrays](docs/_static/figures/cold_exchange/run.json) are saved with the figure.
@@ -140,11 +155,23 @@ The [cold oblique example](examples/dark_plasma.py) sets a magnetic field with t
 
 ## Mobile ions: finite versus imposed reservoirs
 
-The [mobile-ion example](examples/dark_reservoir.py) compares a zero-drive control, an imposed resonant force, and two finite Proca reservoirs with the same initial force. A two-fluid electron–ion solution checks the early mean response. By $\omega_pt=40$, the small dark reservoir loses about **52.8%** of its initial field energy; the large one loses about **14.8%**. A separate 1,000-cell [paper-geometry pilot](docs/_static/figures/paper_geometry_pilot/run.json) reaches only $\omega_pt=80$ and finds no loading-stable pump-induced higher-mode growth. It does not reproduce the late heating of [Hook, Huang and Shalaby](https://doi.org/10.1103/98cx-7t43). [Controls and limits](docs/kinetic.md#mobile-ions-and-a-finite-reservoir).
+The [mobile-ion example](examples/dark_reservoir.py) compares a zero-drive control, an imposed resonant force, and two finite Proca reservoirs with the same initial force. A two-fluid electron–ion solution checks the early mean response. By $\omega_pt=40$, the small dark reservoir loses about **52.8%** of its initial field energy; the large one loses about **14.8%**. [Controls, the earlier seeded pilot and limits](docs/kinetic.md#mobile-ions-and-a-finite-reservoir).
 
 <img src="docs/_static/figures/mobile_ions/figure.png" width="800" alt="Matched ion-electron prescribed drive and finite dark reservoirs">
 
-<img src="docs/_static/figures/paper_geometry_pilot/figure.png" width="800" alt="Early paper-geometry control and loading-sensitive higher-mode energy">
+## Resonant drive and nonlinear plasma response
+
+The [strong-drive Figure 2 case of Hook, Huang and Shalaby](https://arxiv.org/pdf/2510.13956v1) has mobile ions, $m_i/m_e=1836$, $T_e=T_i=10^{-3}m_ec^2$ and $L=40c/\omega_p$. The applied field is
+
+$$
+E_{\rm applied}=E_*a_0\cos(\omega_pt),\qquad E_*=m_ec\omega_p/e,\qquad a_0=0.03\sqrt{10^{-3}}.
+$$
+
+The [parameter replay](examples/dark_reservoir.py) advances **206,000 particles** on 1,000 cells through $\omega_pt=5000$, with $\Delta t\omega_p=0.02$ and quadratic shapes; the paper uses fifth-order shapes.
+
+<img src="docs/_static/figures/paper_replay/figure.png" width="800" alt="Strong resonant drive compared with published RMS curves, no-drive and homogeneous relativistic controls">
+
+Final electron/ion RMS speeds are **$0.1926c$/$0.000834c$**, about **4.6%/5.4% below** the visible PDF curves. Late electron variance grows **36.09×**, versus **1.0025×** without driving. The energy/work defect is at most **0.0241% of peak injected work**. Spatial broadening follows the published trend; grid, timestep, loading and seed checks remain necessary for quantitative late agreement. [Data, averaging, normalization and mechanism limits](docs/kinetic.md#long-strong-drive-replay-and-controls).
 
 ## Oscillating pair plasma: a kinetic bridge
 

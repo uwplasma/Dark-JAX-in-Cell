@@ -240,3 +240,30 @@ $$
 $$
 
 Its early, fixed-ion limit is $-a_0\tau\sin\tau/2$, with energy envelope $a_0^2\tau^2/8$. Independently integrated Gaussian momentum orbits retain relativistic thermal and amplitude detuning while suppressing spatial perturbations. This homogeneous reference can bound coherent field growth without exciting ion-density waves. A nonlinear spatial interpretation therefore requires a resolved increase in electron spread and density contrast relative to both this reference and the no-drive control, with separate grid, step, loading, and seed checks. The setup and linear-limit controls do not by themselves confirm the paper's late suppression curve, its proposed density mechanism, or its cosmological conclusion.
+
+#### Long strong-drive replay and controls
+
+The [record](_static/figures/paper_replay/run.json) combines clean-source driven and no-drive runs with 103,000 markers per species, 1,000 cells and $\Delta t\omega_p=0.02$, through $\tau=5000$. The displayed reference curves were digitized from the attached v1 PDF's visible vector paths, with logged axis calibration and PDF SHA-256. They are approximate plotted values, not the authors' simulation arrays. The [stored curves](_static/figures/paper_replay/data.npz) and [plot generator](scripts/make_paper_replay.py) retain the comparison independently of the illustration.
+
+![Strong drive, published RMS curves and two controls](_static/figures/paper_replay/figure.png)
+
+| Quantity at $\tau=5000$ | Spatial PIC | Visible Fig. 2 curve |
+|---|---:|---:|
+| Electron RMS spread $\sigma_e/c$ | {{ hook_electron_rms }} | {{ hook_target_electron_rms }} |
+| Ion RMS spread $\sigma_i/c$ | {{ hook_ion_rms }} | {{ hook_target_ion_rms }} |
+
+The respective endpoint differences are **{{ hook_electron_difference_percent }}%** and **{{ hook_ion_difference_percent }}%**. Over $4800\leq\tau\leq5000$, electron global spread energy is **{{ hook_spread_gain }}** times its initial value; the identical no-drive loading gives **{{ hook_no_drive_spread }}**. The homogeneous relativistic control has no growing spatial spread. Thus the spatial calculation reproduces the qualitative broadening trend, while a single particle realization and shape order cannot establish quantitative late convergence. Continued broadening at the end also precludes a steady-temperature claim.
+
+Faint lines retain raw field-energy and density samples every $\Delta\tau=0.5$; thicker lines use a 13-sample moving average, spanning $6.5/\omega_p$, with trimmed endpoints. The source curve is shown as digitized. The density RMS uses the numerical grid scale and therefore requires separate interpretation under refinement. It supplies evidence of spatial response, without establishing the ion-density cross-phase or the proposed detuning mechanism. The field can also be bounded by homogeneous relativistic detuning, as the blue control demonstrates.
+
+Every-step energy-minus-external-work error is at most **{{ hook_work_error_percent }}%** of peak injected work; momentum defect is **{{ hook_momentum }}** in $nm_ecL$ units. Continuity and ordinary Gauss maxima are **{{ hook_continuity }}** and **{{ hook_gauss }}**, scaled by $en\omega_p$ and $en/\epsilon_0$. These checks address numerical conservation, independently of curve agreement. The [PDF normalization review](validation.md#which-published-limits-are-tested) explains why the direct RMS comparison is used rather than rescaling the paper's solid thermal-energy curves.
+
+Run the following cases **sequentially**. The final complete restart is compressed and retained in each computational output; the public summary keeps compressed scalar curves and provenance.
+
+```sh
+python examples/dark_reservoir.py --paper --full --output artifacts/paper_full_drive
+python examples/dark_reservoir.py --paper --full --drive-ratio 0 --output artifacts/paper_full_zero
+python docs/scripts/make_paper_replay.py --output docs/_static/figures/paper_replay
+```
+
+`--dt 0.01` repeats identical initial particles at half the timestep. A subsequent `--cells 2000 --dt 0.01` with unchanged particle count isolates spatial refinement against that run. Loading and independent-seed checks follow separately. The new output also retains initial/final local spread at fixed physical Gaussian smoothing lengths $2\lambda_{D0}$ and $4\lambda_{D0}$, with $\lambda_{D0}=\sqrt{10^{-3}}c/\omega_p$. These lab-frame moments remove resolved local flow; they remain distinct from a relativistic thermodynamic temperature. The original stored long runs precede those additional endpoint diagnostics. The weak-drive panel, Appendix C's much longer evolution and the cosmological conclusion remain open reproduction targets.

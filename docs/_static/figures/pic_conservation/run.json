@@ -1,0 +1,762 @@
+{
+ "jaxincell": "0.7.dev302+g83d327118",
+ "jax": "0.6.2",
+ "numpy": "2.2.4",
+ "python": "3.10.12",
+ "platform": "Linux x86_64",
+ "jax_enable_x64": true,
+ "backend": "gpu",
+ "git": "36b5bc3e2b888f58664db97317e8556c86125533",
+ "example": "pic_conservation",
+ "settings": {
+  "preset": "full",
+  "particles_per_species": 8192,
+  "thermal_sigma_over_c": 0.003,
+  "electron_drift_over_c": 0.05,
+  "mass_ratio": 1836,
+  "ku_over_omega_p": 0.5,
+  "perturbation_density_fraction": 0.0001,
+  "parent_revision": "83d327118163833f93e2588edcb5029241f6ba2a",
+  "samples_per_case": 1,
+  "precision": "float64",
+  "note": "fresh process per row"
+ },
+ "results": {
+  "rows": [
+   {
+    "case": "explicit",
+    "cells": 128,
+    "particles_per_species": 8192,
+    "dt_omega_p": 0.002,
+    "horizon_omega_p": 40.000000000005876,
+    "picard_iterations": 0,
+    "particle_substeps": 1,
+    "compile_s": 5.025422342005186,
+    "first_primal_s": 8.13220942101907,
+    "warm_primal_s": [
+     7.8984404189977795
+    ],
+    "warm_median_s": 7.8984404189977795,
+    "peak_rss_bytes": 993480704,
+    "compiler_temporary_bytes": 2321784,
+    "host_load": [
+     7.04150390625,
+     6.79345703125,
+     6.642578125
+    ],
+    "max_energy_error_over_initial": 0.0007461156490269772,
+    "max_momentum_error_over_nmecL": 2.9386678958252754e-17,
+    "max_particle_charge_change_over_enL": 0.0,
+    "max_continuity_over_enwp": 2.0118799563469094e-13,
+    "max_ordinary_gauss_over_en_eps0": 1.1175451356445515e-13,
+    "max_dark_gauss_over_en_eps0": 0.0,
+    "max_grid_charge_change_over_enL": 3.196252419171552e-16,
+    "max_dark_work_error_over_initial": 0.0,
+    "max_ordinary_work_error_over_initial": 0.0007461156490269772,
+    "max_grid_particle_charge_disagreement_over_enL": 2.0970659259234185e-16,
+    "fitted_growth_over_wp": 0.3466385188497461,
+    "regression_standard_error": 0.003031623775001175,
+    "fitted_frequency_over_wp": -3.094928428814951e-05,
+    "theory_growth_over_wp": 0.33839860068327,
+    "theory_frequency_over_wp": -1.360588889570898e-19,
+    "theory_residual": 1.2954047556857372e-14,
+    "reference_frequency_over_electron_wp": 1.0002722940826505,
+    "fit_window_omega_p": [
+     8.0,
+     16.0
+    ],
+    "backend": "gpu",
+    "devices": [
+     "cuda:0"
+    ],
+    "jax": "0.6.2",
+    "original_fit": {
+     "fitted_growth_over_wp": 0.34541914801301293,
+     "regression_standard_error": 0.003083183872351242,
+     "fitted_frequency_over_wp": 0.002625735625739649,
+     "fit_window_omega_p": [
+      8,
+      16
+     ]
+    },
+    "fit_samples": 81,
+    "phase_regression_standard_error": 0.00398242801379223,
+    "phase_excursion_radians": 0.41699577340761596
+   },
+   {
+    "case": "implicit1",
+    "cells": 128,
+    "particles_per_species": 8192,
+    "dt_omega_p": 0.002,
+    "horizon_omega_p": 40.000000000005876,
+    "picard_iterations": 1,
+    "particle_substeps": 2,
+    "compile_s": 5.655708862002939,
+    "first_primal_s": 9.807242328999564,
+    "warm_primal_s": [
+     9.867701004026458
+    ],
+    "warm_median_s": 9.867701004026458,
+    "peak_rss_bytes": 962686976,
+    "compiler_temporary_bytes": 4977280,
+    "host_load": [
+     6.78857421875,
+     6.75390625,
+     6.63427734375
+    ],
+    "max_energy_error_over_initial": 0.000879377680878204,
+    "max_momentum_error_over_nmecL": 8.450250136800306e-07,
+    "max_particle_charge_change_over_enL": 0.0,
+    "max_continuity_over_enwp": 2.0303980683732706e-13,
+    "max_ordinary_gauss_over_en_eps0": 7.874823363299642e-14,
+    "max_dark_gauss_over_en_eps0": 0.0,
+    "max_grid_charge_change_over_enL": 3.3650799575059044e-16,
+    "max_dark_work_error_over_initial": 0.0,
+    "max_ordinary_work_error_over_initial": 0.000879377680878204,
+    "max_grid_particle_charge_disagreement_over_enL": 2.1036384624209061e-16,
+    "fitted_growth_over_wp": 0.3465731208870913,
+    "regression_standard_error": 0.0030506315616103006,
+    "fitted_frequency_over_wp": 8.724507000640857e-06,
+    "theory_growth_over_wp": 0.33839860068327,
+    "theory_frequency_over_wp": -1.360588889570898e-19,
+    "theory_residual": 1.2954047556857372e-14,
+    "reference_frequency_over_electron_wp": 1.0002722940826505,
+    "fit_window_omega_p": [
+     8.0,
+     16.0
+    ],
+    "backend": "gpu",
+    "devices": [
+     "cuda:0"
+    ],
+    "jax": "0.6.2",
+    "original_fit": {
+     "fitted_growth_over_wp": 0.3453431322714953,
+     "regression_standard_error": 0.003102188181050856,
+     "fitted_frequency_over_wp": 0.0026760643403767573,
+     "fit_window_omega_p": [
+      8,
+      16
+     ]
+    },
+    "fit_samples": 81,
+    "phase_regression_standard_error": 0.003997199472600266,
+    "phase_excursion_radians": 0.4185224866176587
+   },
+   {
+    "case": "implicit2",
+    "cells": 128,
+    "particles_per_species": 8192,
+    "dt_omega_p": 0.002,
+    "horizon_omega_p": 40.000000000005876,
+    "picard_iterations": 2,
+    "particle_substeps": 2,
+    "compile_s": 5.930519532994367,
+    "first_primal_s": 20.29134396801237,
+    "warm_primal_s": [
+     20.60319295793306
+    ],
+    "warm_median_s": 20.60319295793306,
+    "peak_rss_bytes": 963108864,
+    "compiler_temporary_bytes": 8515512,
+    "host_load": [
+     7.35205078125,
+     6.943359375,
+     6.70849609375
+    ],
+    "max_energy_error_over_initial": 9.498769547456682e-10,
+    "max_momentum_error_over_nmecL": 7.129999337949918e-07,
+    "max_particle_charge_change_over_enL": 0.0,
+    "max_continuity_over_enwp": 1.9078171999841384e-13,
+    "max_ordinary_gauss_over_en_eps0": 9.20162667568086e-14,
+    "max_dark_gauss_over_en_eps0": 0.0,
+    "max_grid_charge_change_over_enL": 3.663400585524652e-16,
+    "max_dark_work_error_over_initial": 0.0,
+    "max_ordinary_work_error_over_initial": 9.498769547456682e-10,
+    "max_grid_particle_charge_disagreement_over_enL": 2.3652254150209296e-16,
+    "fitted_growth_over_wp": 0.34658122161335364,
+    "regression_standard_error": 0.0030340926152779293,
+    "fitted_frequency_over_wp": 1.2274975098247611e-05,
+    "theory_growth_over_wp": 0.33839860068327,
+    "theory_frequency_over_wp": -1.360588889570898e-19,
+    "theory_residual": 1.2954047556857372e-14,
+    "reference_frequency_over_electron_wp": 1.0002722940826505,
+    "fit_window_omega_p": [
+     8.0,
+     16.0
+    ],
+    "backend": "gpu",
+    "devices": [
+     "cuda:0"
+    ],
+    "jax": "0.6.2",
+    "original_fit": {
+     "fitted_growth_over_wp": 0.34535737436847425,
+     "regression_standard_error": 0.003085195320844608,
+     "fitted_frequency_over_wp": 0.0026670233710380875,
+     "fit_window_omega_p": [
+      8,
+      16
+     ]
+    },
+    "fit_samples": 81,
+    "phase_regression_standard_error": 0.003977519391465834,
+    "phase_excursion_radians": 0.4165429974902471
+   },
+   {
+    "case": "implicit4",
+    "cells": 128,
+    "particles_per_species": 8192,
+    "dt_omega_p": 0.002,
+    "horizon_omega_p": 40.000000000005876,
+    "picard_iterations": 4,
+    "particle_substeps": 2,
+    "compile_s": 5.520730834105052,
+    "first_primal_s": 38.6088064169744,
+    "warm_primal_s": [
+     39.23552326997742
+    ],
+    "warm_median_s": 39.23552326997742,
+    "peak_rss_bytes": 963018752,
+    "compiler_temporary_bytes": 8515512,
+    "host_load": [
+     7.4833984375,
+     7.15234375,
+     6.80810546875
+    ],
+    "max_energy_error_over_initial": 8.530582550324997e-16,
+    "max_momentum_error_over_nmecL": 7.130000268225223e-07,
+    "max_particle_charge_change_over_enL": 0.0,
+    "max_continuity_over_enwp": 1.959848578165524e-13,
+    "max_ordinary_gauss_over_en_eps0": 6.846960303399377e-14,
+    "max_dark_gauss_over_en_eps0": 0.0,
+    "max_grid_charge_change_over_enL": 2.9256192429977404e-16,
+    "max_dark_work_error_over_initial": 0.0,
+    "max_ordinary_work_error_over_initial": 8.530582550324997e-16,
+    "max_grid_particle_charge_disagreement_over_enL": 2.859480159632028e-16,
+    "fitted_growth_over_wp": 0.34658122160459903,
+    "regression_standard_error": 0.0030340926318859073,
+    "fitted_frequency_over_wp": 1.2274971997664488e-05,
+    "theory_growth_over_wp": 0.33839860068327,
+    "theory_frequency_over_wp": -1.360588889570898e-19,
+    "theory_residual": 1.2954047556857372e-14,
+    "reference_frequency_over_electron_wp": 1.0002722940826505,
+    "fit_window_omega_p": [
+     8.0,
+     16.0
+    ],
+    "backend": "gpu",
+    "devices": [
+     "cuda:0"
+    ],
+    "jax": "0.6.2",
+    "original_fit": {
+     "fitted_growth_over_wp": 0.34535737435352454,
+     "regression_standard_error": 0.003085195337907774,
+     "fitted_frequency_over_wp": 0.002667023380526248,
+     "fit_window_omega_p": [
+      8,
+      16
+     ]
+    },
+    "fit_samples": 81,
+    "phase_regression_standard_error": 0.003977519411149033,
+    "phase_excursion_radians": 0.41654299947158735
+   },
+   {
+    "case": "implicit8",
+    "cells": 128,
+    "particles_per_species": 8192,
+    "dt_omega_p": 0.002,
+    "horizon_omega_p": 40.000000000005876,
+    "picard_iterations": 8,
+    "particle_substeps": 2,
+    "compile_s": 5.573927231016569,
+    "first_primal_s": 76.18295448005665,
+    "warm_primal_s": [
+     75.83547921397258
+    ],
+    "warm_median_s": 75.83547921397258,
+    "peak_rss_bytes": 963846144,
+    "compiler_temporary_bytes": 8515512,
+    "host_load": [
+     7.44287109375,
+     7.28173828125,
+     6.92333984375
+    ],
+    "max_energy_error_over_initial": 4.2652912751624985e-16,
+    "max_momentum_error_over_nmecL": 7.129999630491309e-07,
+    "max_particle_charge_change_over_enL": 0.0,
+    "max_continuity_over_enwp": 1.7907465990760208e-13,
+    "max_ordinary_gauss_over_en_eps0": 8.23109462310571e-14,
+    "max_dark_gauss_over_en_eps0": 0.0,
+    "max_grid_charge_change_over_enL": 3.3010240424753565e-16,
+    "max_dark_work_error_over_initial": 0.0,
+    "max_ordinary_work_error_over_initial": 4.2652912751624985e-16,
+    "max_grid_particle_charge_disagreement_over_enL": 3.6429265101326e-16,
+    "fitted_growth_over_wp": 0.34658122160461546,
+    "regression_standard_error": 0.0030340926318911748,
+    "fitted_frequency_over_wp": 1.2274972022946633e-05,
+    "theory_growth_over_wp": 0.33839860068327,
+    "theory_frequency_over_wp": -1.360588889570898e-19,
+    "theory_residual": 1.2954047556857372e-14,
+    "reference_frequency_over_electron_wp": 1.0002722940826505,
+    "fit_window_omega_p": [
+     8.0,
+     16.0
+    ],
+    "backend": "gpu",
+    "devices": [
+     "cuda:0"
+    ],
+    "jax": "0.6.2",
+    "original_fit": {
+     "fitted_growth_over_wp": 0.3453573743535347,
+     "regression_standard_error": 0.0030851953379117864,
+     "fitted_frequency_over_wp": 0.002667023380553159,
+     "fit_window_omega_p": [
+      8,
+      16
+     ]
+    },
+    "fit_samples": 81,
+    "phase_regression_standard_error": 0.003977519411149484,
+    "phase_excursion_radians": 0.41654299947188367
+   },
+   {
+    "case": "implicit12",
+    "cells": 128,
+    "particles_per_species": 8192,
+    "dt_omega_p": 0.002,
+    "horizon_omega_p": 40.000000000005876,
+    "picard_iterations": 12,
+    "particle_substeps": 2,
+    "compile_s": 5.567057560081594,
+    "first_primal_s": 111.95453410199843,
+    "warm_primal_s": [
+     113.97960970096756
+    ],
+    "warm_median_s": 113.97960970096756,
+    "peak_rss_bytes": 962543616,
+    "compiler_temporary_bytes": 8515512,
+    "host_load": [
+     7.13916015625,
+     7.47314453125,
+     7.10595703125
+    ],
+    "max_energy_error_over_initial": 4.2652912751624985e-16,
+    "max_momentum_error_over_nmecL": 7.129999990290211e-07,
+    "max_particle_charge_change_over_enL": 0.0,
+    "max_continuity_over_enwp": 1.917573083393148e-13,
+    "max_ordinary_gauss_over_en_eps0": 9.506709536089506e-14,
+    "max_dark_gauss_over_en_eps0": 0.0,
+    "max_grid_charge_change_over_enL": 2.896688529121981e-16,
+    "max_dark_work_error_over_initial": 0.0,
+    "max_ordinary_work_error_over_initial": 4.2652912751624985e-16,
+    "max_grid_particle_charge_disagreement_over_enL": 2.328419210634997e-16,
+    "fitted_growth_over_wp": 0.34658122160461396,
+    "regression_standard_error": 0.00303409263189043,
+    "fitted_frequency_over_wp": 1.2274972005612563e-05,
+    "theory_growth_over_wp": 0.33839860068327,
+    "theory_frequency_over_wp": -1.360588889570898e-19,
+    "theory_residual": 1.2954047556857372e-14,
+    "reference_frequency_over_electron_wp": 1.0002722940826505,
+    "fit_window_omega_p": [
+     8.0,
+     16.0
+    ],
+    "backend": "gpu",
+    "devices": [
+     "cuda:0"
+    ],
+    "jax": "0.6.2",
+    "original_fit": {
+     "fitted_growth_over_wp": 0.3453573743535355,
+     "regression_standard_error": 0.0030851953379115674,
+     "fitted_frequency_over_wp": 0.0026670233805354757,
+     "fit_window_omega_p": [
+      8,
+      16
+     ]
+    },
+    "fit_samples": 81,
+    "phase_regression_standard_error": 0.0039775194111481066,
+    "phase_excursion_radians": 0.416542999471273
+   },
+   {
+    "case": "proca",
+    "cells": 128,
+    "particles_per_species": 8192,
+    "dt_omega_p": 0.002,
+    "horizon_omega_p": 40.000000000005876,
+    "picard_iterations": 0,
+    "particle_substeps": 1,
+    "compile_s": 5.596517011988908,
+    "first_primal_s": 11.08686341100838,
+    "warm_primal_s": [
+     11.222183202044107
+    ],
+    "warm_median_s": 11.222183202044107,
+    "peak_rss_bytes": 1042763776,
+    "compiler_temporary_bytes": 2730472,
+    "host_load": [
+     6.53515625,
+     7.3037109375,
+     7.06298828125
+    ],
+    "max_energy_error_over_initial": 0.0007980164125113479,
+    "max_momentum_error_over_nmecL": 2.3379287250249925e-17,
+    "max_particle_charge_change_over_enL": 0.0,
+    "max_continuity_over_enwp": 1.760394961803546e-13,
+    "max_ordinary_gauss_over_en_eps0": 1.2299548607212935e-13,
+    "max_dark_gauss_over_en_eps0": 3.538142166349917e-14,
+    "max_grid_charge_change_over_enL": 3.4409863355592174e-16,
+    "max_dark_work_error_over_initial": 2.079493220695809e-11,
+    "max_ordinary_work_error_over_initial": 0.0007980164005683813,
+    "max_grid_particle_charge_disagreement_over_enL": 2.233774685071169e-16,
+    "fitted_growth_over_wp": 0.352218225033242,
+    "regression_standard_error": 0.0029472060458362714,
+    "fitted_frequency_over_wp": 0.006535839362498762,
+    "theory_growth_over_wp": 0.3478316893909079,
+    "theory_frequency_over_wp": 1.065043600869556e-20,
+    "theory_residual": 2.0603962980203505e-11,
+    "reference_frequency_over_electron_wp": 1.0002722940826505,
+    "fit_window_omega_p": [
+     8.0,
+     16.0
+    ],
+    "backend": "gpu",
+    "devices": [
+     "cuda:0"
+    ],
+    "jax": "0.6.2",
+    "original_fit": {
+     "fitted_growth_over_wp": 0.3506177659765847,
+     "regression_standard_error": 0.0029256847277683144,
+     "fitted_frequency_over_wp": 0.008834001097955383,
+     "fit_window_omega_p": [
+      8,
+      16
+     ]
+    },
+    "fit_samples": 81,
+    "phase_regression_standard_error": 0.0034243630376574437,
+    "phase_excursion_radians": 0.34752617849816725
+   },
+   {
+    "case": "explicit",
+    "cells": 128,
+    "particles_per_species": 8192,
+    "dt_omega_p": 0.001,
+    "horizon_omega_p": 40.000000000025615,
+    "picard_iterations": 0,
+    "particle_substeps": 1,
+    "compile_s": 4.723907837062143,
+    "first_primal_s": 16.13084566302132,
+    "warm_primal_s": [
+     15.735147298080847
+    ],
+    "warm_median_s": 15.735147298080847,
+    "peak_rss_bytes": 994091008,
+    "compiler_temporary_bytes": 2321784,
+    "host_load": [
+     7.6552734375,
+     7.48291015625,
+     7.134765625
+    ],
+    "max_energy_error_over_initial": 0.0007462166864731167,
+    "max_momentum_error_over_nmecL": 3.818269170766174e-17,
+    "max_particle_charge_change_over_enL": 0.0,
+    "max_continuity_over_enwp": 4.046162311633027e-13,
+    "max_ordinary_gauss_over_en_eps0": 2.3763702536259923e-13,
+    "max_dark_gauss_over_en_eps0": 0.0,
+    "max_grid_charge_change_over_enL": 3.4106236559680388e-16,
+    "max_dark_work_error_over_initial": 0.0,
+    "max_ordinary_work_error_over_initial": 0.0007462166864731167,
+    "max_grid_particle_charge_disagreement_over_enL": 2.3915155610108817e-16,
+    "fitted_growth_over_wp": 0.346638502599048,
+    "regression_standard_error": 0.0030316240618793685,
+    "fitted_frequency_over_wp": -3.0969390624297083e-05,
+    "theory_growth_over_wp": 0.33839860068327,
+    "theory_frequency_over_wp": -1.360588889570898e-19,
+    "theory_residual": 1.2954047556857372e-14,
+    "reference_frequency_over_electron_wp": 1.0002722940826505,
+    "fit_window_omega_p": [
+     8.0,
+     16.0
+    ],
+    "backend": "gpu",
+    "devices": [
+     "cuda:0"
+    ],
+    "jax": "0.6.2",
+    "original_fit": {
+     "fitted_growth_over_wp": 0.34663850259904805,
+     "regression_standard_error": 0.0030316240618793126,
+     "fitted_frequency_over_wp": -3.09693906242951e-05,
+     "fit_window_omega_p": [
+      8,
+      16
+     ]
+    },
+    "fit_samples": 81,
+    "phase_regression_standard_error": 0.003982429250971045,
+    "phase_excursion_radians": 0.4169958748139375
+   },
+   {
+    "case": "implicit8",
+    "cells": 128,
+    "particles_per_species": 8192,
+    "dt_omega_p": 0.001,
+    "horizon_omega_p": 40.000000000025615,
+    "picard_iterations": 8,
+    "particle_substeps": 2,
+    "compile_s": 5.65769161505159,
+    "first_primal_s": 150.396971942042,
+    "warm_primal_s": [
+     153.30801833898295
+    ],
+    "warm_median_s": 153.30801833898295,
+    "peak_rss_bytes": 961249280,
+    "compiler_temporary_bytes": 8515512,
+    "host_load": [
+     11.544921875,
+     10.12060546875,
+     8.3271484375
+    ],
+    "max_energy_error_over_initial": 7.108818791937498e-16,
+    "max_momentum_error_over_nmecL": 7.136048935331039e-07,
+    "max_particle_charge_change_over_enL": 0.0,
+    "max_continuity_over_enwp": 4.450128150569062e-13,
+    "max_ordinary_gauss_over_en_eps0": 1.2921999543885606e-13,
+    "max_dark_gauss_over_en_eps0": 0.0,
+    "max_grid_charge_change_over_enL": 3.3192894680004805e-16,
+    "max_dark_work_error_over_initial": 0.0,
+    "max_ordinary_work_error_over_initial": 7.108818791937498e-16,
+    "max_grid_particle_charge_disagreement_over_enL": 2.5071922033666705e-16,
+    "fitted_growth_over_wp": 0.3465811817499341,
+    "regression_standard_error": 0.003034095648056417,
+    "fitted_frequency_over_wp": 1.2338337590410517e-05,
+    "theory_growth_over_wp": 0.33839860068327,
+    "theory_frequency_over_wp": -1.360588889570898e-19,
+    "theory_residual": 1.2954047556857372e-14,
+    "reference_frequency_over_electron_wp": 1.0002722940826505,
+    "fit_window_omega_p": [
+     8.0,
+     16.0
+    ],
+    "backend": "gpu",
+    "devices": [
+     "cuda:0"
+    ],
+    "jax": "0.6.2",
+    "original_fit": {
+     "fitted_growth_over_wp": 0.34658118174993396,
+     "regression_standard_error": 0.0030340956480564723,
+     "fitted_frequency_over_wp": 1.233833759041356e-05,
+     "fit_window_omega_p": [
+      8,
+      16
+     ]
+    },
+    "fit_samples": 81,
+    "phase_regression_standard_error": 0.003977514866638085,
+    "phase_excursion_radians": 0.41654261234479817
+   },
+   {
+    "case": "proca",
+    "cells": 128,
+    "particles_per_species": 8192,
+    "dt_omega_p": 0.001,
+    "horizon_omega_p": 40.000000000025615,
+    "picard_iterations": 0,
+    "particle_substeps": 1,
+    "compile_s": 5.5557816789951175,
+    "first_primal_s": 22.053012975025922,
+    "warm_primal_s": [
+     22.34440327703487
+    ],
+    "warm_median_s": 22.34440327703487,
+    "peak_rss_bytes": 1043603456,
+    "compiler_temporary_bytes": 2730472,
+    "host_load": [
+     10.22705078125,
+     10.0283203125,
+     8.41015625
+    ],
+    "max_energy_error_over_initial": 0.0007981265770133912,
+    "max_momentum_error_over_nmecL": 5.646443706104637e-17,
+    "max_particle_charge_change_over_enL": 0.0,
+    "max_continuity_over_enwp": 4.564308119355991e-13,
+    "max_ordinary_gauss_over_en_eps0": 1.865305274042115e-13,
+    "max_dark_gauss_over_en_eps0": 5.012368068995716e-14,
+    "max_grid_charge_change_over_enL": 3.4770094838390044e-16,
+    "max_dark_work_error_over_initial": 5.19881691358617e-12,
+    "max_ordinary_work_error_over_initial": 0.0007981265740275939,
+    "max_grid_particle_charge_disagreement_over_enL": 2.5837622535624057e-16,
+    "fitted_growth_over_wp": 0.3522182128660995,
+    "regression_standard_error": 0.002947206857995715,
+    "fitted_frequency_over_wp": 0.006535818403535719,
+    "theory_growth_over_wp": 0.3478316893909079,
+    "theory_frequency_over_wp": 1.065043600869556e-20,
+    "theory_residual": 2.0603962980203505e-11,
+    "reference_frequency_over_electron_wp": 1.0002722940826505,
+    "fit_window_omega_p": [
+     8.0,
+     16.0
+    ],
+    "backend": "gpu",
+    "devices": [
+     "cuda:0"
+    ],
+    "jax": "0.6.2",
+    "original_fit": {
+     "fitted_growth_over_wp": 0.35221821286609933,
+     "regression_standard_error": 0.002947206857995714,
+     "fitted_frequency_over_wp": 0.006535818403535725,
+     "fit_window_omega_p": [
+      8,
+      16
+     ]
+    },
+    "fit_samples": 81,
+    "phase_regression_standard_error": 0.003424364208923224,
+    "phase_excursion_radians": 0.3475263982590972
+   },
+   {
+    "case": "proca",
+    "cells": 256,
+    "particles_per_species": 8192,
+    "dt_omega_p": 0.002,
+    "horizon_omega_p": 40.000000000005876,
+    "picard_iterations": 0,
+    "particle_substeps": 1,
+    "compile_s": 5.661745192017406,
+    "first_primal_s": 13.580367341055535,
+    "warm_primal_s": [
+     13.510375236044638
+    ],
+    "warm_median_s": 13.510375236044638,
+    "peak_rss_bytes": 1043562496,
+    "compiler_temporary_bytes": 2748904,
+    "host_load": [
+     12.26171875,
+     10.5126953125,
+     8.64599609375
+    ],
+    "max_energy_error_over_initial": 0.00020643588272946985,
+    "max_momentum_error_over_nmecL": 2.9726224167004256e-17,
+    "max_particle_charge_change_over_enL": 0.0,
+    "max_continuity_over_enwp": 1.1576981645358293e-13,
+    "max_ordinary_gauss_over_en_eps0": 2.6450069736636703e-13,
+    "max_dark_gauss_over_en_eps0": 6.589994538424311e-14,
+    "max_grid_charge_change_over_enL": 1.670191601161053e-16,
+    "max_dark_work_error_over_initial": 2.0830080872822838e-11,
+    "max_ordinary_work_error_over_initial": 0.00020643587085055368,
+    "max_grid_particle_charge_disagreement_over_enL": 1.318877604620837e-16,
+    "fitted_growth_over_wp": 0.3522570133072622,
+    "regression_standard_error": 0.002946284267433297,
+    "fitted_frequency_over_wp": 0.0065770962286074135,
+    "theory_growth_over_wp": 0.3478316893909079,
+    "theory_frequency_over_wp": 1.065043600869556e-20,
+    "theory_residual": 2.0603962980203505e-11,
+    "reference_frequency_over_electron_wp": 1.0002722940826505,
+    "fit_window_omega_p": [
+     8.0,
+     16.0
+    ],
+    "backend": "gpu",
+    "devices": [
+     "cuda:0"
+    ],
+    "jax": "0.6.2",
+    "original_fit": {
+     "fitted_growth_over_wp": 0.3506546145932975,
+     "regression_standard_error": 0.002924289138395102,
+     "fitted_frequency_over_wp": 0.008871644032907782,
+     "fit_window_omega_p": [
+      8,
+      16
+     ]
+    },
+    "fit_samples": 81,
+    "phase_regression_standard_error": 0.0034206638354395084,
+    "phase_excursion_radians": 0.3469881046070119
+   },
+   {
+    "case": "implicit8",
+    "cells": 128,
+    "particles_per_species": 8192,
+    "dt_omega_p": 0.02,
+    "horizon_omega_p": 40.00000000000095,
+    "picard_iterations": 8,
+    "particle_substeps": 2,
+    "compile_s": 6.028609280008823,
+    "first_primal_s": 7.627789607970044,
+    "warm_primal_s": [
+     7.70362192497123
+    ],
+    "warm_median_s": 7.70362192497123,
+    "peak_rss_bytes": 961679360,
+    "compiler_temporary_bytes": 8515512,
+    "host_load": [
+     12.46630859375,
+     10.7470703125,
+     8.78515625
+    ],
+    "max_energy_error_over_initial": 5.687055033549998e-16,
+    "max_momentum_error_over_nmecL": 6.389803373068509e-07,
+    "max_particle_charge_change_over_enL": 0.0,
+    "max_continuity_over_enwp": 1.7235394022583977e-14,
+    "max_ordinary_gauss_over_en_eps0": 2.3464762283778965e-14,
+    "max_dark_gauss_over_en_eps0": 0.0,
+    "max_grid_charge_change_over_enL": 2.7805824896063463e-16,
+    "max_dark_work_error_over_initial": 0.0,
+    "max_ordinary_work_error_over_initial": 5.687055033549998e-16,
+    "max_grid_particle_charge_disagreement_over_enL": 2.565030524544565e-16,
+    "fitted_growth_over_wp": 0.34658779535548656,
+    "regression_standard_error": 0.0030337555823364845,
+    "fitted_frequency_over_wp": 3.885286466624391e-06,
+    "theory_growth_over_wp": 0.33839860068327,
+    "theory_frequency_over_wp": -1.360588889570898e-19,
+    "theory_residual": 1.2954047556857372e-14,
+    "reference_frequency_over_electron_wp": 1.0002722940826505,
+    "fit_window_omega_p": [
+     8.0,
+     16.0
+    ],
+    "backend": "gpu",
+    "devices": [
+     "cuda:0"
+    ],
+    "jax": "0.6.2",
+    "original_fit": {
+     "fitted_growth_over_wp": 0.3465877953554868,
+     "regression_standard_error": 0.0030337555823362616,
+     "fitted_frequency_over_wp": 3.8852864666233406e-06,
+     "fit_window_omega_p": [
+      8,
+      16
+     ]
+    },
+    "fit_samples": 81,
+    "phase_regression_standard_error": 0.003978218581442555,
+    "phase_excursion_radians": 0.41660700638232806
+   }
+  ],
+  "claim": "method convergence comparison; implicit Proca not implemented"
+ },
+ "analysis": {
+  "method": "inclusive first-mode log-amplitude and unwrapped-phase regression",
+  "endpoint_tolerance_omega_p": 1e-09,
+  "script_sha256": "e6adce47fd5f2e6939b6c5aaa69847b081960cd365bd7e044c7867c8e82e1d79",
+  "arrays_sha256": "4257a80f10dc2a4f8234e45a4da01af283a05cac36f35e20acb33e2d72126349",
+  "note": "stored arrays reused; original fits and computation provenance retained"
+ },
+ "hardware_verification": {
+  "device_index": 0,
+  "device_model": "NVIDIA RTX A4000",
+  "driver_version": "580.173.02",
+  "method": "same-device NVIDIA management query after campaign; original source recorded cuda:0"
+ }
+}

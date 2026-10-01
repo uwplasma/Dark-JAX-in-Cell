@@ -26,6 +26,7 @@ def provenance(record, folder):
 run_example([sys.executable, str(ROOT / "examples" / "dark_photon.py"), "--full",
              "--output", str(EVIDENCE)], cwd=ROOT, check=True)
 record = json.loads((EVIDENCE / "run.json").read_text())
+cold_record = record
 results = record["results"]
 measured = {"cold_mean_error": f"{results['max_mean_field_error_over_D0']:.3e}",
             "cold_gauss_error": f"{results['max_dark_gauss_over_enref_eps0']:.3e}",
@@ -291,7 +292,7 @@ measured.update({"profile_no_wave_E": f"{high['no_wave_max_ordinary_E_V_m']:.3e}
                      f"{abs(high['cold_design_ledger']['closed_total_over_incident'] - 1):.3e}"),
                  "profile_high_random_energy": (
                      f"{high['cold_design_ledger']['local_random_kinetic_over_incident']:.3e}")})
-measured["_provenance"] = {"cold_exchange": provenance(record, "cold_exchange"),
+measured["_provenance"] = {"cold_exchange": provenance(cold_record, "cold_exchange"),
                            "prescribed_drive": provenance(drive_record, "prescribed_drive"),
                            "density_calibration": provenance(calibration_record, "density_calibration"),
                            "oblique_3v": provenance(oblique_record, "oblique_3v"),
