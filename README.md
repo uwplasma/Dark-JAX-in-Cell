@@ -91,6 +91,12 @@ A [prescribed-drive implicit control](docs/performance.md#energy-balance-and-res
 
 With the **206,000-particle Gaussian loading** of the resonant-drive case, the implicit energy/work defect is $1.90\times10^{-15}nm_ec^2L$, while momentum changes by $1.39\times10^{-4}nm_ecL$. Repeated calls to the same compiled solver differ by **12.3%** in nonzero-mode energy through $\omega_pt=1000$. The [matched fields, momentum, conservation and timings](docs/performance.md#gaussian-loading-and-a-fixed-compiled-solver) guide method selection alongside spatial and particle refinement. A separate [exact-state four/eight-iteration check](docs/performance.md#independent-implicit-orbit-and-iteration-checks) leaves early momentum drift unchanged; independent orbit and charge reconstruction verify the accepted impulse.
 
+### Mesh and orbit accuracy
+
+<img src="docs/_static/figures/implicit_method_controls/figure.png" width="800" alt="Fixed-particle implicit mesh and orbit refinement: mean field, nonzero modes, momentum and energy balance">
+
+At fixed **206,000 particles**, $\Delta t\omega_p=0.01$ and $\omega_pt=40$, increasing orbit substeps from two to four doubles runtime while leaving momentum drift unchanged. Refining **1,000→2,000→4,000 cells** reduces its maximum from $4.86\times10^{-5}$ to $7.36\times10^{-6}$ to $3.83\times10^{-6}nm_ecL$; energy/work and Gauss remain near roundoff. Nonzero-mode energy still differs by **31.3% / 18.9%** between successive meshes. Conserved energy/Gauss with finite momentum drift also appears in [variational PIC, Figure 3](https://link.springer.com/article/10.1007/s10915-022-01781-3#Fig3), with different parameters. A converged late conversion curve remains open. [Parameters, raw arrays, independent checks and method limits](docs/performance.md#mesh-and-particle-substep-controls).
+
 ## Cold exchange: a known answer
 
 A homogeneous transverse dark field drives a cold electron plasma. The full [example](examples/dark_photon.py) follows the ordinary and dark mean fields through $\omega_0t=20$ and compares both with an independent four-state matrix exponential. The largest field error is **$2.922\times10^{-4}$** of the initial dark field; closed-energy drift from the physical time-zero state is **$8.709\times10^{-5}$**. This checks the coupling, mean current and potential-energy ledger before kinetic effects enter. [Settings and arrays](docs/_static/figures/cold_exchange/run.json) are saved with the figure.

@@ -592,7 +592,7 @@ measured["_provenance"]["implicit_iteration_control"] = provenance(iteration_rec
 measured["_provenance"]["paper_implicit_comparison"] = provenance(method_record, method.name)
 controls_folder = EVIDENCE.parent / "implicit_method_controls"
 control_runs = []
-for cells, substeps in ((1000, 2), (1000, 4), (2000, 2)):
+for cells, substeps in ((1000, 2), (1000, 4), (2000, 2), (4000, 2)):
     folder = ROOT / "artifacts" / f"implicit_mesh{cells}_sub{substeps}"
     control_runs.append(folder)
     command = [sys.executable, str(ROOT / "docs/scripts/benchmark_implicit_drive.py"), "--paper-loading",
@@ -602,7 +602,8 @@ for cells, substeps in ((1000, 2), (1000, 4), (2000, 2)):
         command += ["--initial-state", str(iteration_runs[0] / "initial_state.npz")]
     run_example(command, cwd=ROOT, check=True)
 run_example([sys.executable, str(ROOT / "docs/scripts/compare_replays.py"), *map(str, control_runs[:2]),
-             "--method-controls", "--refined", str(control_runs[2]), "--publish", str(controls_folder)],
+             "--method-controls", "--refined", str(control_runs[2]), "--finer-mesh", str(control_runs[3]),
+             "--publish", str(controls_folder)],
             cwd=ROOT, check=True)
 controls_record = json.loads((controls_folder / "run.json").read_text())
 for native in controls_record["results"]["native_runs"]:
@@ -613,10 +614,9 @@ for native in controls_record["results"]["native_runs"]:
         measured[f"{prefix}_{suffix}"] = f"{values[key]:.3e}"
     measured[f"{prefix}_compile"] = f"{values['compile_s']:.2f}"
     measured[f"{prefix}_warm"] = f"{values['warm_primal_s'][0]:.2f}"
-for control in ("substep", "mesh"):
-    for suffix, key in (("mean_E", "electric"), ("nonzero", "nonzero_electric"), ("rms", "rms")):
+for control in ("substep", "mesh", "refined_mesh"):
+    for suffix, key in (("mean_E", "electric"), ("nonzero", "nonzero_electric")):
         value = controls_record["results"][f"{control}_observables"][key]["relative_l2_difference"]
-        measured[f"implicit_method_{control}_{suffix}_percent"] = (
-            [f"{100 * v:.4g}" for v in value] if isinstance(value, list) else f"{100 * value:.4g}")
+        measured[f"implicit_method_{control}_{suffix}_percent"] = f"{100 * value:.4g}"
 measured["_provenance"]["implicit_method_controls"] = provenance(controls_record, controls_folder.name)
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")

@@ -179,8 +179,9 @@ def method_records(records):
     b = dict(paper_loading=True, newtonian=False, cells=a['cells'],
              particles_per_species=a['particles_per_species'], length_over_c_wp=40,
              mass_ratio=1836, temperature=.001, amplitude=a['force_quiver_over_c'],
-             parent_revision=a['parent_revision'], dt=.01, store_every=25,
-             initial_fingerprints=dict(x='2' * 64, u='3' * 64, w='3' * 64, B='3' * 64))
+             parent_revision=a['parent_revision'], dt=.01, store_every=25, steps=100, actual_horizon=1.,
+             initial_fingerprints={key: ('2' if key == 'x' else '3') * 64
+                                   for key in ('x', 'u', 'w', 'E', 'B', 'rho', 'time', 'mass', 'charge')})
     with np.load(explicit / 'data.npz') as stored:
         data = dict(stored)
     data['momentum'] = np.tile(np.array([.003, 0., 0.]), (3, 1))
@@ -227,6 +228,12 @@ def test_iteration_comparison_requires_exact_native_fields_and_keeps_species_arr
     (second / 'run.json').write_text(json.dumps(record))
     with pytest.raises(ValueError, match='initial_fingerprints'):
         publish_iterations(first, second, folder)
+    for path in (first, second):
+        record = json.loads((path / 'run.json').read_text())
+        record['settings']['initial_fingerprints'].pop('E')
+        (path / 'run.json').write_text(json.dumps(record))
+    with pytest.raises(ValueError, match='complete initial fingerprints'):
+        publish_iterations(first, second, folder)
 
 
 @pytest.mark.parametrize('corrupt', [None, 'native_field', 'particle_weight', 'runtime'])
@@ -240,7 +247,8 @@ def test_implicit_mesh_substep_controls_keep_loading_and_reject_hidden_changes(m
     data['balance'] = data['t'] * 1e-15
     np.savez_compressed(first / 'data.npz', **data)
     change_settings(first, substeps=2, iterations=4,
-                    initial_fingerprints={key: '3' * 64 for key in ('x', 'u', 'w', 'time', 'mass', 'charge', 'E')})
+                    initial_fingerprints={key: '3' * 64
+                                          for key in ('x', 'u', 'w', 'time', 'mass', 'charge', 'E', 'B', 'rho')})
     second, mesh = first.parent / 'substeps4', first.parent / 'mesh2000'
     copytree(first, second)
     copytree(first, mesh)
@@ -261,17 +269,22 @@ def test_implicit_mesh_substep_controls_keep_loading_and_reject_hidden_changes(m
             publish_method_controls(first, second, mesh, first.parent / 'evidence')
     else:
         folder = first.parent / 'evidence'
-        publish_method_controls(first, second, mesh, folder)
+        finer = first.parent / 'mesh4000'
+        copytree(mesh, finer)
+        change_settings(finer, cells=4000)
+        publish_method_controls(first, second, mesh, folder, finer)
         result = json.loads((folder / 'run.json').read_text())['results']
         np.testing.assert_array_equal(result['mesh_observables']['kinetic']['relative_l2_difference'], [0, 0])
+        assert len(result['native_runs']) == 4 and len(result['native_run_sha256']) == 4
         with np.load(folder / 'data.npz') as stored:
-            np.testing.assert_array_equal(stored['2_rms'], data['rms'])
+            np.testing.assert_array_equal(stored['3_rms'], data['rms'])
 
 
-@pytest.mark.parametrize('change', ['clock', 'initial', 'amplitude', 'runtime', 'finite', 'shape', 'execution'])
+@pytest.mark.parametrize('change', ['clock', 'truncated', 'horizon', 'initial', 'amplitude', 'runtime',
+                                    'finite', 'shape', 'execution'])
 def test_cross_method_mismatches_are_rejected(method_records, change):
     path = method_records[1]
-    if change in ('clock', 'finite', 'shape', 'execution'):
+    if change in ('clock', 'truncated', 'finite', 'shape', 'execution'):
         with np.load(path / 'data.npz') as stored:
             data = dict(stored)
         data['t'][1] += .001 if change == 'clock' else 0
@@ -281,6 +294,8 @@ def test_cross_method_mismatches_are_rejected(method_records, change):
             data['electric'] = data['electric'][:, None]
         if change == 'execution':
             data['execution_0_mean_E'] = np.zeros((5, 1))
+        if change == 'truncated':
+            data = {key: value[:-1] for key, value in data.items()}
         np.savez_compressed(path / 'data.npz', **data)
     else:
         record = json.loads((path / 'run.json').read_text())
@@ -288,6 +303,8 @@ def test_cross_method_mismatches_are_rejected(method_records, change):
             record['settings']['initial_fingerprints']['u'] = '8' * 64
         elif change == 'runtime':
             record['jax'] = 'different'
+        elif change == 'horizon':
+            record['settings']['actual_horizon'] = .75
         else:
             record['settings']['amplitude'] *= 2
         (path / 'run.json').write_text(json.dumps(record))
