@@ -6,6 +6,7 @@ linear windows; quick presets only check that each configuration runs.
 """
 
 from pathlib import Path
+import sys
 
 import jax
 import jax.numpy as jnp
@@ -21,10 +22,8 @@ from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
                        epsilon_0, mass_electron, quiet_start, save_run,
                        speed_of_light as c)
 from darkjaxincell import DarkField, DarkSimulation, midnight
-if __package__:
-    from .dark_kinetic import longitudinal_root
-else:
-    from dark_kinetic import longitudinal_root
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from examples.dark_kinetic import longitudinal_root  # noqa: E402
 
 
 # Each row is (cells, markers, steps); cold two-stream markers are per beam.

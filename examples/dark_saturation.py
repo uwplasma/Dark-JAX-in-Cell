@@ -5,6 +5,7 @@ separates timestep, grid and particle-count refinement.
 """
 
 from pathlib import Path
+import sys
 
 import jax.numpy as jnp
 import matplotlib
@@ -18,10 +19,8 @@ from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
                        speed_of_light as c)
 from jaxincell._core import wrap_positions
 from darkjaxincell import DarkField, DarkSimulation, midnight
-if __package__:
-    from .dark_instabilities import two_stream_growth
-else:
-    from dark_instabilities import two_stream_growth
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from examples.dark_instabilities import two_stream_growth  # noqa: E402
 
 
 # Each row is (cells, particles per beam, dt * omega_p, horizon * omega_p).
