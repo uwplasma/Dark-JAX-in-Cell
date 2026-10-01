@@ -36,7 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from darkjaxincell import PrescribedDrive, load_state, midnight  # noqa: E402
 from darkjaxincell._simulation import DarkState  # noqa: E402
 from darkjaxincell._proca import divergence  # noqa: E402
-from docs.scripts.conservation import snapshot  # noqa: E402
+from docs.scripts.conservation import elapsed_progress, snapshot  # noqa: E402
 from docs.scripts.drive_reference import homogeneous  # noqa: E402
 
 
@@ -547,5 +547,6 @@ if __name__ == "__main__":
             raise ValueError("orbit audit requires relativistic dynamics without a gradient study")
         audit_orbits(args)
     else:
-        benchmark(args)
+        with elapsed_progress("Implicit drive"):
+            benchmark(args)
     print(f"Finished implicit drive benchmark; wrote {output}", flush=True)

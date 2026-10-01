@@ -34,7 +34,7 @@ from darkjaxincell._proca import energy as dark_energy
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "docs" / "scripts"))
 from pair_reference import (coupled_response, growth, relativistic_response,
                             seeded_response)  # noqa: E402
-from conservation import coarse_spread, measured_run, snapshot  # noqa: E402
+from conservation import coarse_spread, elapsed_progress, measured_run, snapshot  # noqa: E402
 from drive_reference import forced_cold, homogeneous  # noqa: E402
 
 
@@ -847,8 +847,9 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
 
 if __name__ == "__main__":
     if study == 'paper':
-        paper_case(output, cells, particles, dt, horizon, seed, drive_ratio,
-                   coupling, block_horizon, local_moments, initial_state)
+        with elapsed_progress("Resonant replay"):
+            paper_case(output, cells, particles, dt, horizon, seed, drive_ratio,
+                       coupling, block_horizon, local_moments, initial_state)
     elif study == 'pair':
         pair_figure(output, full)
     elif study == 'pair_dark':

@@ -170,13 +170,20 @@ if __name__ == "__main__":
 
     with midnight():
         if physical:
-            fig, (ax, energy_ax) = plt.subplots(1, 2, figsize=(11, 4.5),
-                                                layout="constrained")
+            fig = plt.figure(figsize=(11, 7), layout="constrained")
+            panels = fig.subplot_mosaic([["ordinary", "dark"], ["energy", "energy"]])
+            ax, dark_ax, energy_ax = (panels[key] for key in ("ordinary", "dark", "energy"))
         else:
             fig, ax = plt.subplots(figsize=(8, 4.5), layout="constrained")
+            dark_ax = ax
         ax.semilogy(time, parent_amplitude, label="JAX-in-Cell ordinary mode")
         ax.semilogy(time, amplitude, label="Dark-JAX-in-Cell ordinary mode")
-        ax.semilogy(time, dark_amplitude, label="dark field mode")
+        dark_ax.semilogy(time, dark_amplitude, color="#D55E00", lw=.7, alpha=.7, label="dark field mode")
+        if physical:
+            dark_ax.set(xlabel=r"$\omega_p t$", ylabel=r"$|E_{D,x,k}|$ (V/m)",
+                        title="Massive field: a coherent branch")
+            dark_ax.grid(alpha=.4)
+            dark_ax.legend()
         if peaks.size:
             ax.semilogy(time[peaks], amplitude[peaks], "o", label="fitted maxima")
             envelope = amplitude[peaks[0]] * np.exp(analytic.imag * (time - time[peaks[0]]))

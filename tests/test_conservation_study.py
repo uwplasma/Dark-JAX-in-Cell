@@ -9,6 +9,7 @@ from jaxincell import (Domain, Simulation, Solver, Species, elementary_charge as
 
 from darkjaxincell import DarkField, DarkSimulation, PrescribedDrive
 from docs.scripts.conservation import measured_run, snapshot
+from docs.scripts.benchmark_pic_conservation import translated_step
 
 
 WP = 1e9
@@ -23,6 +24,27 @@ def neutral_box(algorithm="explicit", cells=16, relativistic=False):
                Species("positrons", 64, 1, m, N / 2, x=x, v=v))
     return Simulation(Domain(length, cells, time_step=.01 / WP), species,
                       Solver(algorithm=algorithm, relativistic=relativistic))
+
+
+@pytest.mark.parametrize("iterations", [0, 8])
+def test_fractional_cell_force_matches_independent_accepted_orbits(iterations):
+    for fraction in (0., .25, .5):
+        row, p, initial, final = translated_step(16, 64, .004, iterations, fraction)
+        assert row['charge_change_over_enL'] == 0
+        assert row['continuity_over_enwp'] < 1e-11
+        assert row['gauss_over_en_eps0'] < 1e-12
+        assert row['impulse_reference_error'] < 1e-13
+        assert row['max_orbit_error_over_c'] < 1e-13
+        np.testing.assert_array_equal(initial.B, final.B)
+        np.testing.assert_array_equal(final.u[:, 1:], 0)
+        assert float(jnp.mean(initial.E[:, 0])) * e / (m * c * WP) < 1e-14
+        physical = initial.x if iterations else initial.x - p.domain.dt * p._velocity(initial.u) / 2
+        assert np.max(abs(np.asarray(physical[:, 0]))) <= p.domain.length / 2 + 1e-15
+        if iterations:
+            assert row['energy_defect_over_initial'] < 1e-13
+            assert max(row['reference_orbit_closure']) < 2e-14
+        else:
+            assert abs(row['force_over_nmecLwp']) < 1e-13
 
 
 @pytest.mark.parametrize("algorithm", ["explicit", "implicit"])

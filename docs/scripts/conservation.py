@@ -6,6 +6,10 @@ assertion of exact discrete momentum conservation. No particle history is kept.
 """
 
 from functools import partial
+from contextlib import contextmanager
+import sys
+from threading import Event, Thread
+from time import perf_counter
 
 import jax
 import jax.numpy as jnp
@@ -15,6 +19,24 @@ from jaxincell._core import deposit
 
 from darkjaxincell import DarkField, DarkSimulation
 from darkjaxincell._proca import divergence, energy, gauss
+
+
+@contextmanager
+def elapsed_progress(label):
+    """Report long compilation/execution waits on the host, outside JAX traces."""
+    stop, start = Event(), perf_counter()
+
+    def report():
+        while not stop.wait(30):
+            print(f"{label}: {perf_counter() - start:.0f} s elapsed", file=sys.stderr, flush=True)
+
+    worker = Thread(target=report, daemon=True)
+    worker.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        worker.join()
 
 
 def centred(face):

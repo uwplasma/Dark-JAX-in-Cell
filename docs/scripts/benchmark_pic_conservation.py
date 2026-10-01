@@ -23,11 +23,14 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from scipy.stats import linregress  # noqa: E402
 from jaxincell import (Domain, Simulation, Solver, Species, elementary_charge as e,  # noqa: E402
-                       epsilon_0, mass_electron as m, quiet_start, save_run, speed_of_light as c)  # noqa: E402
+                       epsilon_0, mass_electron as m, quiet_start, save_run, save_state,
+                       speed_of_light as c)  # noqa: E402
+from jaxincell._core import deposit, E_x_from_rho  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from darkjaxincell import DarkField, DarkSimulation, midnight  # noqa: E402
-from docs.scripts.conservation import measured_run  # noqa: E402
+from docs.scripts.conservation import elapsed_progress, measured_run, snapshot  # noqa: E402
+from docs.scripts.drive_reference import _quadratic_charge, midpoint_orbits  # noqa: E402
 from examples.dark_kinetic import longitudinal_root  # noqa: E402
 
 
@@ -41,6 +44,8 @@ case = globals().get("case", None if full else "explicit")
 overhead_case = globals().get("overhead_case", None)
 compare_overhead = globals().get("compare_overhead", False)
 render_only = globals().get("render_only", False)
+translations = globals().get("translations", False)  # short fractional-cell force audit
+translation_meshes = globals().get("translation_meshes", (16, 32, 64))
 cells = globals().get("cells", 128 if full else 16)
 particles = globals().get("particles", 8192 if full else 64)
 dt = globals().get("dt", .002 if full else .01)
@@ -65,7 +70,7 @@ def fit_mode(t, mode, window=(8., 16.)):
                 fit_window_omega_p=list(window))
 
 
-def plasma(cells, particles, dtau, iterations=0):
+def plasma(cells, particles, dtau, iterations=0, displacement=1e-4):
     """Warm opposed electrons and mobile ions; all rows share physical particles."""
     density = epsilon_0 * m * WP**2 / e**2
     drift, sigma = .05 * c, .003 * c
@@ -78,11 +83,91 @@ def plasma(cells, particles, dtau, iterations=0):
         x, v = quiet_start(particles, length, (vth, 0., 0.), (speed, 0., 0.))
         v = v.at[:, 0].add(speed - jnp.mean(v[:, 0]))
         if name == "right":
-            x = x.at[:, 0].add(1e-4 * jnp.sin(k * x[:, 0]) / k)
+            x = x.at[:, 0].add(displacement * jnp.sin(k * x[:, 0]) / k)
         species.append(Species(name, particles, charge, mass, fraction * density, x=x, v=v))
         populations.append(dict(wp=WP * np.sqrt(fraction * m / mass), u=speed, vth=vth))
     solver = Solver(algorithm="implicit" if iterations else "explicit", picard_iterations=iterations or 8)
     return Simulation(Domain(length, cells, time_step=dtau / WP), tuple(species), solver), populations
+
+
+def translated_step(cells, particles, dtau, iterations, fraction):
+    """One neutral 1V step, with independent force/orbit reconstruction in wp,c,me units."""
+    p, _ = plasma(cells, particles, dtau, iterations, displacement=.03)
+    p = p.replace(solver=p.solver.replace(relativistic=True))
+    initial, (mass, charge) = p.initial_state(jax.random.PRNGKey(0))
+    d, n = p.domain, 2 * p.species[0].density
+    physical = initial.x if iterations else initial.x - d.dt * p._velocity(initial.u) / 2
+    physical = physical.at[:, 0].set((physical[:, 0] + fraction * d.dx + d.length / 2) % d.length - d.length / 2)
+    rho = deposit(physical[:, 0], charge * initial.w, d.grid[0], d.dx, cells, (0, 0))
+    carried = physical if iterations else physical + d.dt * p._velocity(initial.u) / 2
+    carried = carried.at[:, 0].set((carried[:, 0] + d.length / 2) % d.length - d.length / 2)
+    initial = initial.replace(x=carried, rho=rho, E=initial.E.at[:, 0].set(E_x_from_rho(rho, d.dx, (0, 0))))
+    final, _, maxima = measured_run(p, initial, 1, 1)
+    jax.block_until_ready(final)
+    weights, q, masses = (np.asarray(value) for value in (initial.w / (n * d.length), charge / e, mass / m))
+    x, u = np.asarray(physical[:, 0]) * WP / c, np.asarray(initial.u[:, 0]) / c
+    accepted = np.asarray(final.u[:, 0]) / c - u
+    impulse = float(np.sum(masses * weights * accepted))
+    if iterations:
+        field = np.asarray((initial.E[:, 0] + final.E[:, 0]) / 2) * e / (m * c * WP)
+        reference = midpoint_orbits(field, x, u, q, masses, d.length * WP / c, dtau, weights=weights,
+                                    substeps=p.solver.substeps, tolerance=2e-14)
+        if not reference['converged']:
+            raise ValueError('independent midpoint orbits did not converge')
+        reference_impulse = float(np.sum(masses * weights * (reference['u'] - u)))
+        orbit_error = float(np.max(abs(reference['u'] - np.asarray(final.u[:, 0]) / c)))
+        closure = [max(reference['residual_u']), max(reference['residual_x_over_dx'])]
+        grid_impulse = None
+    else:
+        half_rho = _quadratic_charge(x + dtau * u / np.hypot(1., u) / 2, q * weights, d.length * WP / c, cells)
+        face = np.cumsum(half_rho - half_rho.mean()) * d.dx * WP / c
+        face -= face.mean() + dtau / 2 * np.sum(q * weights * u / np.hypot(1., u))
+        # Charge-transpose gather and periodic Gauss give a telescoping summed force.
+        centred = (face + np.roll(face, 1)) / 2
+        grid_impulse = float(dtau * d.dx / d.length * np.sum(half_rho * centred))
+        coordinate = (x + dtau * u / np.hypot(1., u) / 2 + d.length * WP / (2 * c)) * cells / (d.length * WP / c) - .5
+        indices = np.floor(coordinate + .5).astype(int)[:, None] + np.array([-1, 0, 1])
+        distance = abs(coordinate[:, None] - indices)
+        shape = np.where(distance <= .5, .75 - distance**2, .5 * np.maximum(1.5 - distance, 0)**2)
+        predicted = dtau * q / masses * np.sum(shape * centred[indices % cells], axis=1)
+        reference_impulse = float(np.sum(masses * weights * predicted))
+        orbit_error = float(np.max(abs(predicted - accepted)))
+        closure = None
+    row = dict(cells=cells, particles_per_species=particles, dt_omega_p=dtau,
+               method='implicit8' if iterations else 'explicit', shift_over_dx=fraction,
+               impulse_over_nmecL=impulse, force_over_nmecLwp=impulse / dtau,
+               reference_impulse_over_nmecL=reference_impulse,
+               impulse_reference_error=abs(impulse - reference_impulse), max_orbit_error_over_c=orbit_error,
+               reference_orbit_closure=closure, explicit_grid_impulse_over_nmecL=grid_impulse,
+               energy_defect_over_initial=float(maxima[0] / snapshot(p, initial)['balance']),
+               continuity_over_enwp=float(maxima[3] / (e * n * WP)),
+               gauss_over_en_eps0=float(maxima[4] * epsilon_0 / (e * n)),
+               charge_change_over_enL=float(maxima[2] / (e * n * d.length)))
+    return row, p, initial, final
+
+
+def translation_audit(folder, meshes, particles, dtau):
+    """Keep complete native endpoints privately and publish small numerical ledgers."""
+    folder.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for grid in meshes:
+        for step in (dtau, dtau / 2):
+            for iterations in (0, 8):
+                for fraction in (0., .25, .5):
+                    print(f"Force audit: {grid} cells, dtωp={step:g}, K={iterations}, shift={fraction:g}dx", flush=True)
+                    row, p, initial, final = translated_step(grid, particles, step, iterations, fraction)
+                    label = f'{grid}_{step:g}_{iterations}_{fraction:g}'
+                    save_state(folder / f'{label}_initial.npz', initial, p)
+                    save_state(folder / f'{label}_final.npz', final, p)
+                    rows.append(row)
+    save_run(folder, 'fractional_cell_force', dict(meshes=list(meshes), particles_per_species=particles,
+             displacement_over_1_k=.03, shifts_over_dx=[0., .25, .5], dt_omega_p=[dtau, dtau / 2],
+             parent_revision='83d327118163833f93e2588edcb5029241f6ba2a',
+             normalization='n is total electron density; force=delta P/(dt*n*me*c*L*wp)',
+             relativistic=True,
+             scope='Neutral ordinary 1V, one accepted step; not a late Gaussian or Proca convergence test'),
+             dict(rows=rows))
+    print(f"Saved force audit and native endpoints to {folder}", flush=True)
 
 
 def measure(case, cells, particles, dtau, horizon, samples):
@@ -280,9 +365,11 @@ def validate_inputs():
         raise ValueError("unknown method or overhead case")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # noqa: C901 — independent numerical studies
     print("Starting coupled PIC method benchmark", file=sys.stderr, flush=True)
-    if render_only:
+    if translations:
+        translation_audit(output, translation_meshes, particles, dt)
+    elif render_only:
         reanalyse(output)
     else:
         validate_inputs()
@@ -303,7 +390,8 @@ if __name__ == "__main__":
             (output / "overhead.json").write_text(json.dumps(record, indent=2) + "\n")
             print(json.dumps(rows, indent=2))
         elif case:
-            row, data = measure(case, cells, particles, dt, horizon, samples)
+            with elapsed_progress(f"PIC {case}"):
+                row, data = measure(case, cells, particles, dt, horizon, samples)
             print(json.dumps(dict(row=row, data=data)))
         else:
             rows, histories = [], []
