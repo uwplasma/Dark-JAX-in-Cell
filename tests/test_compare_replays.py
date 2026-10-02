@@ -88,6 +88,235 @@ def test_matching_top_source_cannot_hide_a_continued_prefix(records, side):
         compare_replays(*records, windows=((0, 1),))
 
 
+@pytest.fixture
+def continued_records(tmp_path):
+    """NumPy-only native bookkeeping fixture; no simulated physics or frame replicates."""
+    import hashlib
+    folders, donors = [], []
+    for arm, dtau in enumerate((.5, .25)):
+        prefix, folder = [tmp_path / f'{arm}_{name}' for name in ('prefix', 'continued')]
+        prefix.mkdir()
+        folder.mkdir()
+        wp, c, mass, density, length = 2., 10., 2., 2., 200.
+        energy, field = density * mass * c**2 * length, mass * c * wp
+        sigma = np.sqrt(.001 / np.array([1., 1836])) * c
+        velocity = np.repeat(sigma, 2) * np.tile([1., -1.], 2)
+        u = np.zeros((4, 3))
+        u[:, 0] = velocity / np.sqrt(1 - (velocity / c)**2)
+        w = np.full(4, density * length / 2)
+        x = np.zeros((4, 3))
+        x[:, 0] = np.tile([50., 150.], 2) + dtau / wp * velocity / 2
+        kinetic = .5 * (1 / np.sqrt(1 - (sigma / c)**2) - 1) * np.array([1., 1836])
+        # Two markers each represent nL/2; K/(n me c²L) has no factor 1/2.
+        kinetic *= 2
+        state = dict(format=np.array(2), E=np.zeros((2, 3)), B=np.zeros((2, 3)), x=x, u=u, w=w,
+                     qm=np.repeat([-1 / mass, 1 / (1836 * mass)], 2), rho=np.zeros(2), sigma=np.zeros(2),
+                     key=np.array([0, 0], dtype=np.uint32), time=np.array(0.), steps=np.array(0, dtype=np.int32),
+                     names=np.array(['electrons', 'ions']), counts=np.array([2, 2]), cells=np.array(2),
+                     algorithm=np.array('explicit'), shape_order=np.array(5))
+        for key in ('arrived', 'collected', 'injected', 'energy_in', 'energy_out', 'energy_injected',
+                    'momentum', 'momentum_injected', 'truncated', 'overflow'):
+            state['wall.' + key] = np.zeros((2, 2, 3) if 'momentum' in key else () if key == 'overflow' else (2, 2))
+        state.update({'dark.' + key: np.asarray(value) for key, value in dict(
+            format=2, mode='drive', omega=wp, eta=1., cells=2, length=length, length_y=1., length_z=1.,
+            dt=dtau / wp, relativistic=True, mass=[mass, 1836 * mass], charge=[-1., 1.], density=[density, density],
+            has_external_B=False, amplitude=[.03 * np.sqrt(.001) * field, 0., 0.], phase=0., background=0., work=0.,
+            initial_ordinary=energy * kinetic.sum(), initial_dark=0., initial_projection_norm=0.,
+            max_balance_error=.0001 * energy, max_ordinary_gauss=0., max_dark_gauss=0.).items()})
+        hashes = {key: hashlib.sha256(f'{state[key].dtype.str}:{state[key].shape}'.encode()
+                                      + state[key].tobytes()).hexdigest() for key in ('x', 'u', 'w', 'E', 'B', 'rho')}
+        setting = dict(cells=2, particles_per_species=2, seed=0, dt_omega_p=dtau, output_dt_omega_p=.5,
+                       horizon_omega_p=1000., length_c_over_omega_p=40., mass_ratio=1836, T_each_over_mec2=.001,
+                       coupling=None, drive_quiver_over_sigma=.03, force_quiver_over_c=.03 * np.sqrt(.001),
+                       loading='conditioned Gaussian', pusher='relativistic Boris', shape='quintic', shape_order=5,
+                       parent_revision='1' * 40, block_steps=round(100 / dtau), block_horizon_omega_p=100.,
+                       local_moments_output_dt_omega_p=.5, local_spread_lengths_c_over_wp=(
+                           np.array([2., 4.]) * np.sqrt(.001)).tolist(), recorded_mode=1, XLA_FLAGS='',
+                       normalization=dict(omega_p_rad_s=wp, c_m_s=c, epsilon0_F_m=.25,
+                                          energy_scale_J_m2=energy, field_scale_V_m=field, charge_density_C_m3=density),
+                       initial_fingerprints=dict(loading={key: '2' * 64 for key in ('x', 'v')}, state=hashes))
+        from docs.scripts.compare_replays import PAPER_MAXIMA
+        result = dict.fromkeys(PAPER_MAXIMA, 0.)
+        result[PAPER_MAXIMA[0]] = .1
+        runtime = dict(jax='0.6.2', jaxincell='pinned', numpy='2.2.4', python='3.10.12',
+                       platform='Linux x86_64', backend='gpu', jax_enable_x64=True)
+        record = dict(runtime, git='4' * 40, example='paper_resonant_conversion', settings=setting, results=result)
+        data = dict(t=np.arange(10001) / 2, mean=np.zeros((10001, 2)), rms=np.tile(sigma / c, (10001, 1)),
+                    spread=np.full((10001, 2), .0005), kinetic=np.tile(kinetic, (10001, 1)),
+                    balance=np.full(10001, kinetic.sum()), momentum=np.zeros((10001, 3)),
+                    local_spread=np.full((10001, 2, 2), .0005), local_density_rms=np.zeros((10001, 2, 2)),
+                    density_rms=np.zeros((10001, 2)))
+        data.update({key: np.zeros(10001) for key in ('electric', 'nonzero_electric', 'magnetic', 'dark',
+                                                      'work', 'charge', 'grid_charge', 'mean_E', 'mean_D', 'mean_A',
+                                                      'ordinary_gauss', 'dark_gauss', 'dark_coherent')})
+        data.update(max_speed=np.full(10001, sigma.max() / c), mode_E=np.zeros(10001, dtype=complex),
+                    dark_mode_E=np.zeros(10001, dtype=complex))
+        np.savez_compressed(prefix / 'initial_state.npz', **state)
+        endpoint = {**state, 'steps': np.array(round(1000 / dtau), dtype=np.int32), 'time': np.array(1000 / wp)}
+        np.savez_compressed(prefix / 'final_state.npz', **endpoint)
+        np.savez_compressed(prefix / 'data.npz', **{key: value[:2001] for key, value in data.items()})
+        (prefix / 'run.json').write_text(json.dumps(record))
+        for old, new in (('initial_state.npz', 'initial_state.npz'), ('final_state.npz', 'segment_initial_state.npz'),
+                         ('run.json', 'prefix_run.json'), ('data.npz', 'prefix_data.npz')):
+            (folder / new).write_bytes((prefix / old).read_bytes())
+        np.savez_compressed(folder / 'final_state.npz', **{
+            **state, 'steps': np.array(round(5000 / dtau), dtype=np.int32), 'time': np.array(5000 / wp)})
+        si = {key: value[2000:].copy() for key, value in data.items() if key != 'nonzero_electric'}
+        si['t'] /= wp
+        for key in ('electric', 'magnetic', 'dark', 'dark_coherent', 'work', 'spread', 'kinetic', 'balance',
+                    'local_spread'):
+            si[key] *= energy
+        for key in ('mean', 'rms', 'max_speed'):
+            si[key] *= c
+        si['momentum'] *= energy / c
+        si['mean_E'] *= field
+        si['mode_E'] *= field
+        si['dark_mode_E'] *= field
+        np.savez_compressed(folder / 'segment_data.npz', **si)
+        np.savez_compressed(folder / 'data.npz', **data)
+
+        def sha(name):
+            return hashlib.sha256((prefix / name).read_bytes()).hexdigest()
+        lineage = dict(prefix_native_git='4' * 40, prefix_record_sha256=sha('run.json'),
+                       prefix_data_sha256=sha('data.npz'), prefix_lineage=None,
+                       origin_archive_sha256=sha('initial_state.npz'), checkpoint_archive_sha256=sha('final_state.npz'),
+                       producer_script_sha256='6' * 64, start_step=round(1000 / dtau), end_step=round(5000 / dtau),
+                       start_time_omega_p=1000., end_time_omega_p=5000., target_time_omega_p=5000.,
+                       segment_steps=round(4000 / dtau))
+        maximum = np.zeros(9)
+        maximum[0] = np.nextafter(.0001 * energy, np.inf)
+        record = {**record, 'git': '5' * 40, 'example': 'paper_resonant_continuation',
+                  'settings': {**setting, 'horizon_omega_p': 5000., 'continuation': lineage},
+                  'results': {**result, 'all_step_maxima_SI': maximum.tolist(),
+                              'reconstructed_prior_maxima_SI': maximum.tolist()}}
+        (folder / 'run.json').write_text(json.dumps(record))
+        folders.append(folder)
+        donors.append([prefix])
+    return folders, donors, [('4' * 40, '5' * 40)]
+
+
+def test_continuation_preserves_producers_raw_windows_and_global_bounds(continued_records):
+    from docs.scripts.compare_replays import compare_continuations
+    folders, donors, transitions = continued_records
+    report = compare_continuations(*folders, donors, transitions)
+    assert report['original_comparison']['sources'][0]['git'] == '4' * 40
+    assert report['lineages'][0][0]['record']['git'] == '5' * 40
+    assert [row['samples'] for row in report['windows']] == [401, 401]
+    assert report['windows'][1]['realization_summaries'][0]['work_increment'] == 0
+    assert report['retained_gates']['work'] == .02
+    assert report['windows'][1]['accounting']['conservation_transfer_gate'] == [False, False]
+    assert report['windows'][1]['accounting']['global_defect_over_abs_window_work'] == [None, None]
+    assert report['source_vectors'][0] == ['4' * 40, '5' * 40]
+    assert report['lineages'][0][0]['duplicated_scalar_boundary']['bitwise_equal']
+    assert not report['lineages'][0][0]['all_step_bounds']['segment_only_maxima_available']
+    assert str(folders[0]) not in json.dumps(report, allow_nan=False)
+    with pytest.raises(ValueError, match='mixed-producer'):
+        compare_replays(*folders, variant='dt')
+
+
+@pytest.mark.parametrize('corrupt', ['prefix', 'origin', 'boundary', 'endpoint', 'units', 'join', 'lineage',
+                                     'source', 'runtime', 'phase', 'maximum', 'clock', 'background',
+                                     'initial_energy', 'qm', 'x64', 'prior', 'script_hash'])
+def test_continuation_rejects_corrupt_native_lineage(continued_records, corrupt):
+    from docs.scripts.compare_replays import compare_continuations
+    folders, donors, transitions = continued_records
+    folder = folders[0]
+    files = dict(origin='initial_state.npz', boundary='segment_initial_state.npz', endpoint='final_state.npz',
+                 units='segment_data.npz', join='data.npz', phase='final_state.npz', clock='final_state.npz',
+                 background='final_state.npz', initial_energy='final_state.npz', qm='final_state.npz')
+    keys = dict(origin='key', boundary='key', endpoint='u', units='kinetic', join='work',
+                phase='dark.phase', clock='time', background='dark.background',
+                initial_energy='dark.initial_ordinary', qm='qm')
+    if corrupt in files:
+        path = folder / files[corrupt]
+        with np.load(path) as stored:
+            arrays = dict(stored)
+        arrays[keys[corrupt]] = arrays[keys[corrupt]] + 1
+        np.savez_compressed(path, **arrays)
+    elif corrupt == 'prefix':
+        with (folder / 'prefix_run.json').open('a') as stream:
+            stream.write('\n')
+    else:
+        path = folder / 'run.json'
+        record = json.loads(path.read_text())
+        if corrupt == 'lineage':
+            record['settings']['continuation']['prefix_lineage'] = {}
+        elif corrupt == 'maximum':
+            record['results']['all_step_maxima_SI'][0] = 0
+        elif corrupt == 'prior':
+            record['results']['reconstructed_prior_maxima_SI'][0] = 0
+        elif corrupt == 'x64':
+            record['jax_enable_x64'] = False
+        elif corrupt == 'script_hash':
+            record['settings']['continuation']['producer_script_sha256'] = 'unverified'
+        else:
+            record['git' if corrupt == 'source' else 'jax'] = '9' * 40
+        path.write_text(json.dumps(record))
+    with pytest.raises(ValueError):
+        compare_continuations(*folders, donors, transitions)
+
+
+def test_continuation_keeps_exact_join_with_reported_recompiled_boundary_roundoff(continued_records):
+    from docs.scripts.compare_replays import compare_continuations
+    folders, donors, transitions = continued_records
+    filename = folders[0] / 'segment_data.npz'
+    with np.load(filename) as stored:
+        data = dict(stored)
+    data['kinetic'][0, 0] = np.nextafter(data['kinetic'][0, 0], np.inf)
+    np.savez_compressed(filename, **data)
+    result = compare_continuations(*folders, donors, transitions)
+    boundary = result['lineages'][0][0]['duplicated_scalar_boundary']
+    assert not boundary['bitwise_equal'] and boundary['maximum_difference_over_unit']['kinetic'] > 0
+    assert boundary['rtol'] == boundary['atol_over_unit'] == 2e-12
+
+
+def test_continuation_validates_nested_original_and_segment_sources(continued_records):
+    import hashlib
+    from docs.scripts.compare_replays import compare_continuations
+    folders, donors, transitions = continued_records
+    final_folders = []
+    for folder in folders:
+        child = folder.parent / (folder.name + '_next')
+        child.mkdir()
+        old = json.loads((folder / 'run.json').read_text())
+        setting, lineage = old['settings'], old['settings']['continuation']
+        with np.load(folder / 'final_state.npz') as stored:
+            state = dict(stored)
+        with np.load(folder / 'data.npz') as stored:
+            data = dict(stored)
+        with np.load(folder / 'segment_data.npz') as stored:
+            raw = {key: np.repeat(stored[key][-1:], 401, axis=0) for key in stored.files}
+        raw['t'] = (5000 + np.arange(401) / 2) / setting['normalization']['omega_p_rad_s']
+        joined = {key: np.concatenate((value, np.repeat(value[-1:], 400, axis=0))) for key, value in data.items()}
+        joined['t'][-400:] = raw['t'][1:] * setting['normalization']['omega_p_rad_s']
+        inputs = dict(prefix_record='run.json', prefix_data='data.npz', origin_archive='initial_state.npz',
+                      checkpoint_archive='final_state.npz')
+        hashes = {key + '_sha256': hashlib.sha256((folder / name).read_bytes()).hexdigest()
+                  for key, name in inputs.items()}
+        next_lineage = dict(lineage, **hashes, prefix_native_git=old['git'], prefix_lineage=lineage,
+                            start_step=int(state['steps']), end_step=round(5200 / setting['dt_omega_p']),
+                            segment_steps=round(200 / setting['dt_omega_p']), start_time_omega_p=5000.,
+                            end_time_omega_p=5200., target_time_omega_p=5200.)
+        copies = (('initial_state.npz', 'initial_state.npz'), ('final_state.npz', 'segment_initial_state.npz'),
+                  ('run.json', 'prefix_run.json'), ('data.npz', 'prefix_data.npz'))
+        for source, target in copies:
+            (child / target).write_bytes((folder / source).read_bytes())
+        state.update(steps=np.asarray(next_lineage['end_step'], dtype=np.int32), time=np.asarray(raw['t'][-1]))
+        np.savez_compressed(child / 'final_state.npz', **state)
+        np.savez_compressed(child / 'segment_data.npz', **raw)
+        np.savez_compressed(child / 'data.npz', **joined)
+        record = {**old, 'git': '7' * 40,
+                  'settings': {**setting, 'horizon_omega_p': 5200., 'continuation': next_lineage}}
+        (child / 'run.json').write_text(json.dumps(record))
+        final_folders.append(child)
+    result = compare_continuations(*final_folders, [paths + [folder] for paths, folder in zip(donors, folders)],
+                                   transitions + [('5' * 40, '7' * 40)])
+    assert result['source_vectors'] == [['4' * 40, '5' * 40, '7' * 40]] * 2
+    assert len(result['lineages'][0]) == 2 and result['windows'][1]['samples'] == 401
+    with pytest.raises(ValueError, match='source vector'):
+        compare_continuations(*final_folders, [paths + [folder] for paths, folder in zip(donors, folders)], transitions)
+
+
 def test_particle_loading_repeat_keeps_raw_arrays_and_incomplete_endpoint_scope(records, monkeypatch):
     from docs.scripts import compare_replays as renderer
     loading = records[0].parent / 'loading'
