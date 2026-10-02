@@ -177,6 +177,38 @@ def test_longitudinal_proca_wave_carries_potential_momentum_without_magnetic_fie
     assert errors[-1] < 4e-4
 
 
+def test_dense_pump_preserves_forcing_and_all_step_ledgers_with_sparse_moments():
+    """Expensive diagnostic sampling must not change the accepted orbit or its drive replay."""
+    from examples.dark_reservoir import pair_push_table
+
+    p = neutral_box(relativistic=True)
+    field = jnp.tile(jnp.array([.05 * m * c * WP / e, 0., 0.]), (p.domain.cells, 1))
+    sim = DarkSimulation(p, DarkField(WP, .5, initial_E=field))
+    start, _ = sim.initial_state(jax.random.PRNGKey(0))
+    scales = jnp.array([.1, .2]) * c / WP
+    dense, full, maximum = measured_run(sim, start, 24, 1, scales=scales)
+    sparse, sampled, sampled_max = measured_run(sim, start, 24, 6, scales=scales, pump=True)
+    jax.tree.map(lambda a, b: np.testing.assert_allclose(a, b, rtol=1e-13, atol=1e-30), dense, sparse)
+    np.testing.assert_array_equal(sampled_max, maximum)
+    for key in full:
+        np.testing.assert_allclose(full[key][::6], sampled[key], rtol=1e-13, atol=1e-30)
+    forcing = {key: np.asarray(sampled['pump_' + key]) for key in ('t', 'mean', 'mean_D', 'mean_A')}
+    old = {key: np.asarray(value) for key, value in full.items()}
+    for a, b in zip(pair_push_table(p, start.ordinary, forcing, WP, .5),
+                    pair_push_table(p, start.ordinary, old, WP, .5)):
+        np.testing.assert_array_equal(a, b)
+    reference = snapshot(sim, start)
+    middle, first, peak1 = measured_run(sim, start, 12, 6, reference, scales, pump=True)
+    endpoint, last, peak2 = measured_run(sim, middle, 12, 6, reference, scales, pump=True)
+    for key in sampled:
+        np.testing.assert_allclose(np.concatenate((first[key], last[key][1:])), sampled[key],
+                                   rtol=1e-13, atol=1e-30)
+    np.testing.assert_allclose(np.maximum(peak1, peak2), maximum, rtol=1e-13, atol=1e-30)
+    jax.tree.map(lambda a, b: np.testing.assert_allclose(a, b, rtol=1e-13, atol=1e-30), endpoint, sparse)
+    with pytest.raises(ValueError, match='dynamical dark field'):
+        measured_run(p, start.ordinary, 24, 6, pump=True)
+
+
 def test_reduced_runner_rejects_an_incomplete_tail():
     sim = neutral_box()
     state, _ = sim.initial_state(jax.random.PRNGKey(0))

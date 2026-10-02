@@ -73,6 +73,7 @@ quadrature = globals().get('quadrature', 64)
 table_dt = globals().get('table_dt', 2 * dt)
 output_dt = globals().get('output_dt', 0.2)
 linear_end = globals().get('linear_end', min(20., horizon))
+scalar_dt = globals().get('scalar_dt', None)  # Cheaper moments; push-mean forcing stays at every step.
 
 
 def pair_plasma(cells, particles_per_cell, dtau, seed, relativistic=False, shape_order=2, pair_loading='cell'):
@@ -612,10 +613,24 @@ def pair_waveform_linear(curves, indices, k, seed, eta, mass, force, quadrature,
     return arrays, results
 
 
+def waveform_scalar_dt(dtau, scalar_dt, output_dt, early_end):
+    """Preserve dense defaults; explicit sparse moments must share output clocks."""
+    if scalar_dt is None:
+        return dtau
+    if (not np.isfinite(scalar_dt) or scalar_dt < dtau
+            or not np.isclose(scalar_dt / dtau, round(scalar_dt / dtau), rtol=0, atol=1e-10)
+            or output_dt < scalar_dt
+            or not np.isclose(output_dt / scalar_dt, round(output_dt / scalar_dt), rtol=0, atol=1e-10)):
+        raise ValueError('scalar_dt must divide output_dt and be an integer multiple of the native timestep')
+    if scalar_dt > early_end:
+        raise ValueError('scalar_dt must retain at least two clocks in the early reference interval')
+    return round(scalar_dt / dtau) * dtau
+
+
 def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
                           seed=2e-4, eta=.5, mass=1., force=.05, quadrature=64,
                           table_dt=None, output_dt=.2, block_horizon=None,
-                          local_moments=False, shape_order=2, pair_loading='global', linear_end=20.):
+                          local_moments=False, shape_order=2, pair_loading='global', linear_end=20., scalar_dt=None):
     """Separate finite-k dark feedback from the realized homogeneous envelope.
 
     The coupled-mean replay removes spatial dark forces as an intervention.
@@ -628,6 +643,8 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
             or not np.all(np.isfinite([dtau, horizon, table_dt, output_dt, eta, mass, force, seed, linear_end]))
             or cells < 1 or particles_per_cell < 2 or quadrature < 2 or min(20., horizon, linear_end) < dtau):
         raise ValueError('positive finite waveform inputs and resolved particle/quadrature counts are required')
+    scalar_dt = waveform_scalar_dt(dtau, scalar_dt, output_dt, min(20., horizon, linear_end))
+    stride = round(scalar_dt / dtau)
     steps = round(horizon / dtau)
     if steps < 2 or not np.isclose(steps * dtau, horizon, rtol=0, atol=1e-10):
         raise ValueError('waveform horizon must contain an integer number of at least two native steps')
@@ -656,7 +673,8 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
     def advance(label, sim, initial):
         with elapsed_progress(label):
             final, values, maximum, blocks, compile_s, warm_s, memory = paper_run(
-                sim, initial, steps, 1, block_horizon, wp, sampled_scales, Path(folder) / label, mode)
+                sim, initial, steps, stride, block_horizon, wp, sampled_scales, Path(folder) / label, mode,
+                pump=label == 'coupled' and stride > 1)
         save_compressed_state(Path(folder) / label / 'final_state.npz', final, sim)
         endpoint = np.asarray(coarse_spread(sim, final, scales)) / energy_scale
         initial_local = np.asarray(coarse_spread(sim, initial, scales)) / energy_scale
@@ -681,6 +699,7 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
         case_settings = dict(label=label, model=type(sim.dark).__name__, parent_revision=parent_revision(),
                              cells=cells, particles_per_cell_per_species=particles_per_cell, pair_loading=pair_loading,
                              dt_omega0=dtau, horizon_omega0=horizon, shape_order=shape_order, seed_mode=mode,
+                             scalar_dt_omega0=scalar_dt, forcing_native_dt_omega0=dtau,
                              velocity_seed_over_c=seed, eta=eta, dark_mass_over_omega0=mass, force_quiver_over_c=force,
                              block_steps=blocks, scalar_units='native SI', XLA_FLAGS=flags,
                              initial_dark_energy_over_energy_scale=reservoir,
@@ -691,7 +710,9 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
         return final, values
 
     _, native = advance('coupled', coupled, start)
-    knots, realized = pair_push_table(plasma, start.ordinary, native, mass * wp, eta)
+    dense = ({key: native.pop('pump_' + key) for key in ('t', 'mean', 'mean_D', 'mean_A')}
+             if stride > 1 else native)
+    knots, realized = pair_push_table(plasma, start.ordinary, dense, mass * wp, eta)
     tau = knots * wp
     oracle_args = (tau, eta, mass, 0., force / eta)
     loose = relativistic_background(*oracle_args, nodes=quadrature, method='DOP853', dense_output=True)
@@ -763,6 +784,7 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
                     linear_reference_horizon_omega0=min(20., horizon, linear_end),
                     reference_tolerances=[2e-11, 2e-13], table_dt_omega0=cadence * dtau,
                     native_diagnostic_dt_omega0=dtau, saved_output_dt_omega0=max(1, round(output_dt / dtau)) * dtau,
+                    scalar_dt_omega0=scalar_dt, forcing_native_dt_omega0=dtau,
                     local_spread_lengths_c_over_omega0=(scales * wp / c).tolist(), local_moments=local_moments,
                     initial_ordinary_fingerprints=initial_hashes, delta_v_over_c=delta_v,
                     initial_dark_energy_over_energy_scale=reservoir,
@@ -788,8 +810,8 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
                     normalization=dict(omega0_rad_s=wp, field_scale_V_m=field_scale, energy_scale_J_m2=energy_scale))
     results = dict(reference=reference_checks, forcing=forcing_checks, cases=records, windows=comparisons,
                    claim='finite-time intervention; late claims require loading/grid/time and table convergence')
-    stride = max(1, round(output_dt / dtau))
-    indices = np.unique(np.r_[np.arange(0, steps + 1, stride), steps])
+    output_stride = max(1, round(output_dt / scalar_dt))
+    indices = np.unique(np.r_[np.arange(0, len(native['t']), output_stride), len(native['t']) - 1])
     linear_arrays, results['linear_reference'] = pair_waveform_linear(
         curves, indices, k * c / wp, seed, eta, mass, force, quadrature, linear_end)
     saved = {f'{label}_{key}': value[indices] for label, values in curves.items() for key, value in values.items()}
@@ -1138,7 +1160,7 @@ def paper_initial(sim, seed, initial_state):
     return start, fingerprints
 
 
-def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder, mode=1):
+def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder, mode=1, pump=False):
     """Compile one fixed interval, preserving the global reference across every block."""
     if block_horizon is not None and (not np.isfinite(block_horizon) or block_horizon <= 0):
         raise ValueError('paper block horizon must be finite and positive')
@@ -1149,7 +1171,7 @@ def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder, mode
     save_compressed_state(Path(folder) / 'initial_state.npz', start, sim)
     print(f'🦇 Compiling {block_steps} paper steps per block', flush=True)
     before = time.perf_counter()
-    executable = measured_run.lower(sim, start, block_steps, stride, reference, scales, mode).compile()
+    executable = measured_run.lower(sim, start, block_steps, stride, reference, scales, mode, pump=pump).compile()
     compile_seconds = time.perf_counter() - before
     memory = executable.memory_analysis()
     print(f'🦇 Compiled in {compile_seconds:.2f} s; advancing {steps // block_steps} blocks', flush=True)
@@ -1361,7 +1383,7 @@ if __name__ == "__main__":  # noqa: C901
     elif study == 'pair_waveform':
         pair_waveform_control(output, cells, particles_per_cell, dt, horizon, velocity_seed,
                               eta, dark_mass, force, quadrature, table_dt, output_dt,
-                              block_horizon, local_moments, shape_order, pair_loading, linear_end)
+                              block_horizon, local_moments, shape_order, pair_loading, linear_end, scalar_dt)
     elif study == 'paper_pilot':
         paper_geometry_pilot(output)
     elif study != 'mobile_ions':

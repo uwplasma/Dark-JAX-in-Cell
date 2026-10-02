@@ -411,3 +411,204 @@ def test_seed_control_retains_physical_positions_and_weights(records, corrupt):
         result = compare_replays(*records, variant='seed', windows=((0, 1),))
         assert result['initial_fingerprints']['matches']['loading']['x']
         assert not result['initial_fingerprints']['matches']['loading']['v']
+
+
+@pytest.fixture
+def pair_records(tmp_path):
+    """Small manufactured scalar ledgers and physical initial arrays, without PIC."""
+    import hashlib
+    from docs.scripts.compare_replays import PAIR_CASES, window_summary
+
+    c, mass, wp, cells, ppc = 299792458., 9.1093837e-31, 1e9, 512, 2
+    length, count = 70 * c / wp, cells * ppc
+    scale = dict(omega0_rad_s=wp, field_scale_V_m=mass * c * wp / 1.602176634e-19,
+                 energy_scale_J_m2=2 * mass * c**2 * length)
+    targets = dict(reference_energy_over_reservoir=1e-9, quadrature_force_over_initial=1e-6,
+                   table_force_over_initial=1e-4, primary_window_fraction=.01,
+                   nonzero_mode_density_window_fraction=.05, conservation_over_transfer_and_target_difference=.001)
+    maximum = dict.fromkeys(('energy_work_over_energy_scale', 'momentum_over_energy_scale_over_c',
+                             'charge_over_enL', 'continuity_over_enomega0', 'ordinary_gauss_over_en_eps0',
+                             'dark_gauss_over_en_eps0', 'grid_charge_over_enL', 'dark_sector_work_over_energy_scale',
+                             'ordinary_sector_work_over_energy_scale'), 0.)
+    runtime = dict(git='4' * 40, jax='test', jaxincell='test', numpy='test', python='test',
+                   platform='test', jax_enable_x64=True, backend='cpu')
+    paths = []
+    for seed, dt in ((2e-4, .2), (1e-4, .2), (0., .2), (2e-4, .1)):
+        path = tmp_path / f'pair_{seed}_{dt}'
+        path.mkdir()
+        paths.append(path)
+        time = np.arange(round(.4 / dt) + 1) * dt
+        x0 = np.tile(np.linspace(-length / 2, length / 2, count, endpoint=False), 2)
+        thermal = np.tile(np.array([-.025, .025]), count)
+        speed = thermal + np.repeat([1., -1.], count) * seed * np.cos(2 * np.pi * 134 * x0 / length)
+        u = np.zeros((2 * count, 3))
+        u[:, 0] = c * speed / np.sqrt(1 - speed**2)
+        x = np.zeros_like(u)
+        x[:, 0] = (x0 + dt / (2 * wp) * c * speed + length / 2) % length - length / 2
+        state = dict(x=x, u=u, w=np.full(2 * count, length / count), E=np.zeros((cells, 3)),
+                     B=np.zeros((cells, 3)), rho=np.zeros(cells))
+        hashes = {}
+        for key, value in state.items():
+            header = f'{value.dtype.str}:{value.shape}'.encode()
+            hashes[key] = hashlib.sha256(header + value.tobytes()).hexdigest()
+        speed = speed.reshape(2, count)
+        mean, rms = speed.mean(axis=1), speed.std(axis=1)
+        initial_k = .5 * np.mean(1 / np.sqrt(1 - speed**2) - 1, axis=1)
+        setting = dict(parent_revision='1' * 40, cells=cells, particles_per_cell_per_species=ppc,
+                       dt_omega0=dt, horizon_omega0=.4, shape_order=2, seed_mode=134,
+                       length_c_over_omega0=70., waterbag_full_width_over_c=.1,
+                       velocity_seed_over_c=seed, eta=.5, dark_mass_over_omega0=1., force_quiver_over_c=.05,
+                       pair_loading='global', quadrature_nodes=[64, 128], reference_method='DOP853',
+                       reference_tolerances=[2e-11, 2e-13], linear_reference_horizon_omega0=.4,
+                       table_dt_omega0=2 * dt, native_diagnostic_dt_omega0=dt, saved_output_dt_omega0=.2,
+                       local_spread_lengths_c_over_omega0=[.1, .2], local_moments=True,
+                       initial_ordinary_fingerprints=hashes, initial_dark_energy_over_energy_scale=.005,
+                       normalization=scale, accuracy_targets=targets, XLA_FLAGS='')
+        top, reductions, cases = {}, {}, {}
+        for label in PAIR_CASES:
+            coupled = label == 'coupled'
+            field = .01 * time
+            kinetic = initial_k + .0001 * time[:, None]
+            dark = .005 - field**2 / 2 - .0002 * time if coupled else np.zeros(len(time))
+            work = dark - .005 if coupled else field**2 / 2 + .0002 * time
+            data = dict(t=time, mean=np.tile(mean, (len(time), 1)), rms=np.tile(rms, (len(time), 1)),
+                        max_speed=np.full(len(time), abs(speed).max()), momentum=np.zeros((len(time), 3)),
+                        mean_E=field, mean_D=np.sqrt(2 * dark), mean_A=np.zeros(len(time)),
+                        mode_E=seed * time * (1 + .2j), dark_mode_E=np.zeros(len(time), dtype=complex),
+                        kinetic=kinetic, electric=field**2 / 2, magnetic=np.zeros(len(time)), dark=dark,
+                        dark_coherent=dark, work=work, spread=np.tile(.25 * rms**2, (len(time), 1)),
+                        local_spread=(np.tile(.25 * rms[None, :, None]**2, (len(time), 1, 2))
+                                      + 1e-5 * time[:, None, None]),
+                        density_rms=np.tile(time[:, None] * seed, (1, 2)),
+                        local_density_rms=np.tile(time[:, None, None] * seed, (1, 2, 2)))
+            for key in ('charge', 'grid_charge', 'ordinary_gauss', 'dark_gauss'):
+                data[key] = np.zeros(len(time))
+            data['balance'] = field**2 / 2 + dark + kinetic.sum(axis=1) - (0 if coupled else work)
+            data['source_work'], data['nonzero_electric'] = (-1 if coupled else 1) * work, np.zeros(len(time))
+            reductions[label] = window_summary(data, np.ones(len(time), dtype=bool), coupled)
+            indices = np.unique(np.r_[np.arange(0, len(time), round(.2 / dt)), len(time) - 1])
+            top.update({f'{label}_{key}': value[indices] for key, value in data.items()})
+            native = {key: value.copy() for key, value in data.items()
+                      if key not in ('source_work', 'nonzero_electric')}
+            for key in ('electric', 'magnetic', 'dark', 'dark_coherent', 'kinetic', 'spread', 'balance', 'work',
+                        'local_spread'):
+                native[key] *= scale['energy_scale_J_m2']
+            for key in ('mean', 'rms', 'max_speed'):
+                native[key] *= c
+            native['momentum'] *= scale['energy_scale_J_m2'] / c
+            native['t'] /= wp
+            native['mean_A'] *= scale['field_scale_V_m'] / wp
+            phase = np.exp(-2j * np.pi * 134 * (-.5 + 1 / cells))
+            for key in ('mean_E', 'mean_D', 'mode_E', 'dark_mode_E'):
+                native[key] = native[key] * scale['field_scale_V_m'] / (phase if 'mode' in key else 1)
+            branch = path / label
+            branch.mkdir()
+            cases[label] = dict(initial_ordinary_fingerprints=hashes, all_step_maxima=maximum)
+            branch_setting = dict(setting, label=label, model='DarkField' if coupled else 'PrescribedDrive',
+                                  scalar_units='native SI', block_steps=round(.2 / dt))
+            branch_record = dict(runtime, example='pair_waveform_branch', settings=branch_setting, results=cases[label])
+            (branch / 'run.json').write_text(json.dumps(branch_record))
+            np.savez_compressed(branch / 'data.npz', **native)
+            np.savez_compressed(branch / 'initial_state.npz', **state,
+                                **{'dark.mass': np.full(2, mass), 'dark.density': np.ones(2),
+                                   'dark.charge': np.array([-1., 1.]), 'dark.length': length,
+                                   'dark.relativistic': True})
+        depletion = .001 * time[indices]
+        fraction = top['coupled_dark'] / .005
+        top.update(coupled_total_dark_fraction=fraction, coupled_coherent_dark_fraction=fraction,
+                   coupled_nonzero_dark_fraction=np.zeros(len(indices)), homogeneous_dark_fraction=fraction + depletion,
+                   additional_dark_depletion_fraction=depletion, additional_dark_depletion_gain=depletion,
+                   linear_t=time[indices], linear_coupled_mode_E=top['coupled_mode_E'].copy(),
+                   linear_homogeneous_fine_mode_E=top['homogeneous_fine_mode_E'].copy())
+        reductions['coupled'].update(additional_dark_depletion_fraction_mean=.001 * time.mean(),
+                                     additional_dark_depletion_gain_mean=.001 * time.mean())
+        results = dict(cases=cases,
+                       windows={'late': dict(bounds_omega0=[0., .4], samples=len(time), reductions=reductions)},
+                       reference=dict(max_energy_defect_over_homogeneous_initial_reservoir=0.,
+                                      quadrature_force_error_over_initial=0., tolerance_force_error_over_initial=0.),
+                       forcing={label: dict(max_midpoint_force_error_over_initial=0.) for label in PAIR_CASES[1:]})
+        record = dict(runtime, example='pair_waveform_control', settings=setting, results=results)
+        (path / 'run.json').write_text(json.dumps(record))
+        np.savez_compressed(path / 'data.npz', **top)
+    return paths
+
+
+def test_pair_native_cadence_loading_and_raw_window_contract(pair_records):
+    from docs.scripts.compare_replays import _pair_load, pair_control_comparison
+    result = pair_control_comparison([_pair_load(path) for path in pair_records])
+    fine = result['controlled_pairs'][-1]
+    assert fine['variant'] == 'dt' and fine['initial_hash_matches']['u']
+    assert not fine['initial_hash_matches']['x']
+    assert fine['reconstructed_position_max_difference_over_length'] < 2e-13
+    assert fine['branches']['coupled']['late_shared_native_samples'] == 3
+    assert result['early_seed_controls'][0]['amplitude_multiplier'] == 2
+    assert result['early_seed_controls'][1]['amplitude_multiplier'] is None
+    assert result['late'][-1]['native_reductions']['coupled']['samples'] == 5
+    reduction = result['late'][0]['native_reductions']['coupled']
+    assert reduction['additional_dark_depletion_gain_mean'] == pytest.approx(.0002)
+    assert result['saved_early_linear_errors'][0]['coupled']['l2_difference'] == pytest.approx(0)
+
+
+@pytest.mark.parametrize(
+    'corrupt', ['source', 'x64', 'parent', 'branch_runtime', 'clock', 'top_clock',
+                'field_scale', 'archive', 'raw_mean', 'blocks'])
+def test_pair_rejects_unmatched_source_clocks_units_and_initial_arrays(pair_records, corrupt):
+    from docs.scripts.compare_replays import _pair_load
+    path = pair_records[0]
+    record_path = path / 'run.json'
+    if corrupt in ('clock', 'archive', 'branch_runtime', 'blocks'):
+        path /= 'coupled'
+        record_path = path / 'run.json'
+    if corrupt in ('clock', 'top_clock', 'archive'):
+        filename = 'initial_state.npz' if corrupt == 'archive' else 'data.npz'
+        with np.load(path / filename) as stored:
+            data = dict(stored)
+        if corrupt == 'archive':
+            data['u'][0, 0] += 1
+        else:
+            data['t' if corrupt == 'clock' else 'coupled_t'][1] += .00001
+        np.savez_compressed(path / filename, **data)
+    else:
+        record = json.loads(record_path.read_text())
+        if corrupt == 'source':
+            record['git'] += '-dirty'
+        elif corrupt == 'x64':
+            record['jax_enable_x64'] = False
+        elif corrupt == 'parent':
+            record['settings']['parent_revision'] = 'unpinned'
+        elif corrupt == 'branch_runtime':
+            record['jax'] = 'other'
+        elif corrupt == 'field_scale':
+            record['settings']['normalization']['field_scale_V_m'] *= 2
+        elif corrupt == 'blocks':
+            record['settings']['block_steps'] = 3
+        else:
+            record['results']['windows']['late']['reductions']['coupled']['electric_mean'] *= 2
+        record_path.write_text(json.dumps(record))
+    with pytest.raises(ValueError):
+        source = _pair_load(pair_records[0])
+        from docs.scripts.compare_replays import _pair_late
+        _pair_late(source)
+
+
+def test_pair_publisher_preserves_native_records_and_effect_relative_failures(pair_records):
+    from docs.scripts.compare_replays import publish_pair_controls
+    for path in pair_records[:3]:
+        for filename in (path / 'run.json', path / 'coupled' / 'run.json'):
+            record = json.loads(filename.read_text())
+            maxima = (record['results']['all_step_maxima'] if filename.parent.name == 'coupled'
+                      else record['results']['cases']['coupled']['all_step_maxima'])
+            maxima['energy_work_over_energy_scale'] = 1e-7
+            filename.write_text(json.dumps(record))
+    folder = pair_records[0].parent / 'pair_evidence'
+    publish_pair_controls(pair_records[:3], folder)
+    record = json.loads((folder / 'run.json').read_text())
+    result = record['results']
+    coupled = result['late'][0]['conservation_gates']['coupled']
+    assert not coupled['maximum_energy_sector_defect_over_depletion_gain']
+    assert len(result['native_branches'][0]) == 5
+    assert len(result['native_source_sha256'][0]['branches']['coupled']['data_sha256']) == 64
+    assert str(pair_records[0]) not in json.dumps(record, allow_nan=False)
+    with np.load(folder / 'data.npz') as stored, np.load(pair_records[0] / 'data.npz') as native:
+        np.testing.assert_array_equal(stored['0_linear_coupled_mode_E'], native['linear_coupled_mode_E'])
+        assert not any(key.endswith('_x') or '_table_' in key for key in stored.files)

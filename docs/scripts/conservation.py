@@ -184,8 +184,8 @@ def coarse_spread(sim, state, scales, groups=None, *, with_density=False):
     return (result, jnp.stack(contrasts)) if with_density else result
 
 
-@partial(jax.jit, static_argnames=("steps", "stride"))
-def measured_run(sim, initial, steps, stride, reference=None, scales=None, mode=1):
+@partial(jax.jit, static_argnames=("steps", "stride", "pump"))
+def measured_run(sim, initial, steps, stride, reference=None, scales=None, mode=1, pump=False):
     """Sparse scalar histories and all-step maxima; valid for neutral closed boxes.
 
     A neutral homogeneous prescribed drive has zero total external impulse.
@@ -197,11 +197,15 @@ def measured_run(sim, initial, steps, stride, reference=None, scales=None, mode=
     work balance, and ordinary-sector work balance.
     Pass the original ``snapshot`` as ``reference`` across fixed compiled blocks
     to keep global defects; optional ``scales`` adds Gaussian local moments.
+    ``pump=True`` additionally retains every integer-time mean D/A and species
+    velocity, independently of the more expensive scalar/moment sampling stride.
     """
     if steps < 1 or stride < 1 or steps % stride:
         raise ValueError("steps must be positive and divisible by stride")
     dark = isinstance(sim, DarkSimulation)
     reservoir = dark and isinstance(sim.dark, DarkField)
+    if pump and not reservoir:
+        raise ValueError("dense pump histories require a dynamical dark field")
     p = sim.plasma if dark else sim
     if (p.domain.field_bc != (0, 0) or p.domain.particle_bc != (0, 0)
             or p.external_E is not None or p.external_B is not None or p.collisions is not None or p.sources):
@@ -230,7 +234,8 @@ def measured_run(sim, initial, steps, stride, reference=None, scales=None, mode=
                             jnp.max(jnp.abs(continuity)), values["ordinary_gauss"], values["dark_gauss"],
                             jnp.abs(values["grid_charge"] - reference["grid_charge"]),
                             jnp.abs(dark_work), jnp.abs(ordinary_work)])
-        return (state, jnp.maximum(maxima, defect)), None
+        mean_pump = {key: values[key] for key in ("t", "mean", "mean_D", "mean_A")} if pump else None
+        return (state, jnp.maximum(maxima, defect)), mean_pump
 
     def sample(state):
         values = {**snapshot(sim, state, background, mode), "density_rms": density_rms(sim, state)}
@@ -240,12 +245,15 @@ def measured_run(sim, initial, steps, stride, reference=None, scales=None, mode=
         return values
 
     def chunk(carry, _):
-        carry, _ = lax.scan(one, carry, None, length=stride)
+        carry, dense = lax.scan(one, carry, None, length=stride)
         state = carry[0]
-        return carry, sample(state)
+        return carry, (sample(state), dense)
 
     maxima = jnp.array([0., 0., 0., 0., reference["ordinary_gauss"], reference["dark_gauss"], 0., 0., 0.])
-    (final, maxima), history = lax.scan(chunk, (initial, maxima), None, length=steps // stride)
+    (final, maxima), (history, dense) = lax.scan(chunk, (initial, maxima), None, length=steps // stride)
     first = sample(initial)
     history = jax.tree.map(lambda a, b: jnp.concatenate((a[None], b)), first, history)
+    if pump:
+        history.update({"pump_" + key: jnp.concatenate((first[key][None], value.reshape((-1, *value.shape[2:]))))
+                        for key, value in dense.items()})
     return final, history, maxima

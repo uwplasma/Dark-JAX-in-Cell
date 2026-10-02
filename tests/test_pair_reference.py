@@ -1,6 +1,7 @@
 """Analytic checks for the independent oscillating-pair waterbag calculation."""
 
 import numpy as np
+import pytest
 
 from docs.scripts.pair_reference import (coupled_response, edge_matrix, growth,
                                          relativistic_background, relativistic_response, seeded_response)
@@ -183,13 +184,14 @@ def test_global_loading_refines_seeded_ballistic_charge_not_just_velocity_kernel
     assert errors[2] < .1  # Per unit velocity seed; this does not certify nonlinear PIC accuracy.
 
 
-def test_waveform_producer_keeps_shared_loading_and_native_restart_ledgers(tmp_path):
+@pytest.mark.parametrize('scalar_dt', [None, .05])
+def test_waveform_producer_keeps_shared_loading_and_native_restart_ledgers(tmp_path, scalar_dt):
     """Two native steps exercise tables, phase serialization and signed sector work."""
     import json
     from examples.dark_reservoir import pair_waveform_control
 
     curves, settings, results = pair_waveform_control(
-        tmp_path, 512, 2, .025, .05, quadrature=4, table_dt=.025, block_horizon=.05)
+        tmp_path, 512, 2, .025, .05, quadrature=4, table_dt=.025, block_horizon=.05, scalar_dt=scalar_dt)
     assert len(curves) == 5
     record = json.loads((tmp_path / 'run.json').read_text())
     assert record['settings']['pair_loading'] == 'global'
@@ -208,6 +210,9 @@ def test_waveform_producer_keeps_shared_loading_and_native_restart_ledgers(tmp_p
             np.testing.assert_allclose(native['t'] * settings['normalization']['omega0_rad_s'], values['t'],
                                        rtol=0, atol=1e-12)
             if label == 'coupled':
+                if scalar_dt:
+                    assert native['pump_t'].shape == (3,) and native['t'].shape == (2,)
+                    assert native['pump_mean'].shape == (3, 2)
                 np.testing.assert_equal(native['dark'][0] / settings['normalization']['energy_scale_J_m2'],
                                         settings['initial_dark_energy_over_energy_scale'])
         with np.load(tmp_path / label / 'final_state.npz') as restart:
