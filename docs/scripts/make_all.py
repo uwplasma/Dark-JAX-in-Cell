@@ -560,13 +560,19 @@ for order, folder in zip((2, 5), shape_runs):
 shape_dt = ROOT / 'artifacts' / 'shape_controls' / 'late_s5_dt0025'
 run_example('examples/dark_reservoir.py', study='paper', cells=2000, particles=206000,
             dt=.0025, horizon=1000., block_horizon=100., local_moments=True, shape_order=5, output=shape_dt)
+shape_finer = ROOT / 'artifacts' / 'shape_controls' / 'late_s5_dt00125'
+run_example('examples/dark_reservoir.py', study='paper', cells=2000, particles=206000,
+            dt=.00125, horizon=1000., block_horizon=100., local_moments=True, shape_order=5, output=shape_finer)
 run_example('docs/scripts/compare_replays.py', first=shape_runs[0], second=shape_runs[1],
-            variant='shape', constraints=True, refined=shape_dt, refined_against='second', destination=shape_folder)
+            variant='shape', constraints=True, refined=shape_dt, refined_against='second',
+            finer_step=shape_finer, destination=shape_folder)
 shape_record = json.loads((shape_folder / 'run.json').read_text())
-replay_measurements(shape_record, (("shape", "comparison", ".4f"), ("shape_dt", "refinement_comparison", ".4f")))
+replay_measurements(shape_record, (("shape", "comparison", ".4f"), ("shape_dt", "refinement_comparison", ".4f"),
+                                   ("shape_finer", "third_step_comparison", ".4f")))
 for label, record, key in (("late_repeat", late_record, "comparison"),
                            ("late_dt", late_record, "refinement_comparison"), ("shape", shape_record, "comparison"),
-                           ("shape_dt", shape_record, "refinement_comparison")):
+                           ("shape_dt", shape_record, "refinement_comparison"),
+                           ("shape_finer", shape_record, "third_step_comparison")):
     a, b = record['results'][key]['windows'][-1]['realization_summaries']
     for observable in ('electric_mean', 'work'):
         field = 'work_increment' if observable == 'work' else observable
@@ -623,9 +629,19 @@ for order, name, native in zip((2, 5), ('quadratic', 'quintic'), shape_record['r
                         ('momentum', 'max_momentum_defect_over_nmecL'), ('gauss', 'max_ordinary_gauss_over_en_eps0')):
         measured[f'{prefix}_{suffix}'] = f'{native["results"][key]:.3e}'
     measured['_provenance'][f'shape_cost_{order}'] = provenance(cost, f'{shape_folder.name}/{saved.name}')
-for suffix, key in (('balance', 'max_ordinary_work_defect_over_nmc2L'),
-                    ('momentum', 'max_momentum_defect_over_nmecL'), ('gauss', 'max_ordinary_gauss_over_en_eps0')):
-    measured[f'shape_dt_{suffix}'] = f'{shape_record["results"]["native_runs"][2]["results"][key]:.3e}'
+for label, index in (('shape_dt', 2), ('shape_finer', 3)):
+    for suffix, key in (('balance', 'max_ordinary_work_defect_over_nmc2L'),
+                        ('momentum', 'max_momentum_defect_over_nmecL'), ('gauss', 'max_ordinary_gauss_over_en_eps0')):
+        measured[f'{label}_{suffix}'] = f'{shape_record["results"]["native_runs"][index]["results"][key]:.3e}'
+late_summary = shape_record['results']['third_step_comparison']['windows'][-1]['realization_summaries'][1]
+late_work = late_summary['work_increment']
+late_defect = shape_record['results']['native_runs'][3]['results']['max_ordinary_work_defect_over_nmc2L']
+measured['shape_finer_work_budget_percent'] = f'{100 * late_defect / abs(late_work):.3f}'
+for row in shape_record['results']['norm_contraction']:
+    if row['window'] in ([0, 100], [800, 1000]):
+        for key in ('mean_E', 'electric', 'nonzero_electric', 'local_spread'):
+            measured[f"shape_contraction_{row['window'][0]}_{row['window'][1]}_{key}"] = (
+                f"{row[key]['coarse_to_fine_contraction']:.3f}")
 resolution = EVIDENCE.parent / "replay_resolution"
 mesh, seed, loading = [ROOT / "artifacts" / name for name in
                        ("paper_fixed_mesh", "paper_fixed_seed", "paper_fixed_particles")]

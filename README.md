@@ -273,9 +273,15 @@ Matched **412,000-particle** runs compare quadratic and six-cell quintic weighti
 
 At fixed quintic weighting, halving $\Delta t\omega_p$ from 0.005 to 0.0025 changes late total/nonzero electric means by **+1.64% / −0.12%**, transferred work by **−5.58%**, and local ion-spread increments by **−6.36%**. The residual injection-rate change is $2.55\times10^{-5}\omega_p$, above the accuracy target. These single-loading comparisons leave late conversion unconverged.
 
-<img src="docs/_static/figures/shape_controls/figure.png" width="900" alt="Matched quadratic, quintic and quintic timestep controls: field energy, local spread, density and energy/work balance">
+<img src="docs/_static/figures/shape_controls/figure.png" width="900" alt="Matched quadratic weighting and three quintic timesteps: field energy, local spread, density and energy/work balance">
 
-[Simulation script](examples/dark_reservoir.py) · `study='paper'`, `shape_order=2` or `5`, with a halved-step quintic control; [comparison and plot](docs/scripts/compare_replays.py) · `variant='shape', refined_against='second'` ([full inputs](docs/scripts/make_all.py)); [cost benchmark](docs/scripts/benchmark_field_cost.py).
+[Simulation script](examples/dark_reservoir.py) · `study='paper'`, `shape_order=2` or `5`, with quintic steps `.005`, `.0025`, `.00125`; [comparison and plot](docs/scripts/compare_replays.py) · `variant='shape', refined_against='second', finer_step=folder` ([full inputs](docs/scripts/make_all.py)); [cost benchmark](docs/scripts/benchmark_field_cost.py).
+
+### Three timesteps through nonlinear conversion
+
+The three quintic steps in the figure retain **412,000 particles**, the same physical initialization and the strong Figure 2 drive. Over $0\leq\omega_pt\leq100$, adjacent field differences shrink approximately fourfold. Over $800$–$1000$, the last halving changes transferred work by **+21.64%**, mean electric energy by **+5.55%**, and the residual injection rate by **$1.03\times10^{-4}\omega_p$**. These exceed the fixed late accuracy bounds despite a work-ledger defect of only **0.118%** of window transfer. Early refinement therefore does not establish late convergence or a discrepancy with Hook, Huang and Shalaby. [Raw differences, conservation and analytical scope](docs/kinetic.md#three-quintic-timesteps).
+
+[Simulation script](examples/dark_reservoir.py) · `study='paper', shape_order=5`, with `dt=.005`, `.0025` or `.00125`; [comparison and plot](docs/scripts/compare_replays.py) ([full inputs](docs/scripts/make_all.py)).
 
 ### Three-seed late timestep pilot
 
