@@ -746,6 +746,10 @@ def test_genuine_force_extension_keeps_complete_restart_prefix_current_work_and_
         np.testing.assert_array_equal(end['dark.' + key], start['dark.' + key])
     original_maxima = json.loads((original / 'coupled' / 'run.json').read_text())['results']['all_step_maxima']
     assert all(proof['native_run']['results']['all_step_maxima'][key] >= original_maxima[key] for key in PAIR_MAXIMA)
+    results = proof['native_run']['results']
+    checkpoint = [float(end['dark.' + key]) for key in ('max_balance_error', 'max_ordinary_gauss', 'max_dark_gauss')]
+    np.testing.assert_array_equal(results['checkpoint_maxima_SI'], checkpoint)
+    assert np.all(np.asarray(checkpoint) <= np.asarray(results['all_step_maxima_SI'])[[0, 4, 5]])
     assert values['balance'].shape == (2,) and len(proof['restored_native_leaves']) == len(start)
     replay = tmp_path / 'replay'
     example.pair_repeat(replay, fine / 'initial_state.npz', pic_dt=.0125, force_extension=tail,

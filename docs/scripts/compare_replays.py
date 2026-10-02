@@ -1639,14 +1639,16 @@ def _pair_prescribed_load(folder, example='pair_waveform_repeat', labels=('reali
     return record, data, hashes, diagnostics
 
 
-def _pair_repeat_bounds(results, final, units, data, repeat):
+def _pair_repeat_bounds(results, final, units, data, repeat, envelope=False):
     maxima = results['all_step_maxima']
     if (set(maxima) != set(PAIR_MAXIMA) or any(not np.isfinite(value) or value < 0 for value in maxima.values())
             or repeat and not np.allclose(results['all_step_maxima_SI'],
                                           np.array([maxima[key] for key in PAIR_MAXIMA]) * units, rtol=2e-12, atol=0)):
         raise ValueError('prescribed pair comparisons require all nine native SI conservation maxima')
     for key, index in (('dark.max_balance_error', 0), ('dark.max_ordinary_gauss', 4), ('dark.max_dark_gauss', 5)):
-        if not np.isclose(final[key], maxima[PAIR_MAXIMA[index]] * units[index], rtol=2e-12, atol=0):
+        valid = (final[key] <= results['all_step_maxima_SI'][index] if envelope else
+                 np.isclose(final[key], maxima[PAIR_MAXIMA[index]] * units[index], rtol=2e-12, atol=0))
+        if not valid:
             raise ValueError('pair archived all-step bounds differ from native maxima')
     defect = max(maxima[key] for key in (PAIR_MAXIMA[0], *PAIR_MAXIMA[7:]))
     if np.max(abs(data['balance'] - data['balance'][0])) > defect + 2e-14:
@@ -1923,7 +1925,13 @@ def _pair_extension(fine, folder, transition=()):  # noqa: C901 — scoped compl
             raise ValueError('force extension endpoint energy, momentum or unchanged work ledger disagrees')
     en = float(start['dark.density'].sum()) * 1.602176634e-19
     units = np.asarray([energy, energy / c, en * length, en * wp, en / eps, en / eps, en * length, energy, energy])
-    _pair_repeat_bounds(record['results'], final, units, data, True)
+    keys = ('max_balance_error', 'max_ordinary_gauss', 'max_dark_gauss')
+    native_maxima = [float(final['dark.' + key]) for key in keys]
+    if any(start['dark.' + key] < 0 or end < start['dark.' + key] for key, end in zip(keys, native_maxima)):
+        raise ValueError('force extension checkpoint maxima must remain nonnegative and nondecreasing')
+    _pair_repeat_bounds(record['results'], final, units, data, True, envelope=True)
+    if record['results'].get('checkpoint_maxima_SI', native_maxima) != native_maxima:
+        raise ValueError('force extension exact checkpoint maxima disagree with the native archive')
     total = raw['electric'] + raw['dark'] + raw['kinetic'].sum(axis=1)
     ordinary = raw['electric'] + raw['kinetic'].sum(axis=1)
     if (any(record['results']['all_step_maxima'][key] < donor['results']['all_step_maxima'][key] for key in PAIR_MAXIMA)

@@ -1834,6 +1834,36 @@ def pair_extension_records(pair_pic_step_records):
     return fine, replay, extension
 
 
+@pytest.mark.parametrize('envelope, bound, accepted', [
+    (False, 1., True), (True, 2., True), (False, 2., False), (True, .5, False)])
+def test_pair_checkpoint_maxima_and_continuation_envelopes(envelope, bound, accepted):
+    from docs.scripts.compare_replays import PAIR_MAXIMA, _pair_repeat_bounds
+    units = np.arange(1., 10.)
+    maxima = dict.fromkeys(PAIR_MAXIMA, bound)
+    final = dict(zip(('dark.max_balance_error', 'dark.max_ordinary_gauss', 'dark.max_dark_gauss'), units[[0, 4, 5]]))
+    results = dict(all_step_maxima=maxima, all_step_maxima_SI=(bound * units).tolist())
+    if accepted:
+        _pair_repeat_bounds(results, final, units, dict(balance=np.zeros(2)), True, envelope=envelope)
+    else:
+        with pytest.raises(ValueError, match='differ from native maxima'):
+            _pair_repeat_bounds(results, final, units, dict(balance=np.zeros(2)), True, envelope=envelope)
+
+
+def test_pair_extension_exact_checkpoint_metadata_is_separate_and_verified(pair_extension_records):
+    from docs.scripts.compare_replays import _pair_extension
+    fine, _, extension = pair_extension_records
+    record = json.loads((extension / 'run.json').read_text())
+    with np.load(extension / 'final_state.npz') as stored:
+        record['results']['checkpoint_maxima_SI'] = [float(stored['dark.' + key]) for key in (
+            'max_balance_error', 'max_ordinary_gauss', 'max_dark_gauss')]
+    (extension / 'run.json').write_text(json.dumps(record))
+    _pair_extension(fine, extension, ('4'*40, '5'*40))
+    record['results']['checkpoint_maxima_SI'][0] += 1.
+    (extension / 'run.json').write_text(json.dumps(record))
+    with pytest.raises(ValueError, match='exact checkpoint maxima'):
+        _pair_extension(fine, extension, ('4'*40, '5'*40))
+
+
 def test_pair_force_extension_requires_opt_in_complete_prefix_and_qualified_execution(pair_extension_records):
     from docs.scripts.compare_replays import pair_pic_step_comparison
     fine, replay, extension = pair_extension_records
@@ -1849,7 +1879,7 @@ def test_pair_force_extension_requires_opt_in_complete_prefix_and_qualified_exec
 
 
 @pytest.mark.parametrize('corrupt', [
-    'source', 'runtime', 'prefix', 'tail', 'clock', 'potential', 'work', 'reference', 'maxima', 'donor'])
+    'source', 'runtime', 'prefix', 'tail', 'clock', 'potential', 'work', 'reference', 'maxima', 'donor', 'checkpoint'])
 def test_pair_force_extension_rejects_forged_lineage_or_native_tail(pair_extension_records, corrupt):
     from docs.scripts.compare_replays import _pair_extension
     fine, _, extension = pair_extension_records
@@ -1865,13 +1895,14 @@ def test_pair_force_extension_rejects_forged_lineage_or_native_tail(pair_extensi
             record['settings']['force_extension']['donor_sha256']['coupled_final_sha256'] = '0'*64
         (extension/'run.json').write_text(json.dumps(record))
     else:
-        name = 'data.npz' if corrupt in ('prefix', 'tail', 'clock') else 'initial_state.npz'
+        name = ('data.npz' if corrupt in ('prefix', 'tail', 'clock') else
+                'final_state.npz' if corrupt == 'checkpoint' else 'initial_state.npz')
         with np.load(extension/name) as stored:
             raw = dict(stored)
         key = dict(prefix='force_amplitude', tail='force_amplitude', clock='t', potential='dark.phi',
-                   work='dark.work', reference='dark.initial_dark')[corrupt]
+                   work='dark.work', reference='dark.initial_dark', checkpoint='dark.max_balance_error')[corrupt]
         index = -2 if corrupt == 'tail' else 0
-        raw[key].flat[index] += 1.
+        raw[key].flat[index] += -1. if corrupt == 'checkpoint' else 1.
         np.savez_compressed(extension/name, **raw)
     with pytest.raises(ValueError):
         _pair_extension(fine, extension, ('4'*40, '5'*40))

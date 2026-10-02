@@ -837,6 +837,9 @@ def pair_force_extension(folder, initial_state, transition=()):
     scales = jnp.asarray(setting['local_spread_lengths_c_over_omega0']) * c / wp
     final, values, maximum, _, compile_s, warm_s, memory = paper_run(
         sim, start, 1, 1, None, wp, scales, folder, setting['seed_mode'], reference=reference, maxima=maxima)
+    native_maxima = np.array([final.max_balance_error, final.max_ordinary_gauss, final.max_dark_gauss])
+    maximum = np.asarray(maximum).copy()
+    maximum[[0, 4, 5]] = np.maximum(maximum[[0, 4, 5]], native_maxima)
     knots, amplitude = pair_push_table(sim.plasma, start.ordinary, values, sim.dark.omega, sim.dark.eta)
     values.update(force_times=np.r_[times, knots[1:]], force_amplitude=np.concatenate((
         force, np.column_stack((amplitude[1:], np.zeros((2, 2)))))))
@@ -855,6 +858,7 @@ def pair_force_extension(folder, initial_state, transition=()):
                    compiler_temporary_MiB=memory.temp_size_in_bytes / 2**20 if memory else None,
                    all_step_maxima=pair_all_step_maxima(maximum, sim.plasma, wp, energy),
                    all_step_maxima_SI=np.asarray(maximum).tolist(),
+                   checkpoint_maxima_SI=native_maxima.tolist(),
                    initial_ordinary_fingerprints={key: array_fingerprint(getattr(start.ordinary, key))
                                                   for key in ('x', 'u', 'w', 'E', 'B', 'rho')},
                    claim='One genuine accepted coupled step; original force prefix retained exactly. '
