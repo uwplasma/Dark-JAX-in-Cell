@@ -1599,3 +1599,167 @@ def test_pair_table_resolution_inherits_original_moment_protocol_without_rewriti
     result = pair_table_comparison(pair_table_records, ('4' * 40, '5' * 40))
     assert 'local_moments' not in result['native_runs'][2]['settings']
     assert result['comparisons'][0]['windows'][1]['samples'] == 101
+
+
+@pytest.fixture
+def pair_pic_step_records(pair_table_records):
+    """Two distinct accepted clocks and exactly one force; NumPy manufactured ledgers."""
+    from docs.scripts.compare_replays import _accepted_ticks, _pair_native_hash
+    _, replay, donor = pair_table_records
+    control = json.loads((donor.parent / 'run.json').read_text())
+    fine = json.loads((donor / 'run.json').read_text())
+    s = fine['settings']
+    s.update(dt_omega0=.1, forcing_native_dt_omega0=.1, block_steps=10)
+    control['settings'].update(scalar_dt_omega0=.2, dt_omega0=.1, forcing_native_dt_omega0=.1)
+    wp, field, _ = s['normalization'].values()
+    dense = _accepted_ticks(.1 / wp, 1700, 1)
+    knots = np.r_[0., dense[:-1] + .1 / (2 * wp), dense[-1]]
+    with np.load(donor / 'data.npz') as stored:
+        raw = dict(stored)
+    pump = {key: np.broadcast_to(raw[key][0], (len(dense), *raw[key].shape[1:])).copy() for key in raw}
+    pump['t'] = dense
+    pump['mean_D'] = field * (.05 + .01 * np.cos(np.pi * dense * wp / 170))
+    current = .5 * (pump['mean'][:, 1] - pump['mean'][:, 0]) / 299792458.
+    force = np.zeros((len(knots), 3))
+    force[:, 0] = field * np.r_[
+        pump['mean_D'][0] / field, pump['mean_D'][:-1] / field - .05 * s['eta'] * current[:-1],
+        pump['mean_D'][-1] / field]
+    sparse = {key: value[::2] for key, value in pump.items()}
+    sparse.update({'pump_' + key: pump[key] for key in ('t', 'mean', 'mean_D', 'mean_A')})
+    coupled = donor.parent / 'coupled'
+    coupled_record = json.loads((coupled / 'run.json').read_text())
+    coupled_record['settings'] = dict(s, label='coupled', model='DarkField')
+    np.savez_compressed(coupled / 'data.npz', **sparse)
+    with np.load(donor.parent / 'data.npz') as stored:
+        top = dict(stored)
+    top.update(realized_table_t=knots * wp, homogeneous_table_t=knots * wp, realized_table_D=force[:, 0] / field)
+    np.savez_compressed(donor.parent / 'data.npz', **top)
+    c = 299792458.
+    originals = []
+    for name, index in (('initial_state.npz', 0), ('final_state.npz', -1)):
+        with np.load(donor / name) as stored:
+            state = dict(stored)
+        velocity = state['u'][:, 0] / np.sqrt(1 + np.sum((state['u'] / c)**2, axis=1))
+        length = float(state['dark.length'])
+        canonical = (state['x'][:, 0] - float(state['dark.dt']) * velocity / 2 + length / 2) % length - length / 2
+        state['x'][:, 0] = (canonical + .1 / wp * velocity / 2 + length / 2) % length - length / 2
+        state.update({'dark.dt': np.array(.1 / wp), 'dark.times': knots, 'dark.amplitude': force})
+        if index:
+            state.update(time=np.array(dense[-1]), steps=np.array(1700, dtype=np.int32))
+        originals.append(state)
+        np.savez_compressed(donor / name, **state)
+    fine['results']['initial_ordinary_fingerprints']['x'] = _pair_native_hash(originals[0]['x'])
+    s['initial_ordinary_fingerprints'] = fine['results']['initial_ordinary_fingerprints']
+    control['settings']['initial_ordinary_fingerprints'] = s['initial_ordinary_fingerprints']
+    coupled_record['results']['initial_ordinary_fingerprints'] = s['initial_ordinary_fingerprints']
+    (coupled / 'run.json').write_text(json.dumps(coupled_record))
+    raw['t'] = dense[::2]
+    np.savez_compressed(donor / 'data.npz', **raw)
+    (donor / 'run.json').write_text(json.dumps(fine))
+    (donor.parent / 'run.json').write_text(json.dumps(control))
+    changed = json.loads((replay / 'run.json').read_text())
+    changed['example'] = 'pair_waveform_pic_dt_replay'
+    changed['settings'] = dict(s, dt_omega0=.2, block_steps=5, local_moments=True)
+    changed['settings'].update(
+        donor_git=fine['git'],
+        initial_state_archive_sha256=hashlib.sha256((donor / 'initial_state.npz').read_bytes()).hexdigest(),
+        donor_record_sha256=hashlib.sha256((donor / 'run.json').read_bytes()).hexdigest(),
+        donor_control_record_sha256=hashlib.sha256((donor.parent / 'run.json').read_bytes()).hexdigest(),
+        producer_script_sha256='6' * 64,
+        pic_dt_replay=dict(
+            donor_dt_omega0=.1, pic_dt_omega0=.2, block_horizon_omega0=1.,
+            times_sha256=_pair_native_hash(knots), amplitude_sha256=_pair_native_hash(force),
+            canonical_integer_positions_sha256='7' * 64, canonical_position_error_over_L=0.))
+    ticks = _accepted_ticks(.2 / wp, 850, 1)
+    for name, state, index in zip(('initial_state.npz', 'final_state.npz'), originals, (0, -1)):
+        state = {key: value.copy() for key, value in state.items()}
+        velocity = state['u'][:, 0] / np.sqrt(1 + np.sum((state['u'] / c)**2, axis=1))
+        canonical = (state['x'][:, 0] - .1 / wp * velocity / 2 + length / 2) % length - length / 2
+        state['x'][:, 0] = (canonical + .2 / wp * velocity / 2 + length / 2) % length - length / 2
+        state['dark.dt'] = np.array(.2 / wp)
+        if index:
+            state.update(time=np.array(ticks[-1]), steps=np.array(850, dtype=np.int32))
+        else:
+            changed['results']['initial_ordinary_fingerprints']['x'] = _pair_native_hash(state['x'])
+        np.savez_compressed(replay / name, **state)
+    raw['t'] = ticks
+    phase = .002 * np.sin(np.pi * ticks * wp / 170)
+    phase[[0, -1]] = 0.
+    raw['mode_E'] *= np.exp(1j * phase)
+    np.savez_compressed(replay / 'data.npz', **raw)
+    changed['results'].update(samples=1, execution_index=1)
+    (replay / 'run.json').write_text(json.dumps(changed))
+    return donor, replay
+
+
+def test_pair_pic_timestep_preserves_force_restagger_clocks_failed_gates_and_raw_phase(pair_pic_step_records):
+    import runpy
+    from docs.scripts.compare_replays import pair_pic_step_comparison
+    result = pair_pic_step_comparison(pair_pic_step_records, ('4' * 40, '5' * 40))
+    assert result['initialization']['all_other_native_initial_leaves_exact']
+    assert result['initialization']['fixed_force_byte_identical']
+    assert max(result['initialization']['independent_numpy_position_errors'].values()) < 2e-13
+    assert all(result['nominal_clock_gates'])
+    assert not any(row['ordinary_gauss_over_en_eps0'] for row in result['original_gauss_gates'])
+    late = result['windows'][1]
+    assert late['samples'] == 101 and late['actual_clocks_per_run_omega0'][0] != late['actual_clocks_per_run_omega0'][1]
+    expected_mode = [np.array(row['mode_E']['real']) + 1j * np.array(row['mode_E']['imag'])
+                     for row in result['scalar_histories']]
+    np.testing.assert_allclose(late['observables']['mode_E']['relative_l2_difference'],
+                               np.linalg.norm(expected_mode[1][-101:] - expected_mode[0][-101:])
+                               / np.linalg.norm(expected_mode[0][-101:]), rtol=1e-14)
+    assert late['mode_phase']['reference_amplitude_squared_weighted_rms_rad'] > 0
+    assert late['accounting']['difference_gate'] is False
+    assert result['native_runs'][1]['example'] == 'pair_waveform_pic_dt_replay'
+    assert 'isolated truncation cause' in result['notes'] and str(pair_pic_step_records[0]) not in json.dumps(result)
+    output = pair_pic_step_records[0].parent / 'steps.json'
+    runpy.run_path('docs/scripts/compare_replays.py', run_name='__main__', init_globals=dict(
+        pair_pic_steps=pair_pic_step_records, pair_pic_transition=('4' * 40, '5' * 40), output=output))
+    published = json.loads(output.read_text())
+    assert published['windows'] == result['windows'] and published['validation_source']['script_sha256']
+
+
+@pytest.mark.parametrize('corrupt', [
+    'transition', 'runtime', 'block', 'cadence', 'clock', 'lineage', 'combined',
+    'donor', 'force', 'weights', 'field', 'u', 'position', 'phase', 'table_metadata'])
+def test_pair_pic_timestep_rejects_unmatched_native_inputs(pair_pic_step_records, corrupt):
+    from docs.scripts.compare_replays import _pair_native_hash, pair_pic_step_comparison, pair_repeat_comparison
+    donor, replay = pair_pic_step_records
+    record = json.loads((replay / 'run.json').read_text())
+    if corrupt == 'runtime':
+        record['jax'] = 'different'
+    elif corrupt in ('block', 'cadence', 'lineage', 'combined', 'donor', 'table_metadata'):
+        changes = dict(block=('block_steps', 10), cadence=('scalar_dt_omega0', .4),
+                       lineage=('continuation', dict(prefix='unreviewed')),
+                       combined=('table_replay', dict(table_every=2)),
+                       donor=('initial_state_archive_sha256', '0' * 64),
+                       table_metadata=('pic_dt_replay', dict(
+                           record['settings']['pic_dt_replay'], times_sha256='0' * 64)))
+        key, value = changes[corrupt]
+        record['settings'][key] = value
+    elif corrupt == 'clock':
+        with np.load(replay / 'data.npz') as stored:
+            raw = dict(stored)
+        raw['t'][1] = np.nextafter(raw['t'][1], np.inf)
+        np.savez_compressed(replay / 'data.npz', **raw)
+    elif corrupt in ('force', 'weights', 'field', 'u', 'position', 'phase'):
+        for name in ('initial_state.npz', 'final_state.npz'):
+            with np.load(replay / name) as stored:
+                state = dict(stored)
+            key = dict(force='dark.amplitude', weights='w', field='E', u='u', position='x', phase='dark.phase')[corrupt]
+            if corrupt == 'phase':
+                state[key] = np.array(.01)
+            elif corrupt == 'u':
+                state[key] = np.roll(state[key], 2, axis=0)  # Global velocity moments survive this hidden change.
+            elif corrupt in ('weights', 'field'):
+                state[key].flat[0] = np.nextafter(state[key].flat[0], np.inf)  # Sub-tolerance, but not exact inputs.
+            else:
+                state[key].flat[0] += .01 if corrupt == 'position' else 1e-5
+            np.savez_compressed(replay / name, **state)
+            if name == 'initial_state.npz' and key in record['results']['initial_ordinary_fingerprints']:
+                record['results']['initial_ordinary_fingerprints'][key] = _pair_native_hash(state[key])
+    (replay / 'run.json').write_text(json.dumps(record))
+    with pytest.raises(ValueError):
+        pair_pic_step_comparison((donor, replay), () if corrupt == 'transition' else ('4' * 40, '5' * 40))
+    with pytest.raises(ValueError, match='complete quadratic realized-force branches'):
+        pair_repeat_comparison((replay, replay))

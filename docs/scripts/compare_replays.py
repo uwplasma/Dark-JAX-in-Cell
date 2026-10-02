@@ -21,6 +21,8 @@ pair_repeat_donor = globals().get('pair_repeat_donor', None)
 pair_repeat_transition = globals().get('pair_repeat_transition', ())  # Explicit reviewed (donor SHA, repeat SHA).
 pair_tables = globals().get('pair_tables', ())  # Original coarse, decimated replay, original fine; JSON only.
 pair_table_transition = globals().get('pair_table_transition', ())  # Reviewed (donor SHA, replay SHA).
+pair_pic_steps = globals().get('pair_pic_steps', ())  # Fine donor, changed PIC dt at exactly the same SI force.
+pair_pic_transition = globals().get('pair_pic_transition', ())  # Reviewed (donor SHA, replay SHA).
 ensemble = globals().get('ensemble', ())  # Ordered (coarse, half-step) native folders for seeds 0/1/2 or 0–4.
 ensemble_window = globals().get('ensemble_window', (800, 1000))
 continuation = globals().get('continuation', False)  # Explicit timestep-only lineage audit.
@@ -1543,9 +1545,12 @@ def _pair_prescribed_load(folder, example='pair_waveform_repeat', labels=('reali
         control = json.loads((Path(folder).parent / 'run.json').read_text())
         _pair_branch_contract(record, control, s['label'])
         s.update({key: control['settings'][key] for key in ('local_moments', 'local_spread_lengths_c_over_omega0')})
-    if (example not in ('pair_waveform_repeat', 'pair_waveform_branch', 'pair_waveform_table_replay')
+    interventions = {'pair_waveform_table_replay': 'table_replay', 'pair_waveform_pic_dt_replay': 'pic_dt_replay'}
+    declared = {interventions[example]} if example in interventions else set()
+    if (example not in ('pair_waveform_repeat', 'pair_waveform_branch', *interventions)
             or record['example'] != example
-            or example != 'pair_waveform_table_replay' and any(key in s for key in ('table_replay', 'pic_dt_replay'))
+            or set(s) & {'table_replay', 'pic_dt_replay'} != declared
+            or any(not isinstance(s[key], dict) for key in set(s) & {'table_replay', 'pic_dt_replay'})
             or s['model'] != 'PrescribedDrive' or s['label'] not in labels or s['scalar_units'] != 'native SI'
             or not s.get('local_moments', repeat) or s['shape_order'] != 2
             or 2 * s['seed_mode'] >= s['cells'] or min(s['normalization'].values()) <= 0):
@@ -1564,12 +1569,13 @@ def _pair_prescribed_load(folder, example='pair_waveform_repeat', labels=('reali
                    for name in ('initial_state', 'final_state')})
     wp, field, energy = [s['normalization'][key] for key in ('omega0_rad_s', 'field_scale_V_m', 'energy_scale_J_m2')]
     dt, cadence, horizon = s['dt_omega0'], _pair_cadence(s), s['horizon_omega0']
+    forcing_dt = s['pic_dt_replay'].get('donor_dt_omega0') if example == 'pair_waveform_pic_dt_replay' else dt
     steps, stride = round(horizon / dt), round(cadence / dt)
     if (not np.isfinite([dt, cadence, horizon]).all() or min(dt, cadence) <= 0 or horizon < 170
             or type(s['block_steps']) is not int or s['block_steps'] < 1 or stride < 1
             or steps % s['block_steps'] or s['block_steps'] % stride
             or abs(steps * dt - horizon) > 1e-10 or abs(stride * dt - cadence) > 1e-10
-            or s['forcing_native_dt_omega0'] != dt):
+            or s['forcing_native_dt_omega0'] != forcing_dt):
         raise ValueError('prescribed pair comparisons require complete native blocks, fixed windows '
                          'and recorded cadences')
     ticks = _accepted_ticks(float(initial['dark.dt']), steps, stride)
@@ -1682,14 +1688,14 @@ def _pair_repeat_windows(a, b, conservation_budget=.001):
     for start, end in ((0., float(rows[0]['t'][-1])), (150., 170.)):
         selected = (rows[0]['t'] >= start - 1e-8) & (rows[0]['t'] <= end + 1e-8)
         summaries = [window_summary(row, selected) for row in rows]
-        duration = float(np.ptp(rows[0]['t'][selected]))
         phases = np.angle(rows[1]['mode_E'][selected] * rows[0]['mode_E'][selected].conj())
         weights = abs(rows[0]['mode_E'][selected])**2
         valid = weights > 0
         valid &= abs(rows[1]['mode_E'][selected]) > 0
         transfer = [defect / abs(row['work_increment']) if row['work_increment'] else None
                     for defect, row in zip(defects, summaries)]
-        rates = [2 * defect / (duration * row['plasma_mean_energy']) for defect, row in zip(defects, summaries)]
+        rates = [2 * defect / (float(np.ptp(data['t'][selected])) * row['plasma_mean_energy'])
+                 for defect, data, row in zip(defects, rows, summaries)]
         difference = abs(summaries[1]['work_increment'] - summaries[0]['work_increment'])
         rate_difference = abs(summaries[1]['injection_rate_over_wp'] - summaries[0]['injection_rate_over_wp'])
         effect = sum(defects) / difference if difference else None
@@ -1809,24 +1815,40 @@ def pair_repeat_comparison(folders, observer=None, donor=None, transition=()):
     return result
 
 
-def _pair_table_forces(folders, sources):  # noqa: C901 — separate native-table integrity gates
-    """Check the actual donor force, accepted clocks and replay decimation separately."""
-    control, top, control_hashes = _pair_source(Path(folders[2]).parent)
-    pump, raw, pump_hashes = _pair_source(Path(folders[2]).parent / 'coupled')
+def _pair_fine_forcing(folder):
+    """Bind the fine archived force to its original coupled current and accepted clocks."""
+    control, top, control_hashes = _pair_source(Path(folder).parent)
+    pump, raw, pump_hashes = _pair_source(Path(folder).parent / 'coupled')
     _pair_branch_contract(pump, control, 'coupled')
     pump_hashes.update(_pair_pump(
         raw, control['settings'], 'coupled', _pair_normalize(raw, control['settings'], 'coupled'), top, 1e-8))
-    tables = []
-    for folder in folders:
-        with np.load(Path(folder) / 'initial_state.npz', allow_pickle=False) as stored:
-            tables.append((stored['dark.times'], stored['dark.amplitude']))
-    times, force = tables[2]
-    s, replay = control['settings'], sources[1][0]['settings']['table_replay']
+    with np.load(Path(folder) / 'initial_state.npz', allow_pickle=False) as stored:
+        times, force = stored['dark.times'], stored['dark.amplitude']
+    s = control['settings']
     wp = s['normalization']['omega0_rad_s']
     ticks = _accepted_ticks(s['dt_omega0'] / wp, round(s['horizon_omega0'] / s['dt_omega0']), 1)
     knots = np.r_[0., ticks[:-1] + s['dt_omega0'] / (2 * wp), ticks[-1]]
     if not np.array_equal(times, knots):
         raise ValueError('fine table must contain every exact accepted midpoint and both endpoints')
+    _pair_force(folder, s, 'realized_fine', top, 1e-8)
+    return control, top, control_hashes, pump_hashes, times, force
+
+
+def _pair_native_hash(value):
+    return hashlib.sha256(f'{value.dtype.str}:{value.shape}'.encode()
+                          + np.ascontiguousarray(value).tobytes()).hexdigest()
+
+
+def _pair_table_forces(folders, sources):  # noqa: C901 — separate native-table integrity gates
+    """Check the actual donor force, accepted clocks and replay decimation separately."""
+    control, top, control_hashes, pump_hashes, times, force = _pair_fine_forcing(folders[2])
+    tables = []
+    for folder in folders:
+        with np.load(Path(folder) / 'initial_state.npz', allow_pickle=False) as stored:
+            tables.append((stored['dark.times'], stored['dark.amplitude']))
+    s, replay = control['settings'], sources[1][0]['settings']['table_replay']
+    wp = s['normalization']['omega0_rad_s']
+    knots = times
     for index in (0, 2):
         _pair_force(folders[index], control['settings'], sources[index][0]['settings']['label'], top, 1e-8)
     every = replay.get('table_every')
@@ -1834,13 +1856,10 @@ def _pair_table_forces(folders, sources):  # noqa: C901 — separate native-tabl
         raise ValueError('table replay needs a positive integer decimation greater than one')
     selected = np.unique(np.r_[0, np.arange(1, len(times) - 1, every), len(times) - 1])
 
-    def native_hash(value):
-        return hashlib.sha256(f'{value.dtype.str}:{value.shape}'.encode()
-                              + np.ascontiguousarray(value).tobytes()).hexdigest()
-
     expected = dict(original_knots=len(times), retained_knots=len(selected),
-                    original_times_sha256=native_hash(times), original_amplitude_sha256=native_hash(force),
-                    times_sha256=native_hash(times[selected]), amplitude_sha256=native_hash(force[selected]),
+                    original_times_sha256=_pair_native_hash(times), original_amplitude_sha256=_pair_native_hash(force),
+                    times_sha256=_pair_native_hash(times[selected]),
+                    amplitude_sha256=_pair_native_hash(force[selected]),
                     selection='initial endpoint, first midpoint, every nth midpoint, terminal endpoint')
     if (any(replay.get(key) != value for key, value in expected.items())
             or not np.array_equal(tables[1][0], times[selected])
@@ -1868,14 +1887,40 @@ def _pair_table_forces(folders, sources):  # noqa: C901 — separate native-tabl
         rows.append(dict(knots=len(table_t), maximum_gap_omega0=float(np.max(np.diff(table_t)) * wp),
                          nominal_spacing_omega0=s['dt_omega0'] * (coarse_every if index == 0 else every
                                                                   if index == 1 else 1),
-                         actual_times_sha256=native_hash(table_t), actual_amplitude_sha256=native_hash(amplitude),
-                         accepted_force_sha256=native_hash(accepted),
+                         actual_times_sha256=_pair_native_hash(table_t),
+                         actual_amplitude_sha256=_pair_native_hash(amplitude),
+                         accepted_force_sha256=_pair_native_hash(accepted),
                          max_midpoint_force_error_over_initial=error,
                          force_gate=error <= s['accuracy_targets']['table_force_over_initial']))
     return dict(tables=rows, coarse_exact_decimation_of_fine=nested,
                 intermediate_exact_decimation_of_fine=True,
                 source_control_settings=s, source_control_sha256=control_hashes, source_coupled_sha256=pump_hashes,
                 note='Nesting is checked on actual archived arrays. No table-order or nonlinear convergence claim.')
+
+
+def _pair_refinement_windows(a, b, targets):
+    windows = _pair_repeat_windows(a, b, targets['conservation_over_transfer_and_target_difference'])
+    for window in windows:
+        selected = (a[1]['t'] >= window['bounds_omega0'][0] - 1e-8) & (a[1]['t'] <= window['bounds_omega0'][1] + 1e-8)
+        for key in ('kinetic', 'density_rms'):
+            values = [source[1][key] - (source[1][key][0] if key == 'kinetic' else 0) for source in (a, b)]
+            window['observables'][key + ('_increment' if key == 'kinetic' else '')] = _pair_metric(
+                values[0][selected], values[1][selected])
+        quantities = ('mean_E', 'electric', 'work', 'kinetic_increment', 'local_spread_increment',
+                      'mode_E', 'nonzero_electric', 'density_rms', 'local_density_rms')
+        window['refinement_gates'] = {key: [value is not None and value <= targets[
+            'nonzero_mode_density_window_fraction' if key in (
+                'mode_E', 'nonzero_electric', 'density_rms', 'local_density_rms') else 'primary_window_fraction']
+            for value in np.asarray(window['observables'][key]['relative_l2_difference'], dtype=object).ravel()]
+            for key in quantities}
+    return windows
+
+
+def _pair_scalar_histories(sources):
+    return [{key: dict(real=value.real.tolist(), imag=value.imag.tolist()) if np.iscomplexobj(value) else value.tolist()
+             for key, value in source[1].items() if key in (
+                 't', 'mean_E', 'mode_E', 'electric', 'nonzero_electric', 'kinetic', 'spread', 'local_spread',
+                 'rms', 'momentum', 'local_density_rms', 'density_rms', 'magnetic', 'work')} for source in sources]
 
 
 def pair_table_comparison(folders, transition=()):
@@ -1917,30 +1962,8 @@ def pair_table_comparison(folders, transition=()):
     comparisons = []
     targets = settings[2]['accuracy_targets']
     for first, second in ((0, 1), (1, 2), (0, 2)):
-        windows = _pair_repeat_windows(
-            sources[first], sources[second], targets['conservation_over_transfer_and_target_difference'])
-        for window in windows:
-            selected = (sources[first][1]['t'] >= window['bounds_omega0'][0] - 1e-8) & (
-                sources[first][1]['t'] <= window['bounds_omega0'][1] + 1e-8)
-            for key in ('kinetic', 'density_rms'):
-                values = [source[1][key] - (source[1][key][0] if key == 'kinetic' else 0)
-                          for source in (sources[first], sources[second])]
-                window['observables'][key + ('_increment' if key == 'kinetic' else '')] = _pair_metric(
-                    values[0][selected], values[1][selected])
-            quantities = ('mean_E', 'electric', 'work', 'kinetic_increment', 'local_spread_increment',
-                          'mode_E', 'nonzero_electric', 'density_rms', 'local_density_rms')
-            window['refinement_gates'] = {key: [value is not None and value <= targets[
-                'nonzero_mode_density_window_fraction' if key in (
-                    'mode_E', 'nonzero_electric', 'density_rms', 'local_density_rms') else 'primary_window_fraction']
-                for value in np.asarray(window['observables'][key]['relative_l2_difference'], dtype=object).ravel()]
-                for key in quantities}
+        windows = _pair_refinement_windows(sources[first], sources[second], targets)
         comparisons.append(dict(first=first, second=second, windows=windows))
-    histories = [{
-        key: dict(real=value.real.tolist(), imag=value.imag.tolist()) if np.iscomplexobj(value) else value.tolist()
-        for key, value in source[1].items() if key in (
-            't', 'mean_E', 'mode_E', 'electric', 'nonzero_electric', 'kinetic', 'spread', 'local_spread',
-            'rms', 'momentum', 'local_density_rms', 'density_rms', 'magnetic', 'work')
-    } for source in sources]
     return dict(comparison='fixed-PIC archived prescribed-table resolution',
                 reviewed_source_transition=list(transition) if old != new else None, forcing=forces,
                 comparisons=comparisons, accuracy_targets=targets,
@@ -1952,11 +1975,117 @@ def pair_table_comparison(folders, transition=()):
                 nominal_clock_bound_omega0=1e-9,
                 nominal_clock_gates=[bool(abs(source[1]['t'][-1] - source[0]['settings']['horizon_omega0']) <= 1e-9)
                                      for source in sources],
-                scalar_histories=histories,
+                scalar_histories=_pair_scalar_histories(sources),
                 notes='One execution per table; norms include execution variation. Raw shared native clocks, '
                       'unaligned complex modes and wrapped reference-amplitude-weighted phase. '
                       'Frames are correlated samples, not realizations. Global and two-endpoint ledger bounds '
                       'remain distinct; passing conservation or knot gates does not certify late convergence.')
+
+
+def _pair_pic_initial(folders, sources, detail, times, force):
+    """Exact native leaves except half-step x/dt; independent physical restagger check."""
+    leaves = [source[3]['initial_leaves_without_table'] for source in sources]
+    if (any({key: value for key, value in row.items() if key not in ('x', 'dark.dt')}
+            != {key: value for key, value in leaves[0].items() if key not in ('x', 'dark.dt')} for row in leaves[1:])
+            or sources[0][3]['actual_force_sha256'] != sources[1][3]['actual_force_sha256']
+            or sources[0][3]['actual_force_times_sha256'] != sources[1][3]['actual_force_times_sha256']):
+        raise ValueError('PIC timestep replay requires identical force and all other complete initial leaves')
+    with np.load(Path(folders[0]) / 'initial_state.npz', allow_pickle=False) as old, np.load(
+            Path(folders[1]) / 'initial_state.npz', allow_pickle=False) as new:
+        if set(old.files) != set(new.files):
+            raise ValueError('PIC timestep replay native initial leaf sets must agree')
+        length, x, u = float(old['dark.length']), old['x'], old['u']
+        velocity = u[:, 0] / np.sqrt(1 + np.sum((u / 299792458.)**2, axis=1))
+        canonical = (x[:, 0] - float(old['dark.dt']) * velocity / 2 + length / 2) % length - length / 2
+        positions = new['x'][:, 0]
+        recovered = (positions - float(new['dark.dt']) * velocity / 2 + length / 2) % length - length / 2
+        expected = (canonical + float(new['dark.dt']) * velocity / 2 + length / 2) % length - length / 2
+        errors = {key: float(np.max(abs((value + length / 2) % length - length / 2))) / length
+                  for key, value in (('canonical_positions_over_L', recovered - canonical),
+                                     ('restaggered_positions_over_L', positions - expected))}
+        errors['transverse_positions_over_L'] = float(np.max(abs(new['x'][:, 1:] - x[:, 1:]))) / length
+        count = len(old.files)
+    if (max(errors.values()) > 2e-13 or detail.get('times_sha256') != _pair_native_hash(times)
+            or detail.get('amplitude_sha256') != _pair_native_hash(force)
+            or not isinstance(detail.get('canonical_integer_positions_sha256'), str)
+            or len(detail['canonical_integer_positions_sha256']) != 64
+            or not set(detail['canonical_integer_positions_sha256']) <= set('0123456789abcdef')
+            or not 0 <= detail.get('canonical_position_error_over_L', np.inf) <= 2e-13):
+        raise ValueError('PIC timestep canonical positions, declared restagger or exact force fingerprints disagree')
+    return dict(native_initial_leaf_count=count, unchanged_leaves_except=['x', 'dark.dt'],
+                all_other_native_initial_leaves_exact=True, fixed_force_byte_identical=True,
+                independent_numpy_position_errors=errors, position_bound_over_L=2e-13,
+                native_canonical_sha256=detail['canonical_integer_positions_sha256'],
+                note='Canonical hash is native provenance; NumPy restagger is a separate floating-point check.')
+
+
+def pair_pic_step_comparison(folders, transition=()):
+    """Fixed archived SI force, distinct rephased PIC timesteps and executions."""
+    if len(folders) != 2:
+        raise ValueError('pair PIC steps require one fine donor and one changed-timestep folder')
+    sources = [_pair_prescribed_load(path, example) for path, example in zip(
+        folders, ('pair_waveform_branch', 'pair_waveform_pic_dt_replay'))]
+    a, b = sources
+    old, new = a[0]['git'], b[0]['git']
+    control, _, control_hashes, pump_hashes, times, force = _pair_fine_forcing(folders[0])
+    settings = [{**control['settings'], **source[0]['settings']} for source in sources]
+    s, detail = settings[1], settings[1]['pic_dt_replay']
+    if ((bool(transition) if old == new else tuple(transition) != (old, new))
+            or any(a[0][key] != b[0][key] for key in PAIR_RUNTIME[1:])
+            or any(value != b[0]['settings'].get(key) for key, value in a[0]['settings'].items()
+                   if key not in ('dt_omega0', 'block_steps'))
+            or any(settings[0].get(key) != s.get(key) for key in (
+                *PAIR_PHYSICS, 'cells', 'particles_per_cell_per_species', 'horizon_omega0', 'velocity_seed_over_c',
+                'table_dt_omega0', 'local_moments', 'saved_output_dt_omega0', 'forcing_native_dt_omega0'))
+            or _pair_cadence(settings[0]) != _pair_cadence(s)
+            or settings[0]['dt_omega0'] == s['dt_omega0']
+            or settings[0]['block_steps'] * settings[0]['dt_omega0'] != s['block_steps'] * s['dt_omega0']
+            or a[1]['t'].shape != b[1]['t'].shape or np.max(abs(a[1]['t'] - b[1]['t'])) > 1e-8):
+        raise ValueError('PIC timestep controls require reviewed sources, equal runtime/physical protocol '
+                         'and native cadence')
+    extras = {'initial_state_source', 'donor_git', 'initial_state_archive_sha256', 'donor_record_sha256',
+              'donor_control_record_sha256', 'producer_script_sha256', 'local_moments',
+              'local_spread_lengths_c_over_omega0', 'pic_dt_replay'}
+    if (set(b[0]['settings']) - set(a[0]['settings']) - extras
+            or s.get('donor_git') != old or s.get('donor_record_sha256') != a[2]['run_sha256']
+            or s.get('donor_control_record_sha256') != control_hashes['run_sha256']
+            or s.get('initial_state_archive_sha256') != a[2]['initial_state_sha256']
+            or any(detail.get(key) != value for key, value in dict(
+                donor_dt_omega0=settings[0]['dt_omega0'], pic_dt_omega0=s['dt_omega0'],
+                block_horizon_omega0=s['block_steps'] * s['dt_omega0']).items())
+            or b[0]['results'].get('samples') != 1 or b[0]['results'].get('execution_index') != 1
+            or not isinstance(s.get('producer_script_sha256'), str) or len(s['producer_script_sha256']) != 64
+            or not set(s['producer_script_sha256']) <= set('0123456789abcdef')):
+        raise ValueError('PIC timestep replay donor hashes, lineage, metadata or single-intervention protocol disagree')
+    initialization = _pair_pic_initial(folders, sources, detail, times, force)
+    windows = _pair_refinement_windows(a, b, s['accuracy_targets'])
+    for window in windows:
+        low, high = window['bounds_omega0']
+        masks = [(source[1]['t'] >= low - 1e-8) & (source[1]['t'] <= high + 1e-8) for source in sources]
+        if not np.array_equal(*masks):
+            raise ValueError('PIC timestep windows need corresponding native samples, without interpolation')
+        window['actual_clocks_per_run_omega0'] = [
+            source[1]['t'][mask][[0, -1]].tolist() for source, mask in zip(sources, masks)]
+    return dict(comparison='fixed archived-force PIC timestep and execution sensitivity',
+                reviewed_source_transition=list(transition) if old != new else None,
+                initialization=initialization, windows=windows, accuracy_targets=s['accuracy_targets'],
+                native_runs=[source[0] for source in sources], native_sha256=[source[2] for source in sources],
+                archive_diagnostics=[source[3] for source in sources], scalar_histories=_pair_scalar_histories(sources),
+                source_control_sha256=control_hashes, source_coupled_sha256=pump_hashes,
+                conservation_budget=s['accuracy_targets']['conservation_over_transfer_and_target_difference'],
+                rate_accounting_budget=1 / 3,
+                original_gauss_bound_over_en_eps0=2e-13,
+                original_gauss_gates=[{key: source[0]['results']['all_step_maxima'][key] <= 2e-13
+                                       for key in PAIR_MAXIMA[4:6]} for source in sources],
+                nominal_clock_bound_omega0=1e-9,
+                nominal_clock_gates=[bool(abs(source[1]['t'][-1] - source[0]['settings']['horizon_omega0']) <= 1e-9)
+                                     for source in sources],
+                notes='Identical SI piecewise-linear force, different PIC midpoint sampling and position staggering. '
+                      'Separate accepted native clocks at equal scalar cadence; no interpolation/alignment. '
+                      'Sources are reviewed algorithm-matched only; executable identity and isolated truncation cause '
+                      'are unobserved. Raw reductions and trajectory norms remain distinct. '
+                      'Frames are not realizations; '
+                      'global/two-endpoint conservation gates remain unchanged and do not certify convergence.')
 
 
 def _pair_late(source, tolerance=1e-8):
@@ -2222,28 +2351,31 @@ def publish_pair_controls(folders, folder):
 if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
     print('Comparing native records', flush=True)
     if sum((implicit, picard, method_controls, bool(phase_controls), bool(pair_controls), bool(pair_repeats),
-            bool(pair_tables),
+            bool(pair_tables), bool(pair_pic_steps),
             bool(ensemble), continuation)) > 1:
         raise ValueError('select one comparison mode')
     if (pair_repeat_observer or pair_repeat_donor or pair_repeat_transition) and not pair_repeats:
         raise ValueError('pair repeat observer/donor inputs require pair_repeats')
     if pair_table_transition and not pair_tables:
         raise ValueError('pair table source transition requires pair_tables')
+    if pair_pic_transition and not pair_pic_steps:
+        raise ValueError('pair PIC source transition requires pair_pic_steps')
     if (refined or finer_step or loading_refined or loading_repeat) and destination is None:
         raise ValueError('refinements require a publish folder')
     if finer_step and (implicit or picard or method_controls or phase_controls or pair_controls or pair_repeats
-                       or pair_tables
+                       or pair_tables or pair_pic_steps
                        or ensemble or continuation):
         raise ValueError('finer_step extends only the native explicit replay publisher')
     if loading_repeat and loading_refined is None:
         raise ValueError('a loading repeat requires its first record')
     if finer_mesh and not method_controls or orbit_audits and not (picard or phase_controls):
         raise ValueError('finer_mesh requires method_controls; orbit_audits requires picard or phase_controls')
-    if pair_repeats or pair_tables:
+    if pair_repeats or pair_tables or pair_pic_steps:
         if destination is not None or variant != 'repeat' or constraints or legacy:
             raise ValueError('prescribed pair comparisons write scalar JSON only')
         result = (pair_repeat_comparison(pair_repeats, pair_repeat_observer, pair_repeat_donor, pair_repeat_transition)
-                  if pair_repeats else pair_table_comparison(pair_tables, pair_table_transition))
+                  if pair_repeats else pair_table_comparison(pair_tables, pair_table_transition) if pair_tables else
+                  pair_pic_step_comparison(pair_pic_steps, pair_pic_transition))
         source, root = Path(__file__).resolve(), Path(__file__).resolve().parents[2]
         result['validation_source'] = dict(
             git=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
