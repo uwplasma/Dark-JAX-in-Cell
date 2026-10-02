@@ -463,19 +463,32 @@ The work and field changes exceed the [prospective acceptance bounds](#prospecti
 
 Two new prescribed-drive runs change the periodic cell weights and compatible gather from degree 2 to degree 5, holding the same physical initial positions, velocities, weights, timestep, 2,000 cells and 206,000 particles per species. Both reach $\tau=1000$ with seed 0, $\Delta\tau=0.005$, $100/\omega_p$ compiled blocks and $0.5/\omega_p$ scalar cadence. The six-cell quintic weights match the integrated $W^5$ family in [SHARP, Appendix B](https://arxiv.org/html/1702.04732v2#A2.T2); the field gather uses the face-centred approximation described in [the weighting method](physics.md#particle-weighting). This is not the complete SHARP algorithm used in the target paper.
 
-![Quadratic and quintic weighting at matched loading and timestep](_static/figures/shape_controls/figure.png)
+![Quadratic, quintic and quintic timestep controls at matched loading](_static/figures/shape_controls/figure.png)
 
-[Simulation script](../examples/dark_reservoir.py) · `study='paper', cells=2000, particles=206000, dt=.005, horizon=1000, block_horizon=100, local_moments=True, shape_order=2` or `5`; [comparison and plot](scripts/compare_replays.py) · `variant='shape'` ([complete inputs](scripts/make_all.py)).
+[Simulation script](../examples/dark_reservoir.py) · `study='paper', cells=2000, particles=206000, dt=.005, horizon=1000, block_horizon=100, local_moments=True, shape_order=2` or `5`; the third run uses `shape_order=5, dt=.0025`. [Comparison and plot](scripts/compare_replays.py) · `variant='shape', refined_against='second'` ([complete inputs](scripts/make_all.py)).
 
-| All-step maximum | Degree 2 | Degree 5 |
-|---|---:|---:|
-| Energy/work defect, $nm_ec^2L$ | {{ shape_2_balance }} | {{ shape_5_balance }} |
-| Momentum change, $nm_ecL$ | {{ shape_2_momentum }} | {{ shape_5_momentum }} |
-| Ordinary Gauss, $en/\epsilon_0$ | {{ shape_2_gauss }} | {{ shape_5_gauss }} |
+| All-step maximum | Degree 2, $\Delta\tau=.005$ | Degree 5, $\Delta\tau=.005$ | Degree 5, $\Delta\tau=.0025$ |
+|---|---:|---:|---:|
+| Energy/work defect, $nm_ec^2L$ | {{ shape_2_balance }} | {{ shape_5_balance }} | {{ shape_dt_balance }} |
+| Momentum change, $nm_ecL$ | {{ shape_2_momentum }} | {{ shape_5_momentum }} | {{ shape_dt_momentum }} |
+| Ordinary Gauss, $en/\epsilon_0$ | {{ shape_2_gauss }} | {{ shape_5_gauss }} | {{ shape_dt_gauss }} |
 
-Particle charge is unchanged in both runs. Independent serial endpoint redeposition agrees with each native charge array within $7.1\times10^{-14}en$; quartic-spline quadrature checks the integrated quintic weights without using the production polynomial. Independent endpoint energy, work and momentum agree with the native records. The [record](_static/figures/shape_controls/run.json) retains both native sources, exact loading fingerprints, clock checks and endpoint Gauss/projection diagnostics. These prescribed controls have zero dark fields and no finite dark reservoir.
+Particle charge is unchanged in both runs. Independent serial endpoint redeposition agrees with each native charge array within $7.1\times10^{-14}en$; quartic-spline quadrature checks the integrated quintic weights without using the production polynomial. Independent endpoint energy, work and momentum agree with the native records. The [record](_static/figures/shape_controls/run.json) retains all three native sources, exact loading fingerprints, clock checks and endpoint Gauss/projection diagnostics. These prescribed controls have zero dark fields and no finite dark reservoir.
 
 On the inclusive $800\leq\tau\leq1000$ window, changing degree 2 to 5 changes mean total electric energy by **{{ shape_electric_mean_change_percent }}%**, mean nonzero-mode energy by **{{ shape_nonzero_mean_change_percent }}%**, and injected work by **{{ shape_work_change_percent }}%**. Local electron/ion spread **increments** at $2\lambda_{D0}$ change by **{{ shape_local_spread_increment_0_change_percent }}% / {{ shape_local_spread_increment_1_change_percent }}%**. The residual-rate difference is **{{ shape_injection_rate_difference }}$\omega_p$**, above the $10^{-5}\omega_p$ target. Each window uses 401 raw native samples; displayed field and density averages use the same trimmed 13-sample window as the timestep comparison. One matched loading does not supply uncertainty, and default GPU accumulation remains non-bitwise in both shapes. Higher-order weighting improves the work ledger here, but does not establish late convergence or agreement with the paper's conversion rate.
+
+The quintic timestep pair uses the same frozen simulation source, particle weights and integer-time positions/velocities. Its different native half-step fields and positions follow the staggered initialization. Independent serial charge redeposition agrees with the fine endpoint within $5.4\times10^{-14}en$; independent particle/field energy, work and momentum agree with the native ledger. Exact repeated-addition clocks agree. The separate audit's original narrow endpoint-Gauss and nominal-clock tolerances are retained as failures: $6.00\times10^{-13}>2\times10^{-13}$ and $6.58\times10^{-9}>10^{-9}$, respectively.
+
+| Quintic timestep change, $800\leq\tau\leq1000$ | Halved-step difference | Prospective bound |
+|---|---:|---:|
+| Mean total electric energy (%) | {{ shape_dt_electric_mean_change_percent }} | 5% |
+| Mean nonzero-mode electric energy (%) | {{ shape_dt_nonzero_mean_change_percent }} | 5% |
+| Injected work over the window (%) | {{ shape_dt_work_change_percent }} | 2% |
+| Mean local electron-spread increment, $2\lambda_{D0}$ (%) | {{ shape_dt_local_spread_increment_0_change_percent }} | 2% |
+| Mean local ion-spread increment, $2\lambda_{D0}$ (%) | {{ shape_dt_local_spread_increment_1_change_percent }} | 2% |
+| Injection-rate difference ($\omega_p$) | {{ shape_dt_injection_rate_difference }} | $10^{-5}$ |
+
+Work, ion heating and residual rate exceed their bounds. The finest energy/work defect is 0.145% of work transferred in this window, below the 1% transfer budget; a small conservation defect does not certify a small conversion-rate error. Mean nonzero-mode energy changes only {{ shape_dt_nonzero_mean_change_percent }}%, while its raw late trajectory differs by **{{ shape_dt_800_1000_nonzero_electric_l2_percent }}%** in relative $L^2$. At $4\lambda_{D0}$ the ion increment changes −6.37%. These small ion increments are more sensitive than total velocity spread. One timestep pair establishes neither ensemble equivalence nor temporal order. The [acceptance criteria](#prospective-late-conversion-acceptance) require additional realizations and refinements; the [record](_static/figures/shape_controls/run.json) and [native scalar arrays](_static/figures/shape_controls/data.npz) retain all three controls.
 
 Separate 100-step GPU probes use the same loading, grid and timestep, three calls to each compiled executable, and independent NumPy charge references. They completed before unrelated compute contention affected the long campaign. The table reports seconds and compiler temporary memory; process peaks include Python/JAX allocations.
 
