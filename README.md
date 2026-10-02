@@ -125,6 +125,14 @@ A neutral, periodic one-step test translates identical particles by zero, a quar
 
 Nine controls translate the same **206,000-particle Gaussian loading** through fractions of a cell, with 1,000/2,000/4,000 cells, $\Delta t\omega_p=0.01$ and $\omega_pt\leq40$. Across the three translations, maximum momentum drift is **$4.96\times10^{-5}$ / $1.45\times10^{-5}$ / $3.96\times10^{-6}nm_ecL$** on those meshes. Energy/work remains at roundoff, while nonzero-mode energy changes by **1.81–4.30%** relative to zero translation. Identical-input repeats differ by at most $4.11\times10^{-8}$ in relative $L^2$ over this short window. Independent accepted-field orbit checks verify the impulse. These results resolve early mesh-phase sensitivity; [records, force norms and limits](docs/performance.md#gaussian-grid-phase-controls) give the accuracy gates for longer runs.
 
+### Smooth forces and particle shape
+
+Continuous-particle quadrature checks the momentum-conserving gather against the energy-conserving current transpose. Their **fundamental-mode** force ratio is $\sin(k\Delta x)/(k\Delta x)$ for both quadratic and quintic shapes; the measured error is below **$2.74\times10^{-14}$**, with the physical mean field restored. Higher-order shapes suppress interpolation aliases, while this smooth-mode difference still needs mesh refinement. This is an operator check, not a measurement of late heating. [Derivation, arrays and scope](docs/performance.md#smooth-force-symbols).
+
+<img src="docs/_static/figures/smooth_force_symbols/figure.png" width="800" alt="Independent quadratic and quintic force coefficients and their common grid-dependent ratio">
+
+[Companion benchmark](docs/scripts/benchmark_pic_conservation.py) · `symbols=True`.
+
 ## Cold exchange: a known answer
 
 A homogeneous transverse dark field drives a cold electron plasma. The full [example](examples/dark_photon.py) follows the ordinary and dark mean fields through $\omega_0t=20$ and compares both with an independent four-state matrix exponential. The largest field error is **$2.922\times10^{-4}$** of the initial dark field; closed-energy drift from the physical time-zero state is **$8.709\times10^{-5}$**. This checks the coupling, mean current and potential-energy ledger before kinetic effects enter. [Settings and arrays](docs/_static/figures/cold_exchange/run.json) are saved with the figure.
@@ -268,6 +276,20 @@ At fixed quintic weighting, halving $\Delta t\omega_p$ from 0.005 to 0.0025 chan
 <img src="docs/_static/figures/shape_controls/figure.png" width="900" alt="Matched quadratic, quintic and quintic timestep controls: field energy, local spread, density and energy/work balance">
 
 [Simulation script](examples/dark_reservoir.py) · `study='paper'`, `shape_order=2` or `5`, with a halved-step quintic control; [comparison and plot](docs/scripts/compare_replays.py) · `variant='shape', refined_against='second'` ([full inputs](docs/scripts/make_all.py)); [cost benchmark](docs/scripts/benchmark_field_cost.py).
+
+### Three-seed late timestep pilot
+
+Quintic runs with **412,000 particles** and 2,000 cells repeat the strong Figure 2 drive at $\Delta t\omega_p=.005$ and $.0025$, through $\omega_pt=1000$. Each seed supplies one paired reduction on $800$–$1000$; time samples are not extra realizations.
+
+| Gaussian seed | Work, coarse / fine ($10^{-3}nm_ec^2L$) | Fine global energy defect / window work |
+|---|---:|---:|
+| 0 | 1.54318 / 1.45702 | 0.145% |
+| 1 | 0.292599 / 0.00314926 | 62.531% |
+| 2 | 1.78339 / 2.01812 | 0.0746% |
+
+All eight simultaneous equivalence tests fail. The residual-rate difference is $-2.36\times10^{-5}\omega_p$, with a 95% family interval spanning $[-6.34,5.87]\times10^{-4}\omega_p$. Seed 1 also fails the 1% energy budget. This matches the paper's strong-drive parameters; its late conversion rate remains unresolved. [Intervals, native records and the fixed-design precision limit](docs/kinetic.md#three-seed-late-timestep-pilot).
+
+[Simulation script](examples/dark_reservoir.py) · `study='paper'`, `shape_order=5`, `seed=0`, `1` or `2`; [paired reduction](docs/scripts/compare_replays.py) · `ensemble` ([six inputs](docs/scripts/make_all.py)).
 
 ## Oscillating pair plasma: a kinetic bridge
 

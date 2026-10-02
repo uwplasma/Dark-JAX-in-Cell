@@ -556,6 +556,35 @@ for label, record, key in (("late_repeat", late_record, "comparison"),
     measured[f'{label}_injection_rate_difference'] = f"{b['injection_rate_over_wp'] - a['injection_rate_over_wp']:.3e}"
 measured['_provenance']['late_step_controls'] = provenance(late_record, late_folder.name)
 measured['_provenance']['shape_controls'] = provenance(shape_record, shape_folder.name)
+pilot_pairs = [(shape_runs[1], shape_dt)]
+for seed in (1, 2):
+    pair = []
+    for dtau, tag in ((.005, '005'), (.0025, '0025')):
+        folder = ROOT / 'artifacts' / 'shape_controls' / f'late_s5_dt{tag}_seed{seed}'
+        run_example('examples/dark_reservoir.py', study='paper', cells=2000, particles=206000,
+                    dt=dtau, seed=seed, horizon=1000., block_horizon=100., local_moments=True,
+                    shape_order=5, output=folder)
+        pair.append(folder)
+    pilot_pairs.append(tuple(pair))
+pilot_file = EVIDENCE.parent / 'gaussian_pilot.json'
+run_example('docs/scripts/compare_replays.py', ensemble=pilot_pairs, output=pilot_file)
+pilot = json.loads(pilot_file.read_text())
+for name, row in pilot['simultaneous']['observables'].items():
+    if name != 'injection_rate':
+        measured[f'pilot_{name}_change'] = f"{100 * row['relative_mean_change']:.3f}"
+        interval = row['fieller_relative_interval']
+        if interval is not None:
+            measured[f'pilot_{name}_interval'] = f'[{100 * interval[0]:.3f}, {100 * interval[1]:.3f}]'
+    else:
+        measured['pilot_rate_difference'] = f"{row['paired_difference']:.4e}"
+        measured['pilot_rate_interval'] = f"[{row['additive_interval'][0]:.4e}, {row['additive_interval'][1]:.4e}]"
+fine1 = pilot['native_runs'][1][1]['results']['max_energy_work_defect_over_initial_thermal'] * .001
+budget1 = fine1 / pilot['raw_per_seed'][1]['reductions'][1]['work_increment']
+measured['pilot_seed1_budget_percent'] = f'{100 * budget1:.3f}'
+measured['_provenance']['gaussian_pilot'] = dict(
+    run=pilot_file.name, native_git=sorted({row['git'] for pair in pilot['native_runs'] for row in pair}),
+    validation_source=pilot.get('validation_source'), independent_units=pilot['independent_units'],
+    status=pilot['status'])
 for order, name, native in zip((2, 5), ('quadratic', 'quintic'), shape_record['results']['native_runs']):
     folder, saved = ROOT / 'artifacts' / 'shape_controls' / f'cost_s{order}', shape_folder / f'cost_{name}.json'
     run_example('docs/scripts/benchmark_field_cost.py', replay=True, cells=2000, particles=206000,
@@ -623,6 +652,13 @@ for label, case, cells, dt in (("explicit", "explicit", 128, .002),
     measured[f"pic_{label}_temp_mib"] = f"{row['compiler_temporary_bytes'] / 2**20:.2f}"
     measured[f"pic_{label}_rss_mib"] = f"{row['peak_rss_bytes'] / 2**20:.0f}"
 measured["_provenance"]["pic_conservation"] = provenance(pic_record, "pic_conservation")
+symbols = EVIDENCE.parent / 'smooth_force_symbols'
+run_example('docs/scripts/benchmark_pic_conservation.py', symbols=True, output=symbols)
+symbol_record = json.loads((symbols / 'run.json').read_text())
+for label, key in (('ratio', 'gauss8_ratio_error'), ('mean', 'restored_mean_error'),
+                   ('continuity', 'continuity_error')):
+    measured[f'symbol_{label}_error'] = f"{symbol_record['results'][key]:.3e}"
+measured['_provenance']['smooth_force_symbols'] = provenance(symbol_record, symbols.name)
 for label in ("dt04", "dt02"):
     folder = EVIDENCE.parent / f"implicit_drive_{label}"
     computational = ROOT / "artifacts" / f"implicit_{label}"

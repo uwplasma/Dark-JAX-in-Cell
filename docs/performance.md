@@ -319,6 +319,31 @@ Native calculations use clean source `c9b3503`, float64 JAX 0.6.2 and an RTX A40
 
 The momentum envelopes shrink over these meshes, with differing signed histories. Fixed total particles and mesh-tied quadratic shapes do not establish a continuum convergence order. This is an early prescribed-force method check; late heating, reservoir transfer and dynamical Proca accuracy require their own refinement and loading controls.
 
+#### Smooth force symbols
+
+![Independent fundamental force coefficients and MC/EC ratio](_static/figures/smooth_force_symbols/figure.png)
+
+[Companion benchmark](scripts/benchmark_pic_conservation.py): `symbols=True, symbol_cells=32, symbol_modes=(0,1,3,6)`. The [record](_static/figures/smooth_force_symbols/run.json) and [arrays](_static/figures/smooth_force_symbols/data.npz) retain continuous quadrature points, both shape functions and derivatives, grid operators, complete force arrays and fundamental projections. This calculation uses NumPy, not particle dynamics; its runtime and linear-algebra binary hashes are recorded separately from the imported JAX environment.
+
+Let $D$ be the periodic face-to-centre divergence at unit spacing and $T=-D^+$ its zero-mean inverse. The continuity current is $J=T\dot\rho+\langle J\rangle$. For a charge spline $S_p$, the momentum-conserving (MC) force averages adjacent face fields before gathering; the energy-conserving (EC) force uses $S_p' T^T E+\langle E\rangle$. Projecting a face mode onto its continuous-particle fundamental gives, for $\theta=k\Delta x$,
+
+$$
+\begin{aligned}
+\widehat S_p(\theta)&=\left[\frac{\sin(\theta/2)}{\theta/2}\right]^{p+1},\\
+F_{\mathrm{MC},0}/E_0&=\cos(\theta/2)\widehat S_p(\theta),\\
+F_{\mathrm{EC},0}/E_0&=\frac{\theta/2}{\sin(\theta/2)}\widehat S_p(\theta),\\
+F_{\mathrm{MC},0}/F_{\mathrm{EC},0}&=\frac{\sin\theta}{\theta}.
+\end{aligned}
+$$
+
+The mean-mode limit is one and is restored explicitly. These are fundamental coefficients, not a pointwise identity: the full saved force arrays retain aliases. The difference starts at $-\theta^2/6$ even for $p=5$; increasing shape order suppresses aliases without eliminating this grid-dependent work/force difference.
+
+Independent cardinal-spline evaluation and four/eight-point Gauss quadrature split every half-cell knot interval. On modes 0, 1, 3 and 6, the finest ratio error is **{{ symbol_ratio_error }}**, restored-mean error is **{{ symbol_mean_error }}**, and $\max_{ij}|(DT+I-P_0)_{ij}|$ is **{{ symbol_continuity_error }}**, where $P_0$ projects onto the mean. These measured operator coefficients complement the [discrete-gradient work construction](https://arxiv.org/abs/1910.04000) and [SHARP's joint shape/grid/loading tests](https://arxiv.org/abs/1702.04732). They do not identify the cause of a particular finite-particle late error or establish a new conservation theorem.
+
+#### Experimental quintic implicit control
+
+[benchmark_implicit_drive.py](scripts/benchmark_implicit_drive.py) accepts `shape_order=5` with the separate [experimental parent change](https://github.com/uwplasma/JAX-in-Cell/pull/65), based on the explicit quintic [parent feature](https://github.com/uwplasma/JAX-in-Cell/pull/64). The installed dependency retains quadratic implicit PIC. The experimental accepted-orbit current, fractional-grid-phase impulse, work, complete restart and cold-objective derivatives are checked against an independent Cox–de Boor spline/orbit integral and a Cayley-map Fréchet derivative. Knot-split three-point Gauss quadrature integrates each quartic face-field piece exactly, including tiny orbits and periodic wraps. These fixtures establish local algorithm checks; GPU cost and resolved long-time Gaussian accuracy remain to be measured before method adoption.
+
 #### Coupling an implicit dark field
 
 A conservative dynamical Proca extension requires one accepted orbit current and conjugate particle work:
@@ -355,6 +380,8 @@ Each execution starts from the same immutable state and table. With `samples>1`,
 [dark_reservoir.py](../examples/dark_reservoir.py) also accepts `study='paper_continue'`, `initial_state='artifacts/paper_replay/final_state.npz'`, `horizon=5000` and a distinct output folder. The horizon is the absolute target in $\omega_p t$, with the donor timestep, particle loading, cosine drive or bare Proca field, scalar cadence, compiled block duration and physical smoothing lengths retained. The original zero-time archive and final checkpoint are loaded directly; their runtime, parent revision, compiler flags, model, clocks, background, work and initial-energy ledgers are checked. The original snapshot remains the conservation reference across the continued blocks. All nine prior measured maxima are reconstructed as conservative SI bounds from the donor's normalized results, rounded upward and checked against its exact native energy/Gauss maxima.
 
 The output retains complete `initial_state.npz`, `segment_initial_state.npz` and `final_state.npz` restarts. Exact `prefix_run.json` and `prefix_data.npz` copies preserve the donor evidence; `segment_data.npz` holds raw SI segment scalars, while `data.npz` joins the unchanged normalized prefix and new normalized scalars with one boundary sample. Prefix-only analytic curves remain in the prefix file. Archive/data/record hashes, segment clocks and separate producer sources record the lineage; timing refers to the new segment. This extends one trajectory and does not establish late convergence or equivalence to a single uninterrupted executable.
+
+[compare_replays.py](scripts/compare_replays.py) audits prescribed continuations with `continuation=True, variant='dt'`, explicit oldest-first `continuation_donors=((donor0,), (donor1,))` and reviewed `continuation_transitions=((old_SHA,new_SHA),)`. Complete donor/checkpoint leaves, exact prefix files, SI normalization, native repeated-addition clocks and all nine inherited bounds are checked. The duplicated scalar boundary retains the producer's $2\times10^{-12}$ endpoint tolerance and reports its raw roundoff separately; the joined histories and checkpoint leaves remain exact. The fixed $800$–$1000$ and $4800$–$5000$ windows use global conservation budgets. A vanishing transfer remains a failed relative budget. The additive rate envelope bounds accounting alone, not temporal, spatial or execution uncertainty.
 
 #### Bounded GPU repeatability test
 

@@ -350,6 +350,19 @@
       "git": "c564c87b4860323f3c10caf526acc0b245634021",
       "run": "shape_controls/run.json"
     },
+    "gaussian_pilot": {
+      "run": "gaussian_pilot.json",
+      "native_git": [
+        "34ba046bfde32e93a50e8f8f743a47316f09a898"
+      ],
+      "validation_source": {
+        "git": "12f839cf59a90ed40e1203f25e64736709ceac1e",
+        "script_blob_sha256": "02edaf297203cbd55121d94b730364e8f1f4805f239b819c0c8c6fb66b2ae93f",
+        "execution": "exact committed script blob, NumPy/SciPy scalar reduction only"
+      },
+      "independent_units": "seed pairs",
+      "status": "exploratory pilot"
+    },
     "shape_cost_2": {
       "jaxincell": "0.7.dev302+g83d327118",
       "jax": "0.6.2",
@@ -393,6 +406,17 @@
       "backend": "gpu",
       "git": "36b5bc3e2b888f58664db97317e8556c86125533",
       "run": "pic_conservation/run.json"
+    },
+    "smooth_force_symbols": {
+      "jaxincell": "unknown",
+      "jax": "0.10.2",
+      "numpy": "2.2.2",
+      "python": "3.11.14",
+      "platform": "Darwin arm64",
+      "jax_enable_x64": true,
+      "backend": "cpu",
+      "git": "61fd4435a4bc1e270049bb171b19d39da93866ca",
+      "run": "smooth_force_symbols/run.json"
     },
     "implicit_drive_dt04": {
       "jaxincell": "0.7.dev302+g83d327118",
@@ -945,6 +969,20 @@
   "shape_dt_local_spread_increment_0_change_percent": "-0.260",
   "shape_dt_local_spread_increment_1_change_percent": "-6.358",
   "shape_dt_injection_rate_difference": "-2.552e-05",
+  "pilot_work_change": "-3.893",
+  "pilot_electron_local_2D_change": "-0.103",
+  "pilot_electron_local_2D_interval": "[-3.847, 2.633]",
+  "pilot_electron_local_4D_change": "-0.104",
+  "pilot_electron_local_4D_interval": "[-3.866, 2.638]",
+  "pilot_ion_local_2D_change": "-2.157",
+  "pilot_ion_local_2D_interval": "[-30.636, 115.055]",
+  "pilot_ion_local_4D_change": "-2.217",
+  "pilot_ion_local_4D_interval": "[-30.766, 118.625]",
+  "pilot_electric_change": "4.775",
+  "pilot_nonzero_electric_change": "1.636",
+  "pilot_rate_difference": "-2.3609e-05",
+  "pilot_rate_interval": "[-6.3395e-04, 5.8673e-04]",
+  "pilot_seed1_budget_percent": "62.531",
   "shape_2_deposition_compile_s": "0.19292",
   "shape_2_deposition_warm_median_s": "0.00048459",
   "shape_2_deposition_compiler_temporary_MiB": "1.5718",
@@ -1111,6 +1149,9 @@
   "pic_proca_fine_warm": "13.510",
   "pic_proca_fine_temp_mib": "2.62",
   "pic_proca_fine_rss_mib": "995",
+  "symbol_ratio_error": "2.731e-14",
+  "symbol_mean_error": "2.809e-14",
+  "symbol_continuity_error": "1.665e-15",
   "implicit_drive_dt04_balance": "2.83e-16",
   "implicit_drive_dt04_momentum": "4.29e-03",
   "implicit_drive_dt04_gauss": "1.18e-13",
