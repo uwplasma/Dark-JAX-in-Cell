@@ -83,11 +83,46 @@ def test_physical_seed_changes_cannot_be_hidden_in_a_resolution_comparison(recor
         compare_replays(*records, windows=((0, 1),))
 
 
-@pytest.mark.parametrize('variant', ['repeat', 'dt', 'mesh', 'loading', 'seed', 'shape'])
+@pytest.mark.parametrize('variant', ['repeat', 'dt', 'mesh', 'loading', 'seed', 'shape', 'resolution'])
 def test_gather_changes_cannot_be_hidden_in_a_resolution_comparison(records, variant):
     change_settings(records[1], longitudinal_gather='six_face')
     with pytest.raises(ValueError, match='longitudinal_gather'):
         compare_replays(*records, variant=variant, windows=((0, 1),))
+
+
+def test_joint_resolution_records_new_count_and_unmatched_microstate(records):
+    fine = json.loads((records[1] / 'run.json').read_text())['settings']['initial_fingerprints']
+    fine['loading'] = {key: '5' * 64 for key in ('x', 'v')}
+    fine['state'] = {key: '6' * 64 for key in fine['state']}
+    change_settings(records[1], cells=2000, particles_per_species=412000, initial_fingerprints=fine)
+    result = compare_replays(*records, variant='resolution', windows=((0, 1),))
+    assert result['initial_fingerprints']['verified']
+    assert not any(result['initial_fingerprints']['matches']['loading'].values())
+    assert not any(result['initial_fingerprints']['matches']['state'].values())
+    assert result['sources'][1]['varied_parameter'] == dict(cells=2000, particles_per_species=412000)
+    assert 'changes the particle microstate' in result['notes']
+    assert 'not the full SHARP' in result['notes']
+
+
+@pytest.mark.parametrize('changed', [dict(cells=2000), dict(particles_per_species=412000),
+                                     dict(cells=2000, particles_per_species=206000),
+                                     dict(cells=3000, particles_per_species=412000),
+                                     dict(cells=2000., particles_per_species=412000),
+                                     dict(cells=2000, particles_per_species=412000.)])
+def test_joint_resolution_rejects_wrong_noise_scaling(records, changed):
+    change_settings(records[1], **changed)
+    with pytest.raises(ValueError, match='twice the cells and four times the particles'):
+        compare_replays(*records, variant='resolution', windows=((0, 1),))
+
+
+@pytest.mark.parametrize('key', ['python', 'platform'])
+def test_joint_resolution_requires_matching_recorded_runtime(records, key):
+    change_settings(records[1], cells=2000, particles_per_species=412000)
+    record = json.loads((records[1] / 'run.json').read_text())
+    record[key] = 'changed'
+    (records[1] / 'run.json').write_text(json.dumps(record))
+    with pytest.raises(ValueError, match=key):
+        compare_replays(*records, variant='resolution', windows=((0, 1),))
 
 
 @pytest.mark.parametrize('side', [0, 1])

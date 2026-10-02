@@ -50,7 +50,8 @@ LOCAL_SERIES = ('local_spread', 'local_density_rms')
 PARAMETERS = ('cells', 'particles_per_species', 'seed', 'dt_omega_p', 'output_dt_omega_p',
               'length_c_over_omega_p', 'mass_ratio', 'T_each_over_mec2', 'coupling',
               'drive_quiver_over_sigma', 'force_quiver_over_c', 'loading', 'pusher', 'shape', 'parent_revision')
-VARIANTS = dict(repeat=None, dt='dt_omega_p', seed='seed', mesh='cells', loading='particles_per_species', shape='shape')
+VARIANTS = dict(repeat=None, dt='dt_omega_p', seed='seed', mesh='cells', loading='particles_per_species', shape='shape',
+                resolution=('cells', 'particles_per_species'))
 ENSEMBLE_OBSERVABLES = ('work', 'electron_local_2D', 'electron_local_4D', 'ion_local_2D', 'ion_local_4D',
                         'electric', 'nonzero_electric', 'injection_rate')
 ENSEMBLE_BOUNDS = (.02, .02, .02, .02, .02, .05, .05, 1e-5)
@@ -150,7 +151,7 @@ def _initial(first, second, variant, legacy):
         required.append(matches['loading']['v'])
     if variant == 'repeat':
         required.extend(matches['state'].values())
-    if variant != 'loading' and not all(required):
+    if variant not in ('loading', 'resolution') and not all(required):
         raise ValueError('initial fingerprints disagree for this controlled comparison')
     return dict(verified=True, matches=matches)
 
@@ -192,7 +193,8 @@ def _controls(records, data, variant, tolerance):
     if any('continuation' in setting for setting in settings):
         raise ValueError('mixed-producer continuation requires a separate lineage audit')
     controls = [{'shape_order': 2, 'XLA_FLAGS': '', 'longitudinal_gather': 'average', **row} for row in settings]
-    allowed = (VARIANTS[variant], 'shape_order' if variant == 'shape' else None)
+    allowed = (VARIANTS[variant] if variant == 'resolution'
+               else (VARIANTS[variant], 'shape_order' if variant == 'shape' else None))
     for key in (*PARAMETERS, 'shape_order', 'XLA_FLAGS', 'longitudinal_gather'):
         if key not in allowed and controls[0][key] != controls[1][key]:
             raise ValueError(f'controlled comparisons must share {key}')
@@ -200,7 +202,9 @@ def _controls(records, data, variant, tolerance):
         default = 0. if key == 'momentum_seed_over_sigma_e' else None
         if settings[0].get(key, default) != settings[1].get(key, default):
             raise ValueError(f'controlled comparisons must share physical seed {key}')
-    for key in ('git', 'jax', 'jaxincell', 'numpy', 'jax_enable_x64', 'backend'):
+    runtime = ('git', 'jax', 'jaxincell', 'numpy', 'jax_enable_x64', 'backend')
+    runtime += ('python', 'platform') if variant == 'resolution' else ()
+    for key in runtime:
         if records[0][key] != records[1][key]:
             raise ValueError(f'controlled comparisons must share runtime/source {key}')
     if (data[0]['t'].shape != data[1]['t'].shape
@@ -211,6 +215,11 @@ def _controls(records, data, variant, tolerance):
 
 
 def _protocol(settings, variant, tolerance):
+    if variant == 'resolution':
+        coarse, fine = [(row['cells'], row['particles_per_species']) for row in settings]
+        if (not all(type(count) is int and count > 0 for row in (coarse, fine) for count in row)
+                or fine != (2 * coarse[0], 4 * coarse[1])):
+            raise ValueError('joint resolution requires twice the cells and four times the particles per species')
     for key in ('block_horizon_omega_p', 'local_moments_output_dt_omega_p', 'local_spread_lengths_c_over_wp',
                 'normalization'):
         if settings[0].get(key) != settings[1].get(key):
@@ -273,7 +282,7 @@ def constraint_audit(folder, record):
 
 def compare_replays(first, second, variant='repeat', windows=WINDOWS, legacy=False, tolerance=1e-5,
                     constraints=False):
-    """Change one declared parameter; validate native clocks, loading and units first."""
+    """Declare the resolution/control change; validate clocks, loading and units first."""
     if variant not in VARIANTS:
         raise ValueError('unknown comparison variant')
     a, b = [_load(folder, tolerance) for folder in (first, second)]
@@ -305,7 +314,8 @@ def compare_replays(first, second, variant='repeat', windows=WINDOWS, legacy=Fal
                                        history=[fingerprint(row[key]) for row in data])
                              for key in SERIES},
         sources=[dict(git=record['git'], parent=setting['parent_revision'], data_sha256=source[2], run_sha256=source[3],
-                      varied_parameter=setting.get(VARIANTS[variant]),
+                      varied_parameter=({key: setting[key] for key in VARIANTS[variant]} if variant == 'resolution'
+                                        else setting.get(VARIANTS[variant])),
                       block_steps=setting.get('block_steps'), block_horizon=setting.get('block_horizon_omega_p'))
                  for record, setting, source in zip(records, settings, (a, b))],
         native_all_step_maxima=[
@@ -319,6 +329,10 @@ def compare_replays(first, second, variant='repeat', windows=WINDOWS, legacy=Fal
     if constraints:
         result['endpoint_constraints'] = [constraint_audit(folder, record)
                                           for folder, record in zip((first, second), records)]
+    if variant == 'resolution':
+        result['notes'] += (' Joint mesh/loading changes the particle microstate and thermal noise realization. '
+                            'It tests the dx-squared times total-particle noise criterion, not the full SHARP '
+                            'algorithm, a temporal refinement, an ensemble bound or a measured convergence order.')
     return result
 
 
