@@ -351,6 +351,32 @@ for key, label in (('global_defect_over_abs_window_work', 'transfer'),
 pair_table_provenance = dict(
     run='pair_waveform_long/table_resolution.json', validation_source=pair_table_record['validation_source'],
     native_git=sorted({row['git'] for row in pair_table_record['native_runs']}))
+pair_pic_native = ROOT / 'artifacts' / 'pair_pic_dt_replay' / 'late_realized_fixed_force_dt003125'
+pair_pic_file = pair_long / 'pic_timestep.json'
+run_example('examples/dark_reservoir.py', study='pair_dt', samples=1, pic_dt=.003125,
+            initial_state=pair_long_half / 'realized_fine' / 'initial_state.npz', output=pair_pic_native)
+run_example('docs/scripts/compare_replays.py', pair_pic_steps=(pair_long_half / 'realized_fine', pair_pic_native),
+            output=pair_pic_file)
+pair_pic_record = json.loads(pair_pic_file.read_text())
+pic_late = pair_pic_record['windows'][-1]
+for key, suffix in (('mean_E', 'mean'), ('electric', 'electric'), ('nonzero_electric', 'nonzero'), ('mode_E', 'mode')):
+    measured[f'pair_fixed_pic_{suffix}_percent'] = f"{100 * pic_late['observables'][key]['relative_l2_difference']:.3f}"
+for label, row in zip(('fine', 'coarse'), pic_late['reductions']):
+    measured[f'pair_fixed_pic_{label}_work'] = f"{row['work_increment']:.9e}"
+for key, suffix in (('work_increment', 'work'), ('injection_rate_over_wp', 'rate')):
+    a, b = (row[key] for row in pic_late['reductions'])
+    measured[f'pair_fixed_pic_{suffix}_change_percent'] = f'{100 * (b - a) / abs(a):+.3f}'
+measured['pair_fixed_pic_phase_rad'] = (
+    f"{pic_late['mode_phase']['reference_amplitude_squared_weighted_rms_rad']:.4f}")
+for key, suffix in (('global_defect_sum_over_abs_work_difference', 'difference'),
+                    ('two_endpoint_bound_over_abs_work_difference', 'two_endpoint_difference'),
+                    ('accounting_over_abs_rate_difference', 'rate')):
+    measured[f'pair_fixed_pic_{suffix}_budget'] = f"{pic_late['accounting'][key]:.4f}"
+measured['pair_fixed_pic_max_two_endpoint_transfer_percent'] = (
+    f"{100 * max(pic_late['accounting']['two_endpoint_bound_over_abs_window_work']):.4f}")
+pair_pic_provenance = dict(
+    run='pair_waveform_long/pic_timestep.json', validation_source=pair_pic_record['validation_source'],
+    native_git=[row['git'] for row in pair_pic_record['native_runs']])
 pair_repeat_native = ROOT / 'artifacts' / 'pair_execution_repeat' / 'late_realized_fine'
 pair_repeat_file = pair_long / 'execution_repeat.json'
 run_example('examples/dark_reservoir.py', study='pair_repeat', samples=2, observe_executable=True,
@@ -462,6 +488,7 @@ measured["_provenance"] = {"cold_exchange": provenance(cold_record, "cold_exchan
                            "oscillating_dark_pair": provenance(dark_pair_record, "oscillating_dark_pair"),
                            "pair_waveform_controls": provenance(pair_control_record, "pair_waveform_controls"),
                            "pair_table_resolution": pair_table_provenance,
+                           "pair_fixed_force_pic_step": pair_pic_provenance,
                            "pair_execution_repeat": pair_repeat_provenance,
                            "pair_sampling_cost": provenance(sampling_record,
                                                             "pair_waveform_controls/sampling_cost.json"),

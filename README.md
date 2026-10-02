@@ -373,6 +373,21 @@ Reducing the historical archives requires `pair_table_transition=(donor_git, rep
 
 Both comparisons exceed the 5% trajectory target on $150\leq\omega_0t\leq170$. Bulk observables pass their trajectory gates; ledger bounds resolve transferred work but exceed the budget for its smaller differences between runs. Each table has one execution, so the differences include execution variation and establish neither late convergence nor irreversible conversion. [Raw phase, work and conservation checks](docs/kinetic.md#driving-waveform-resolution).
 
+### PIC timesteps with a fixed driving waveform
+
+Two **2,097,152-particle** runs use exactly the same archived driving waveform at $\Delta t\omega_0=0.0015625$ and $0.003125$. Integer-time particle preparation is preserved; positions are staggered for each timestep.
+
+| Difference over $150\leq\omega_0t\leq170$ | Measurement |
+|---|---:|
+| Transferred-work change, fine → coarse | +0.434% |
+| Complex electric-mode $L^2$ difference | 15.856% |
+| Nonzero-electric-energy $L^2$ difference | 0.830% |
+| Amplitude-weighted phase RMS | 0.1172 rad |
+
+[Simulation script](examples/dark_reservoir.py) · `study='pair_dt', pic_dt=.003125, initial_state=donor/'initial_state.npz'`; [reduction script](docs/scripts/compare_replays.py) · `pair_pic_steps=(fine, coarse)` ([full inputs](docs/scripts/make_all.py)); [native measurements](docs/_static/figures/pair_waveform_long/pic_timestep.json).
+
+The complex mode exceeds the 5% trajectory target. Bulk observables pass their trajectory gates, while accounting bounds cannot resolve the small work difference. These separate executions establish timestep sensitivity at fixed forcing; they do not isolate truncation error or certify late conversion. Historical reduction requires `pair_pic_transition=(donor_git, replay_git)`, with the full source SHAs in the record. [Preparation, clocks and conservation](docs/kinetic.md#pic-timesteps-with-a-fixed-driving-waveform).
+
 ### Exact forcing and execution repeats
 
 Two runs restore the same **2,097,152-particle** state and every-step force table through $\omega_0t=170$. Their observed loaded executable is identical, while their trajectories differ slightly:
