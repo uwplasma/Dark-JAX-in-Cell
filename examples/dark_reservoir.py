@@ -550,7 +550,7 @@ def pair_waveform_windows(curves, maxima, energy_scale, horizon, local_moments, 
     return comparisons
 
 
-def pair_waveform_plot(curves, indices, reservoir):
+def pair_waveform_plot(curves, indices, reservoir, linear):
     """White paired histories at the same saved native clocks."""
     with midnight():
         fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout='constrained')
@@ -559,14 +559,19 @@ def pair_waveform_plot(curves, indices, reservoir):
             values = curves[label]
             time = values['t'][indices]
             axes[0, 0].plot(time, values['mean_E'][indices], label=display)
-            axes[0, 1].plot(time, abs(values['mode_E'][indices]), label=display)
+            positive = time > 0  # The exact zero-time mode has no logarithm; retain it in the data.
+            axes[0, 1].plot(time[positive], abs(values['mode_E'][indices][positive]), label=display)
             sign = -1 if label == 'coupled' else 1
             axes[1, 0].plot(time, sign * values['work'][indices] / reservoir, label=display)
             axes[1, 1].plot(time, (values['balance'][indices] - values['balance'][0]) / reservoir, label=display)
-        axes[0, 0].set(ylabel='mean ordinary E / field scale')
-        axes[0, 1].set(ylabel='seeded ordinary |E mode| / field scale', yscale='log')
-        axes[1, 0].set(ylabel='ordinary source work / initial dark energy')
-        axes[1, 1].set(ylabel='energy balance / initial dark energy')
+        selected = linear['linear_t'] > 0
+        for label, color in (('coupled', '#6A3D9A'), ('homogeneous_fine', '#D55E00')):
+            axes[0, 1].plot(linear['linear_t'][selected], abs(linear[f'linear_{label}_mode_E'][selected]),
+                            '--', color=color, lw=1, label=f'{label.split("_")[0]} linear reference')
+        axes[0, 0].set(ylabel=r'$\overline{E}/E_\star$', title='Mean electric field')
+        axes[0, 1].set(ylabel=r'$|\widehat{E}_{134}|/E_\star$', title='Seeded spatial mode', yscale='log')
+        axes[1, 0].set(ylabel=r'$W_{\rm ordinary}/U_D(0)$', title='Transfer into ordinary plasma')
+        axes[1, 1].set(ylabel=r'$\Delta(U-W_{\rm ext})/U_D(0)$', title='Energy and external work')
         for ax in axes.flat:
             ax.set(xlabel=r'$\omega_0 t$')
             ax.grid(alpha=.25)
@@ -772,6 +777,7 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
                     depletion_definition='QD = (homogeneous dark energy − coupled total dark energy) / actual UD0',
                     depletion_gain_definition='QD(t) − QD(0); raw QD retains the initial preparation offset',
                     kinetic_excess_definition='(PIC kinetic gain − warm homogeneous kinetic gain) / actual UD0',
+                    figure_note='Logarithmic mode panel omits t=0; raw zero-time samples remain in data.',
                     XLA_FLAGS=flags,
                     unscaled_native_units=dict(charge='C/m²', grid_charge='C/m²',
                                                ordinary_gauss='V/m²', dark_gauss='V/m²'),
@@ -787,7 +793,7 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
     linear_arrays, results['linear_reference'] = pair_waveform_linear(
         curves, indices, k * c / wp, seed, eta, mass, force, quadrature, linear_end)
     saved = {f'{label}_{key}': value[indices] for label, values in curves.items() for key, value in values.items()}
-    fig = pair_waveform_plot(curves, indices, reservoir)
+    fig = pair_waveform_plot(curves, indices, reservoir, linear_arrays)
     save_run(folder, 'pair_waveform_control', settings, results, fig, **saved, **linear_arrays,
              coupled_total_dark_fraction=curves['coupled']['dark'][indices] / reservoir,
              coupled_coherent_dark_fraction=curves['coupled']['dark_coherent'][indices] / reservoir,
