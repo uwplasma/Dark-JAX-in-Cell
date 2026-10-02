@@ -338,6 +338,19 @@ This **2,097,152-particle** run follows the closed dark reservoir through $\omeg
 
 On $150\leq\omega_0t\leq170$, total dark energy averages **27.755%** of its initial value; additional depletion relative to the warm envelope averages **24.456%**. The energy/sector-work defect is **0.0358%** of that gain. Late force-table controls agree on mean field energies but differ **30.520%** in the complex selected-mode trajectory, exceeding its 5% gate. The gain oscillates strongly; these measurements establish neither permanent depletion nor late convergence. [Raw reductions, conservation and interpretation](docs/kinetic.md#long-global-loading-through-170).
 
+### Exact forcing and execution repeats
+
+Two runs restore the same **2,097,152-particle** state and every-step force table through $\omega_0t=170$. Their observed loaded executable is identical, while their trajectories differ slightly:
+
+| Relative $L^2$ difference | Full history | $150\leq\omega_0t\leq170$ |
+|---|---:|---:|
+| Nonzero ordinary electric energy | $1.27\times10^{-9}$ | $2.98\times10^{-9}$ |
+| Complex selected electric mode | $2.70\times10^{-9}$ | $1.23\times10^{-7}$ |
+
+[Simulation script](examples/dark_reservoir.py) · `study='pair_repeat', samples=2, observe_executable=True, initial_state=folder/'realized_fine'/'initial_state.npz'`; [reduction script](docs/scripts/compare_replays.py) · `pair_repeats=(first, second)` ([full inputs](docs/scripts/make_all.py)); [native measurements and source hashes](docs/_static/figures/pair_waveform_long/execution_repeat.json).
+
+The late global work-ledger bound is **0.0379%** of transferred work; its two-endpoint bound is **0.0758%**. Execution variation here is much smaller than the force-table sensitivity above. These repeats measure numerical repeatability; timestep, mesh and loading convergence remain separate requirements. [Phase, conservation and executable qualifications](docs/kinetic.md#exact-forcing-and-execution-repeats).
+
 ## Conservation and long-time clocks
 
 The [source-free Proca comparison](docs/scripts/benchmark_time_integrators.py) evolves longitudinal and transverse fields to $\Omega_Dt=200$ against a matrix exponential. The explicit split bounds field-energy error at **2.37%** for $\Delta t\Omega_D=0.2$ and **0.577%** at half that step. Implicit midpoint preserves this vacuum field energy to roundoff but has **1.53** final relative state error at the larger step; DOP853 reaches **$3.0\times10^{-8}$** state error with tight tolerances. Phase accuracy and total PIC energy require separate checks: exact field-only conservation does not close the particle–field work ledger. [Methods and timings](docs/performance.md#which-clock-to-trust) and the [full record](docs/_static/figures/time_integrators/run.json) give the comparison.

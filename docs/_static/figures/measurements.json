@@ -213,6 +213,21 @@
       "git": "609217ad4c21e86be26d35da58c6d6623d16b55c",
       "run": "pair_waveform_controls/run.json"
     },
+    "pair_execution_repeat": {
+      "run": "pair_waveform_long/execution_repeat.json",
+      "validation_source": {
+        "git": "2b5b5995c8f77366600f1b5d4ada25ea5ace6d19",
+        "script": "docs/scripts/compare_replays.py",
+        "script_sha256": "7c3afb07f2ce30b0c5f327a47a17d9c518db8dddc8adf20b43e2d8a2ef747544",
+        "numpy": "2.2.2",
+        "tracked_source_dirty": false
+      },
+      "native_git": [
+        "527f2dcdc1b7d2f60f7a2c4ec8b78dc62e245265"
+      ],
+      "donor_git": "472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad",
+      "observer_sha256": "64c7f7abd01406d3df807ced4d4d90fd91a0662dc6851488a28fb66c54dabbc1"
+    },
     "pair_sampling_cost": {
       "jaxincell": "0.7.dev302+g83d327118",
       "jax": "0.6.2",
@@ -656,6 +671,16 @@
   "pair_long_homogeneous_mode_E_table_l2_percent": "29.635",
   "pair_long_homogeneous_electric_table_l2_percent": "0.201",
   "pair_long_homogeneous_nonzero_electric_table_l2_percent": "0.523",
+  "pair_repeat_full_mode_E": "2.701e-09",
+  "pair_repeat_full_nonzero_electric": "1.268e-09",
+  "pair_repeat_full_phase_rad": "2.201e-09",
+  "pair_repeat_full_global_defect_over_abs_window_work_percent": "0.0102",
+  "pair_repeat_full_two_endpoint_bound_over_abs_window_work_percent": "0.0203",
+  "pair_repeat_late_mode_E": "1.234e-07",
+  "pair_repeat_late_nonzero_electric": "2.980e-09",
+  "pair_repeat_late_phase_rad": "1.006e-07",
+  "pair_repeat_late_global_defect_over_abs_window_work_percent": "0.0379",
+  "pair_repeat_late_two_endpoint_bound_over_abs_window_work_percent": "0.0758",
   "dark_pair_ordinary_error": "0.031",
   "dark_pair_dark_error": "0.031",
   "dark_pair_mean_error": "1.348e-03",

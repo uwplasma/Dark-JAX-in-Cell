@@ -1,0 +1,3124 @@
+{
+  "comparison": "exact-state pair execution repeat",
+  "windows": [
+    {
+      "bounds_omega0": [
+        0.0,
+        169.99999999999375
+      ],
+      "samples": 851,
+      "actual_clocks_omega0": [
+        0.0,
+        169.99999999999375
+      ],
+      "reductions": [
+        {
+          "work_increment": 0.003522627385378328,
+          "injection_rate_over_wp": 0.005961085429767508,
+          "plasma_mean_energy": 0.0034761014256858114,
+          "electric_mean": 0.0010403581715145646,
+          "nonzero_electric_mean": 2.9282311124176883e-05,
+          "kinetic_increment_mean": [
+            0.0010112149425689913,
+            0.0010073821585845854
+          ],
+          "spread_increment_mean": [
+            0.00047988829802142913,
+            0.0004761552012541718
+          ],
+          "local_spread_increment_mean": [
+            [
+              0.0004712581456474022,
+              0.0004765812855447025
+            ],
+            [
+              0.0004675601328606804,
+              0.0004728609810511604
+            ]
+          ]
+        },
+        {
+          "work_increment": 0.0035226273855537226,
+          "injection_rate_over_wp": 0.005961085429969189,
+          "plasma_mean_energy": 0.0034761014257412817,
+          "electric_mean": 0.0010403581715207728,
+          "nonzero_electric_mean": 2.9282311136810433e-05,
+          "kinetic_increment_mean": [
+            0.0010112149425575202,
+            0.0010073821586453178
+          ],
+          "spread_increment_mean": [
+            0.00047988829801519725,
+            0.0004761552013180052
+          ],
+          "local_spread_increment_mean": [
+            [
+              0.00047125814563848424,
+              0.000476581285537753
+            ],
+            [
+              0.00046756013292106153,
+              0.0004728609811138487
+            ]
+          ]
+        }
+      ],
+      "observables": {
+        "mean_E": {
+          "l2_difference": 7.203555341887868e-11,
+          "reference_l2_norm": 1.3118121490459067,
+          "relative_l2_difference": 5.4913009817198914e-11,
+          "max_absolute_difference": 1.3182803806910393e-11,
+          "reference_mean": -4.1161149739713475e-05,
+          "comparison_mean": -4.1161149764739775e-05
+        },
+        "mode_E": {
+          "l2_difference": 3.216277107914832e-10,
+          "reference_l2_norm": 0.11909017283302367,
+          "relative_l2_difference": 2.700707397934819e-09,
+          "max_absolute_difference": 7.389987362948186e-11,
+          "reference_mean": {
+            "real": 2.5779724663440652e-05,
+            "imag": -1.2925108712167278e-06
+          },
+          "comparison_mean": {
+            "real": 2.577972512374176e-05,
+            "imag": -1.2925115440420434e-06
+          }
+        },
+        "electric": {
+          "l2_difference": 2.7639287653820326e-12,
+          "reference_l2_norm": 0.04591239097548904,
+          "relative_l2_difference": 6.020006160989512e-11,
+          "max_absolute_difference": 8.422936827179317e-13,
+          "reference_mean": 0.0010403581715145646,
+          "comparison_mean": 0.0010403581715207728
+        },
+        "nonzero_electric": {
+          "l2_difference": 1.639645995178808e-12,
+          "reference_l2_norm": 0.0012927170812684005,
+          "relative_l2_difference": 1.2683718803885569e-09,
+          "max_absolute_difference": 4.843081434480721e-13,
+          "reference_mean": 2.9282311124176883e-05,
+          "comparison_mean": 2.9282311136810433e-05
+        },
+        "rms": {
+          "l2_difference": [
+            7.514987673374582e-11,
+            1.50398139266279e-10
+          ],
+          "reference_l2_norm": [
+            1.5305957837165376,
+            1.5264389905054625
+          ],
+          "relative_l2_difference": [
+            4.9098447502102476e-11,
+            9.852875889685993e-11
+          ],
+          "max_absolute_difference": [
+            1.7265175400460464e-11,
+            2.240740926140461e-11
+          ],
+          "reference_mean": [
+            0.04999681015637736,
+            0.049880604673364956
+          ],
+          "comparison_mean": [
+            0.04999681015621197,
+            0.049880604675235723
+          ]
+        },
+        "work": {
+          "l2_difference": 4.3233779300682335e-12,
+          "reference_l2_norm": 0.1006800242922791,
+          "relative_l2_difference": 4.294176486804625e-11,
+          "max_absolute_difference": 5.726552045060007e-13,
+          "reference_mean": 0.0030588977607447806,
+          "comparison_mean": 0.00305889776080096
+        },
+        "momentum": {
+          "l2_difference": [
+            4.5440717147636195e-17,
+            0.0,
+            0.0
+          ],
+          "reference_l2_norm": [
+            2.13278056822388e-14,
+            0.0,
+            0.0
+          ],
+          "relative_l2_difference": [
+            0.002130585669461437,
+            null,
+            null
+          ],
+          "max_absolute_difference": [
+            7.565116218775144e-18,
+            0.0,
+            0.0
+          ],
+          "reference_mean": [
+            -5.634957778679193e-16,
+            0.0,
+            0.0
+          ],
+          "comparison_mean": [
+            -5.642803583959478e-16,
+            0.0,
+            0.0
+          ]
+        },
+        "local_spread": {
+          "l2_difference": [
+            [
+              2.6110292600048965e-12,
+              2.543816005687863e-12
+            ],
+            [
+              4.94151450308668e-12,
+              5.126170398014642e-12
+            ]
+          ],
+          "reference_l2_norm": [
+            [
+              0.02262682819909841,
+              0.022788841971349966
+            ],
+            [
+              0.022483656252330942,
+              0.022644811397649563
+            ]
+          ],
+          "relative_l2_difference": [
+            [
+              1.1539528373265042e-10,
+              1.1162550553845333e-10
+            ],
+            [
+              2.1978251435748487e-10,
+              2.2637284577016688e-10
+            ]
+          ],
+          "max_absolute_difference": [
+            [
+              5.760663213810746e-13,
+              5.017427445741518e-13
+            ],
+            [
+              7.975261076542672e-13,
+              8.064148307451724e-13
+            ]
+          ],
+          "reference_mean": [
+            [
+              0.0006795953053354694,
+              0.0006849196035782844
+            ],
+            [
+              0.0006758972925488021,
+              0.0006811992990848149
+            ]
+          ],
+          "comparison_mean": [
+            [
+              0.0006795953053265528,
+              0.000684919603571336
+            ],
+            [
+              0.0006758972926091841,
+              0.0006811992991475035
+            ]
+          ]
+        },
+        "local_density_rms": {
+          "l2_difference": [
+            [
+              2.6860934307755513e-09,
+              1.172102750761118e-09
+            ],
+            [
+              1.877281563321621e-09,
+              7.263900263057598e-10
+            ]
+          ],
+          "reference_l2_norm": [
+            [
+              1.7927681700064737,
+              0.7773204729764547
+            ],
+            [
+              1.791015566099228,
+              0.7747304422023978
+            ]
+          ],
+          "relative_l2_difference": [
+            [
+              1.4982937982248156e-09,
+              1.5078758266497136e-09
+            ],
+            [
+              1.0481659673177926e-09,
+              9.376035673011424e-10
+            ]
+          ],
+          "max_absolute_difference": [
+            [
+              8.398678003063154e-10,
+              4.0436919784836434e-10
+            ],
+            [
+              5.475007114341679e-10,
+              2.0047652427024332e-10
+            ]
+          ],
+          "reference_mean": [
+            [
+              0.05211973833124042,
+              0.018475653038627696
+            ],
+            [
+              0.052009362025632215,
+              0.018410462648842236
+            ]
+          ],
+          "comparison_mean": [
+            [
+              0.0521197383422095,
+              0.01847565304412372
+            ],
+            [
+              0.05200936203690914,
+              0.018410462654659336
+            ]
+          ]
+        },
+        "momentum_increment": {
+          "l2_difference": [
+            4.544071714763619e-17,
+            0.0,
+            0.0
+          ],
+          "reference_l2_norm": [
+            2.1327967062408335e-14,
+            0.0,
+            0.0
+          ],
+          "relative_l2_difference": [
+            0.0021305695481745116,
+            null,
+            null
+          ],
+          "max_absolute_difference": [
+            7.565116218775144e-18,
+            0.0,
+            0.0
+          ],
+          "reference_mean": [
+            -5.635029553975377e-16,
+            0.0,
+            0.0
+          ],
+          "comparison_mean": [
+            -5.642875359255668e-16,
+            0.0,
+            0.0
+          ]
+        },
+        "local_spread_increment": {
+          "l2_difference": [
+            [
+              2.6110295751221967e-12,
+              2.543816005685445e-12
+            ],
+            [
+              4.941514503224979e-12,
+              5.12617039801473e-12
+            ]
+          ],
+          "reference_l2_norm": [
+            [
+              0.017548016426268402,
+              0.017703162510249223
+            ],
+            [
+              0.01740073568564724,
+              0.017554979841498442
+            ]
+          ],
+          "relative_l2_difference": [
+            [
+              1.4879343121731018e-10,
+              1.436927444016122e-10
+            ],
+            [
+              2.839830793649098e-10,
+              2.920066240063067e-10
+            ]
+          ],
+          "max_absolute_difference": [
+            [
+              5.760664298012919e-13,
+              5.017427445741518e-13
+            ],
+            [
+              7.975261076542672e-13,
+              8.064148307451724e-13
+            ]
+          ],
+          "reference_mean": [
+            [
+              0.0004712581456474022,
+              0.0004765812855447025
+            ],
+            [
+              0.0004675601328606804,
+              0.0004728609810511604
+            ]
+          ],
+          "comparison_mean": [
+            [
+              0.00047125814563848424,
+              0.000476581285537753
+            ],
+            [
+              0.00046756013292106153,
+              0.0004728609811138487
+            ]
+          ]
+        }
+      },
+      "mode_phase": {
+        "alignment": false,
+        "reference_amplitude_squared_weighted_rms_rad": 2.2009072793511644e-09,
+        "reference_weight_fraction_with_defined_phase": 1.0,
+        "endpoint_rad": -8.380093560301484e-07
+      },
+      "accounting": {
+        "global_energy_sector_defects": [
+          3.583435852496472e-07,
+          3.5834358524635667e-07
+        ],
+        "global_defect_over_abs_window_work": [
+          0.00010172622478808137,
+          0.00010172622478208224
+        ],
+        "two_endpoint_bound_over_abs_window_work": [
+          0.00020345244957616275,
+          0.00020345244956416448
+        ],
+        "transfer_gates": [
+          true,
+          true
+        ],
+        "two_endpoint_transfer_gates": [
+          true,
+          true
+        ],
+        "global_defect_sum_over_abs_work_difference": 4086145.7596860616,
+        "two_endpoint_bound_over_abs_work_difference": 8172291.519372123,
+        "difference_gate": false,
+        "two_endpoint_difference_gate": false,
+        "absolute_rate_accounting_envelope_over_omega0": [
+          1.2127974328189723e-06,
+          1.2127974327884823e-06
+        ],
+        "accounting_over_abs_rate_difference": 12026855.330538437,
+        "rate_difference_gate": false
+      }
+    },
+    {
+      "bounds_omega0": [
+        150.0,
+        170.0
+      ],
+      "samples": 101,
+      "actual_clocks_omega0": [
+        149.9999999999499,
+        169.99999999999375
+      ],
+      "reductions": [
+        {
+          "work_increment": 0.000945801665168812,
+          "injection_rate_over_wp": 0.012556886786614926,
+          "plasma_mean_energy": 0.0037660675023960554,
+          "electric_mean": 0.0007550424746841901,
+          "nonzero_electric_mean": 4.926189999881869e-05,
+          "kinetic_increment_mean": [
+            0.0013012644283194117,
+            0.0012926144463747827
+          ],
+          "spread_increment_mean": [
+            0.0009634373441884812,
+            0.0009551276369958863
+          ],
+          "local_spread_increment_mean": [
+            [
+              0.0009394038263660625,
+              0.0009464419833669974
+            ],
+            [
+              0.000931063791277369,
+              0.0009380273040937025
+            ]
+          ]
+        },
+        {
+          "work_increment": 0.0009458016651325207,
+          "injection_rate_over_wp": 0.012556886784783259,
+          "plasma_mean_energy": 0.0037660675028009026,
+          "electric_mean": 0.0007550424747703727,
+          "nonzero_electric_mean": 4.926190009428564e-05,
+          "kinetic_increment_mean": [
+            0.0013012644281839897,
+            0.0012926144468288698
+          ],
+          "spread_increment_mean": [
+            0.0009634373440814378,
+            0.0009551276374615764
+          ],
+          "local_spread_increment_mean": [
+            [
+              0.0009394038262414966,
+              0.0009464419832569142
+            ],
+            [
+              0.0009310637917172078,
+              0.0009380273045531925
+            ]
+          ]
+        }
+      ],
+      "observables": {
+        "mean_E": {
+          "l2_difference": 7.0680399446738e-11,
+          "reference_l2_norm": 0.3775813502895038,
+          "relative_l2_difference": 1.871925067076143e-10,
+          "max_absolute_difference": 1.3182803806910393e-11,
+          "reference_mean": -0.0017068807912745643,
+          "comparison_mean": -0.001706880791146393
+        },
+        "mode_E": {
+          "l2_difference": 3.196035423866352e-10,
+          "reference_l2_norm": 0.002590657871775703,
+          "relative_l2_difference": 1.2336771515397777e-07,
+          "max_absolute_difference": 7.389987362948186e-11,
+          "reference_mean": {
+            "real": -9.339695602254047e-06,
+            "imag": 1.840077619904051e-05
+          },
+          "comparison_mean": {
+            "real": -9.33969188418838e-06,
+            "imag": 1.840077092604967e-05
+          }
+        },
+        "electric": {
+          "l2_difference": 2.6810208848053783e-12,
+          "reference_l2_norm": 0.011105777844425586,
+          "relative_l2_difference": 2.414077539063223e-10,
+          "max_absolute_difference": 8.422936827179317e-13,
+          "reference_mean": 0.0007550424746841901,
+          "comparison_mean": 0.0007550424747703727
+        },
+        "nonzero_electric": {
+          "l2_difference": 1.6145469469331748e-12,
+          "reference_l2_norm": 0.000541743441338089,
+          "relative_l2_difference": 2.9802796374337185e-09,
+          "max_absolute_difference": 4.843081434480721e-13,
+          "reference_mean": 4.926189999881869e-05,
+          "comparison_mean": 4.926190009428564e-05
+        },
+        "rms": {
+          "l2_difference": [
+            7.321801144798673e-11,
+            1.479895025520413e-10
+          ],
+          "reference_l2_norm": [
+            0.6880387879463786,
+            0.6855948162092106
+          ],
+          "relative_l2_difference": [
+            1.0641552879093333e-10,
+            2.1585563229649917e-10
+          ],
+          "max_absolute_difference": [
+            1.7265175400460464e-11,
+            2.240740926140461e-11
+          ],
+          "reference_mean": [
+            0.06845470295557204,
+            0.06821026255865804
+          ],
+          "comparison_mean": [
+            0.06845470295252358,
+            0.06821026257223095
+          ]
+        },
+        "work": {
+          "l2_difference": 4.2592469808862454e-12,
+          "reference_l2_norm": 0.0351078032538676,
+          "relative_l2_difference": 1.2131909678561365e-10,
+          "max_absolute_difference": 5.726552045060007e-13,
+          "reference_mean": 0.0033488837045594615,
+          "comparison_mean": 0.0033488837049702362
+        },
+        "momentum": {
+          "l2_difference": [
+            1.2363387743479579e-17,
+            0.0,
+            0.0
+          ],
+          "reference_l2_norm": [
+            1.1779955789072998e-14,
+            0.0,
+            0.0
+          ],
+          "relative_l2_difference": [
+            0.0010495275164740235,
+            null,
+            null
+          ],
+          "max_absolute_difference": [
+            3.904576112916375e-18,
+            0.0,
+            0.0
+          ],
+          "reference_mean": [
+            -1.1719030294600874e-15,
+            0.0,
+            0.0
+          ],
+          "comparison_mean": [
+            -1.1723276407420238e-15,
+            0.0,
+            0.0
+          ]
+        },
+        "local_spread": {
+          "l2_difference": [
+            [
+              2.5626396811196408e-12,
+              2.4908340621841674e-12
+            ],
+            [
+              4.873335327602673e-12,
+              5.059270490537285e-12
+            ]
+          ],
+          "reference_l2_norm": [
+            [
+              0.011537749645038245,
+              0.011608807718337352
+            ],
+            [
+              0.01145469358409362,
+              0.01152500176672952
+            ]
+          ],
+          "relative_l2_difference": [
+            [
+              2.2210914259365057e-10,
+              2.1456415875074138e-10
+            ],
+            [
+              4.2544440772906867e-10,
+              4.3898218785028156e-10
+            ]
+          ],
+          "max_absolute_difference": [
+            [
+              5.760663213810746e-13,
+              5.017427445741518e-13
+            ],
+            [
+              7.975261076542672e-13,
+              8.064148307451724e-13
+            ]
+          ],
+          "reference_mean": [
+            [
+              0.0011477409860541296,
+              0.0011547803014005794
+            ],
+            [
+              0.0011394009509654922,
+              0.0011463656221273567
+            ]
+          ],
+          "comparison_mean": [
+            [
+              0.0011477409859295634,
+              0.001154780301290496
+            ],
+            [
+              0.0011394009514053307,
+              0.0011463656225868455
+            ]
+          ]
+        },
+        "local_density_rms": {
+          "l2_difference": [
+            [
+              2.662915654415583e-09,
+              1.1409650798545916e-09
+            ],
+            [
+              1.854145241191203e-09,
+              6.908662723316363e-10
+            ]
+          ],
+          "reference_l2_norm": [
+            [
+              0.7901553501509653,
+              0.5630135167665588
+            ],
+            [
+              0.786330240697335,
+              0.5634135803226104
+            ]
+          ],
+          "relative_l2_difference": [
+            [
+              3.370116590246225e-09,
+              2.0265323049564864e-09
+            ],
+            [
+              2.3579727005626874e-09,
+              1.2262151578526853e-09
+            ]
+          ],
+          "max_absolute_difference": [
+            [
+              8.398678003063154e-10,
+              4.0436919784836434e-10
+            ],
+            [
+              5.475007114341679e-10,
+              2.0047652427024332e-10
+            ]
+          ],
+          "reference_mean": [
+            [
+              0.07843853962800751,
+              0.05592021551273936
+            ],
+            [
+              0.07804937572217722,
+              0.05597226622627626
+            ]
+          ],
+          "comparison_mean": [
+            [
+              0.07843853971323317,
+              0.05592021554399689
+            ],
+            [
+              0.07804937580963914,
+              0.05597226625926473
+            ]
+          ]
+        },
+        "momentum_increment": {
+          "l2_difference": [
+            1.2363387743479579e-17,
+            0.0,
+            0.0
+          ],
+          "reference_l2_norm": [
+            1.1780027907190883e-14,
+            0.0,
+            0.0
+          ],
+          "relative_l2_difference": [
+            0.0010495210911964474,
+            null,
+            null
+          ],
+          "max_absolute_difference": [
+            3.904576112916375e-18,
+            0.0,
+            0.0
+          ],
+          "reference_mean": [
+            -1.1719102069897063e-15,
+            0.0,
+            0.0
+          ],
+          "comparison_mean": [
+            -1.1723348182716424e-15,
+            0.0,
+            0.0
+          ]
+        },
+        "local_spread_increment": {
+          "l2_difference": [
+            [
+              2.5626402134036183e-12,
+              2.4908340621841674e-12
+            ],
+            [
+              4.873335327602673e-12,
+              5.059270490537285e-12
+            ]
+          ],
+          "reference_l2_norm": [
+            [
+              0.009444673358130087,
+              0.009515783722972583
+            ],
+            [
+              0.00936179341785079,
+              0.0094321532626296
+            ]
+          ],
+          "relative_l2_difference": [
+            [
+              2.713317990185089e-10,
+              2.6175816251171264e-10
+            ],
+            [
+              5.205557429103639e-10,
+              5.363855261536331e-10
+            ]
+          ],
+          "max_absolute_difference": [
+            [
+              5.760664298012919e-13,
+              5.017427445741518e-13
+            ],
+            [
+              7.975261076542672e-13,
+              8.064148307451724e-13
+            ]
+          ],
+          "reference_mean": [
+            [
+              0.0009394038263660625,
+              0.0009464419833669974
+            ],
+            [
+              0.000931063791277369,
+              0.0009380273040937025
+            ]
+          ],
+          "comparison_mean": [
+            [
+              0.0009394038262414966,
+              0.0009464419832569142
+            ],
+            [
+              0.0009310637917172078,
+              0.0009380273045531925
+            ]
+          ]
+        }
+      },
+      "mode_phase": {
+        "alignment": false,
+        "reference_amplitude_squared_weighted_rms_rad": 1.006426579409334e-07,
+        "reference_weight_fraction_with_defined_phase": 1.0,
+        "endpoint_rad": -8.380093560301484e-07
+      },
+      "accounting": {
+        "global_energy_sector_defects": [
+          3.583435852496472e-07,
+          3.5834358524635667e-07
+        ],
+        "global_defect_over_abs_window_work": [
+          0.0003788781500883571,
+          0.0003788781500994159
+        ],
+        "two_endpoint_bound_over_abs_window_work": [
+          0.0007577563001767142,
+          0.0007577563001988318
+        ],
+        "transfer_gates": [
+          true,
+          true
+        ],
+        "two_endpoint_transfer_gates": [
+          true,
+          true
+        ],
+        "global_defect_sum_over_abs_work_difference": 19748190.792301252,
+        "two_endpoint_bound_over_abs_work_difference": 39496381.584602505,
+        "difference_gate": false,
+        "two_endpoint_difference_gate": false,
+        "absolute_rate_accounting_envelope_over_omega0": [
+          9.515060073163196e-06,
+          9.515060072052966e-06
+        ],
+        "accounting_over_abs_rate_difference": 10389509.998575453,
+        "rate_difference_gate": false
+      }
+    }
+  ],
+  "native_runs": [
+    {
+      "jaxincell": "0.7.dev302+g83d327118",
+      "jax": "0.6.2",
+      "numpy": "2.2.4",
+      "python": "3.10.12",
+      "platform": "Linux x86_64",
+      "jax_enable_x64": true,
+      "backend": "gpu",
+      "git": "527f2dcdc1b7d2f60f7a2c4ec8b78dc62e245265",
+      "example": "pair_waveform_repeat",
+      "settings": {
+        "label": "realized_fine",
+        "model": "PrescribedDrive",
+        "parent_revision": "2d693cbd36f617545463132dd9af493d47600639",
+        "cells": 8192,
+        "particles_per_cell_per_species": 128,
+        "pair_loading": "global",
+        "dt_omega0": 0.003125,
+        "horizon_omega0": 170.0,
+        "shape_order": 2,
+        "seed_mode": 134,
+        "scalar_dt_omega0": 0.2,
+        "forcing_native_dt_omega0": 0.003125,
+        "velocity_seed_over_c": 0.0002,
+        "eta": 0.5,
+        "dark_mass_over_omega0": 1.0,
+        "force_quiver_over_c": 0.05,
+        "block_steps": 3200,
+        "scalar_units": "native SI",
+        "XLA_FLAGS": "",
+        "initial_dark_energy_over_energy_scale": 0.004999999999999998,
+        "normalization": {
+          "omega0_rad_s": 1000000000.0,
+          "field_scale_V_m": 1704509.0240267625,
+          "energy_scale_J_m2": 539.8412698189296
+        },
+        "local_moments": true,
+        "local_spread_lengths_c_over_omega0": [
+          0.1,
+          0.2
+        ],
+        "initial_state_source": "complete archived prescribed branch",
+        "donor_git": "472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad",
+        "initial_state_archive_sha256": "55dcb9ac09af93790b791eab1f85835a03c5b01fe16edfca11f2b058e85fab48",
+        "donor_record_sha256": "6a20252978fb3cf0a80b11e8f793538f26de13cf4304be55a6750b77a89a9311",
+        "donor_control_record_sha256": "79dfc7635877f3ccb4ec8f6a2895a92997c381904998d32b8e1ff515b2eafe78",
+        "producer_script_sha256": "13db5b0ebee193003ce31530e17d87d0349152502cbdc3e0f5598838fab16bd6"
+      },
+      "results": {
+        "compile_s": 6.593665997963399,
+        "warm_primal_s": 956.1171143680112,
+        "compiler_temporary_MiB": 304.4174118041992,
+        "all_step_maxima": {
+          "energy_work_over_energy_scale": 3.583435852496472e-07,
+          "momentum_over_energy_scale_over_c": 1.2111578805548186e-15,
+          "charge_over_enL": 0.0,
+          "continuity_over_enomega0": 1.2146436173232346e-12,
+          "ordinary_gauss_over_en_eps0": 4.613405684092196e-13,
+          "dark_gauss_over_en_eps0": 0.0,
+          "grid_charge_over_enL": 1.9435954772508526e-17,
+          "dark_sector_work_over_energy_scale": 0.0,
+          "ordinary_sector_work_over_energy_scale": 3.583435852496472e-07
+        },
+        "all_step_maxima_SI": [
+          0.0001934486560926374,
+          2.1809521578755555e-21,
+          0.0,
+          6.114714778959751e-08,
+          2.6230118237435818e-06,
+          0.0,
+          2.0532978599296632e-20,
+          0.0,
+          0.0001934486560926374
+        ],
+        "initial_ordinary_fingerprints": {
+          "x": "3a69f97666356fd9269fc69657757ba7f0a869bf546025b5dffc3e3f285418a6",
+          "u": "deec1bd6447078bca0a383fd4d63de7e6e5f8905a16658f6e87ac6a1ffa136e6",
+          "w": "87ca7f532e116b1f708a59be0140b1097b0f31920a5d33d898f3546174aa919f",
+          "E": "f0628c529fd45c787a9e091b2f2332e544a69fa742c80ddd43d9f38a69057629",
+          "B": "145aa7bc3a0476ca01bc19afca4a1f7252a7c71f45a7e048fc1627257fbfab01",
+          "rho": "18f799061e6a8c0c6cb47536f03b9ab7da41deed3988b1a07c8c4631dc4b6e0a"
+        },
+        "local_spread_initial": [
+          [
+            0.000208337159688067,
+            0.00020833831803358148
+          ],
+          [
+            0.00020833715968812273,
+            0.00020833831803365404
+          ]
+        ],
+        "local_spread_final": [
+          [
+            0.0011818919286823739,
+            0.0011879950836447017
+          ],
+          [
+            0.0011777271250085941,
+            0.0011855413704309017
+          ]
+        ],
+        "execution_index": 1,
+        "samples": 2,
+        "claim": "Exact archived force/state; donor and producer sources are recorded separately.",
+        "timing_note": "One postcompile execution per call; executable identity is not asserted."
+      }
+    },
+    {
+      "jaxincell": "0.7.dev302+g83d327118",
+      "jax": "0.6.2",
+      "numpy": "2.2.4",
+      "python": "3.10.12",
+      "platform": "Linux x86_64",
+      "jax_enable_x64": true,
+      "backend": "gpu",
+      "git": "527f2dcdc1b7d2f60f7a2c4ec8b78dc62e245265",
+      "example": "pair_waveform_repeat",
+      "settings": {
+        "label": "realized_fine",
+        "model": "PrescribedDrive",
+        "parent_revision": "2d693cbd36f617545463132dd9af493d47600639",
+        "cells": 8192,
+        "particles_per_cell_per_species": 128,
+        "pair_loading": "global",
+        "dt_omega0": 0.003125,
+        "horizon_omega0": 170.0,
+        "shape_order": 2,
+        "seed_mode": 134,
+        "scalar_dt_omega0": 0.2,
+        "forcing_native_dt_omega0": 0.003125,
+        "velocity_seed_over_c": 0.0002,
+        "eta": 0.5,
+        "dark_mass_over_omega0": 1.0,
+        "force_quiver_over_c": 0.05,
+        "block_steps": 3200,
+        "scalar_units": "native SI",
+        "XLA_FLAGS": "",
+        "initial_dark_energy_over_energy_scale": 0.004999999999999998,
+        "normalization": {
+          "omega0_rad_s": 1000000000.0,
+          "field_scale_V_m": 1704509.0240267625,
+          "energy_scale_J_m2": 539.8412698189296
+        },
+        "local_moments": true,
+        "local_spread_lengths_c_over_omega0": [
+          0.1,
+          0.2
+        ],
+        "initial_state_source": "complete archived prescribed branch",
+        "donor_git": "472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad",
+        "initial_state_archive_sha256": "55dcb9ac09af93790b791eab1f85835a03c5b01fe16edfca11f2b058e85fab48",
+        "donor_record_sha256": "6a20252978fb3cf0a80b11e8f793538f26de13cf4304be55a6750b77a89a9311",
+        "donor_control_record_sha256": "79dfc7635877f3ccb4ec8f6a2895a92997c381904998d32b8e1ff515b2eafe78",
+        "producer_script_sha256": "13db5b0ebee193003ce31530e17d87d0349152502cbdc3e0f5598838fab16bd6"
+      },
+      "results": {
+        "compile_s": 0.08270909101702273,
+        "warm_primal_s": 957.2856031730771,
+        "compiler_temporary_MiB": 304.4174118041992,
+        "all_step_maxima": {
+          "energy_work_over_energy_scale": 3.5834358524635667e-07,
+          "momentum_over_energy_scale_over_c": 1.2128912539578872e-15,
+          "charge_over_enL": 0.0,
+          "continuity_over_enomega0": 1.0149009377491379e-12,
+          "ordinary_gauss_over_en_eps0": 4.917919073557544e-13,
+          "dark_gauss_over_en_eps0": 0.0,
+          "grid_charge_over_enL": 1.7571533543659948e-17,
+          "dark_sector_work_over_energy_scale": 0.0,
+          "ordinary_sector_work_over_energy_scale": 3.5834358524635667e-07
+        },
+        "all_step_maxima_SI": [
+          0.00019344865609086104,
+          2.184073472218236e-21,
+          0.0,
+          5.109177436679602e-08,
+          2.7961468731518835e-06,
+          0.0,
+          1.856332382081511e-20,
+          0.0,
+          0.00019344865609086104
+        ],
+        "initial_ordinary_fingerprints": {
+          "x": "3a69f97666356fd9269fc69657757ba7f0a869bf546025b5dffc3e3f285418a6",
+          "u": "deec1bd6447078bca0a383fd4d63de7e6e5f8905a16658f6e87ac6a1ffa136e6",
+          "w": "87ca7f532e116b1f708a59be0140b1097b0f31920a5d33d898f3546174aa919f",
+          "E": "f0628c529fd45c787a9e091b2f2332e544a69fa742c80ddd43d9f38a69057629",
+          "B": "145aa7bc3a0476ca01bc19afca4a1f7252a7c71f45a7e048fc1627257fbfab01",
+          "rho": "18f799061e6a8c0c6cb47536f03b9ab7da41deed3988b1a07c8c4631dc4b6e0a"
+        },
+        "local_spread_initial": [
+          [
+            0.000208337159688067,
+            0.00020833831803358148
+          ],
+          [
+            0.00020833715968812273,
+            0.00020833831803365404
+          ]
+        ],
+        "local_spread_final": [
+          [
+            0.0011818919287936828,
+            0.0011879950838711404
+          ],
+          [
+            0.001177727125599649,
+            0.00118554137113231
+          ]
+        ],
+        "execution_index": 2,
+        "samples": 2,
+        "claim": "Exact archived force/state; donor and producer sources are recorded separately.",
+        "timing_note": "One postcompile execution per call; executable identity is not asserted."
+      }
+    }
+  ],
+  "native_sha256": [
+    {
+      "run_sha256": "4d49566d8b5d49a593766ba80cf1715b46940a2a86c7015af5bc6899b7f984db",
+      "data_sha256": "c55b4f7c6c3d5e377e1b29fa3fde2bb54e493d00893e4be1ce4ec8d4e25a37f7",
+      "initial_state_sha256": "55dcb9ac09af93790b791eab1f85835a03c5b01fe16edfca11f2b058e85fab48",
+      "final_state_sha256": "2bfe8e02e045879a6f2fe2053394b0488bc6516e565e51a058d991fc61d26829"
+    },
+    {
+      "run_sha256": "3bfeed37cf87654319f2954b1818b1728abbe605e2c3b1bb131175b198bda0a6",
+      "data_sha256": "0a83f0fc1089f3a23209732306510b6498ffed53d2e9276878495fdff5c6d727",
+      "initial_state_sha256": "55dcb9ac09af93790b791eab1f85835a03c5b01fe16edfca11f2b058e85fab48",
+      "final_state_sha256": "338d6b4aced7e6a3209100c19e0fa67b79098b9348fe690dd7379b8237dcbe6b"
+    }
+  ],
+  "archive_diagnostics": [
+    {
+      "actual_force_sha256": "619ecfe0cd3256d605b281695787888c6098ae80fab8097e4a4b9c56c39609b8",
+      "actual_force_times_sha256": "7c5c087f58daca1db25b24f84dd3c5755e66e4415b814c37453b0b539aaf4ea8",
+      "native_scalar_fingerprints": {
+        "balance": "1d1f3f5d9de1cc79d988832c369c3021d887928739653e1d5a830530c6901b40",
+        "charge": "4db280e9e984c6310434b9302b717b4a7d91c06661f6373a0bdcdf586bd5f7ad",
+        "dark": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "dark_coherent": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "dark_gauss": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "dark_mode_E": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "density_rms": "67d8dea8967a741209f86cc99f7d1537a2a0b54997e988e278a561baf974c137",
+        "electric": "90971446dd0f6ef3cdd8705675af219e085f7f10ff84e8898a8d6a2347653f60",
+        "grid_charge": "1641f22cc2456b53a791bb59ea190e4d1e9c544620c8d63644f4f183a2c0850c",
+        "kinetic": "63a093b1b6ea22b5229b424ddc295ffe41655f48edddeded19188c64ed281a11",
+        "local_density_rms": "da22e161dd3177fc603d9a66326639c4c078a5d24e2070be8b2ce575baa774be",
+        "local_spread": "62d81a69d17f34f977ba92ad9b3a00723fd272dc02c5e398d955fb5f9a029a99",
+        "magnetic": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "max_speed": "38ca3c159c7ffca66402c54a4672aedc55768e1a87ed8e3cf1846ebf73084b84",
+        "mean": "42dca12dabb94fba87c793c3606cef15dc6c0f9aa64f0fa18b5a4edfb8becf51",
+        "mean_A": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "mean_D": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "mean_E": "3e79f5fe28d25efb1626f296be8bdc40f4ce349639a933687ef282afac4ec898",
+        "mode_E": "4aec228531b673532e75752fc1baf4218a204772512b49faeffb82602ff1b9a6",
+        "momentum": "171f35f71806fe061fca3a0ecf76713e49903cc231187908d60d9d7a94e9e71b",
+        "ordinary_gauss": "2422cd33becfc9f6fd2c0e557e792535e0c5751719cd76088490b3df83e5dbd5",
+        "rms": "6c90688172951f486fdd7d00a047ff9570b246e7aa71c27f1d9ed2b8f10be55c",
+        "spread": "f3a1aacab9d391629987b76aef928b5917f826d03e5a7c2118d9877b3444fe6e",
+        "t": "e53a982b4f0e948f89c4afa90a0531735d74a5d7b05bc1ac96a32f733164bf55",
+        "work": "b8bfe61bf93c5ec2d7ab54aca2d7acec53580eab19ebe1de11a156243be3d16e"
+      },
+      "final_leaves": {
+        "format": "7cd44462061113e9b5afc1301ff886e3226f710c249149fb91e507b142c2ef27",
+        "E": "db1490d1d3e7bb202e693f9dcfb095a096103eb394c862ed206ae13c5ff3f968",
+        "B": "e424938afae20691e08f36df7685139e47ec1b70d3013d12dee42143021005fc",
+        "x": "5798feb6bd76b0245734a175b303558961147dcaa3212133896155d562f48a0e",
+        "u": "f3d1344887f8fab9601885ab5734f868094bb00019b43f1346647372336b3644",
+        "w": "9148e1179a23aa518c9ab1a9ce61c7a39d4d0351b474ea0ed4b4aefffe181bcf",
+        "qm": "c7a86b77056f316d5b3fe0f5a8669f02df5c056316c89cce9c7fbf32adcc8a02",
+        "rho": "92f6eb077e5e0501b3a148fafa784f262258466c0d9af24ab3ad8f23d5dd95cb",
+        "sigma": "c224346cb4d107c5a55601c8c5ea4766b3e99e6aa6851e434750fe0df65031b4",
+        "key": "ab022e5cb19c73f083d7527fc5a0443605ac5058b989a6f4574714769bc0878f",
+        "time": "fbae3246c6f4135bbc392d6de1ab0534551c351d295e66a2bbb3b1276365a643",
+        "steps": "cbc000b498dd32efcb944c398456c968691d27f5572b09e73d799f550f0776a3",
+        "wall.arrived": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.collected": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.injected": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.energy_in": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.energy_out": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.energy_injected": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.momentum": "5d885bcdd32c1398ff2118ec2544870e54886684efa4e436abb51bac911b8e42",
+        "wall.momentum_injected": "5d885bcdd32c1398ff2118ec2544870e54886684efa4e436abb51bac911b8e42",
+        "wall.truncated": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.overflow": "7291cba052eac3b57feb85f85d5fb72f58c7abba160e115f21e0d6ade12009cb",
+        "names": "f3d80366b6fe17a42a16388014bb30031e967a0d7a4365346e367bb67b2e2f27",
+        "counts": "ceadcac5570374d57a9e3b5f5b34d746b357f16f88a97fd67d0bec3d2542bfc6",
+        "cells": "15e2f53a3446b0a63585acf2bce08f6562f0c16e571d8106826c655a418c971c",
+        "algorithm": "cd64ced760e3b39674e5743defc35cc9f9b5633e421384a4c93c58f6ba8ed552",
+        "dark.format": "d72c5c1327c349b7cb8f28c700435d5759ffc181b46e5ee06884e087adfe4aba",
+        "dark.mode": "2835807e1958fc6e851ac2dfba9c46b3952f00e8cfd86ce7282e8985c26d7665",
+        "dark.omega": "7291cba052eac3b57feb85f85d5fb72f58c7abba160e115f21e0d6ade12009cb",
+        "dark.eta": "dc7930f040e465a4924bd4d6deee6014f2eb540fc8da7794c74929732ab9895d",
+        "dark.cells": "15e2f53a3446b0a63585acf2bce08f6562f0c16e571d8106826c655a418c971c",
+        "dark.length": "3a4e00b8ba6033ee78a55a9040c9382e762ed1902864636d32fbc649cc5f0298",
+        "dark.length_y": "4bb892a3b9d84173431ddb3eab6fbb2d0521a7d77cb4e69f8f24ddd7ebd896b1",
+        "dark.length_z": "4bb892a3b9d84173431ddb3eab6fbb2d0521a7d77cb4e69f8f24ddd7ebd896b1",
+        "dark.dt": "f343ec2a7870b41e68134d362f42a613dd1c708edede25d0031b1eddf835ca96",
+        "dark.relativistic": "761ad34ce1c000bcbf8b5b43280785f6409589fe452edf0826412bd56be8e633",
+        "dark.mass": "4f307845e2830a30aca693e12c25eb84891375d5e2ed0f038b85250df45cce16",
+        "dark.charge": "b4d3b1eeb3b3d97286b7849c457cfbf27b56c347506520fef6df2da2f9262572",
+        "dark.density": "b2456b0448ceb220ba98b8293196fe5d9e2e20f08acd5c8a7b8dc11376379345",
+        "dark.has_external_B": "f5ce4fbd8d869a4111b0bc07cf30584771eb1b35c7b8756bce12db396c371154",
+        "dark.amplitude": "619ecfe0cd3256d605b281695787888c6098ae80fab8097e4a4b9c56c39609b8",
+        "dark.phase": "7291cba052eac3b57feb85f85d5fb72f58c7abba160e115f21e0d6ade12009cb",
+        "dark.times": "7c5c087f58daca1db25b24f84dd3c5755e66e4415b814c37453b0b539aaf4ea8",
+        "dark.background": "566677ac8a89174edfc74db0ea2e4e456b985f1671ba99eaee5335af5cf66c1d",
+        "dark.work": "44f1205a5e8264b198c1e10ae380e506c812574e1ab1d79fa09aad497cbd9fad",
+        "dark.initial_ordinary": "1925ee48055e1bb107d90a2db3235bbb6c0e3535c563ef3971816fe70e3546c4",
+        "dark.initial_dark": "7291cba052eac3b57feb85f85d5fb72f58c7abba160e115f21e0d6ade12009cb",
+        "dark.initial_projection_norm": "7291cba052eac3b57feb85f85d5fb72f58c7abba160e115f21e0d6ade12009cb",
+        "dark.max_balance_error": "3017be078090d0a82e830e32df93573448a11e1e99bd3b67df6a25c827b4742d",
+        "dark.max_ordinary_gauss": "6d8d36f674ed4d21cec2b5508d5ce60e182052e9af189be775446ae0824b422c",
+        "dark.max_dark_gauss": "7291cba052eac3b57feb85f85d5fb72f58c7abba160e115f21e0d6ade12009cb"
+      },
+      "legacy_shape_order_default": 2
+    },
+    {
+      "actual_force_sha256": "619ecfe0cd3256d605b281695787888c6098ae80fab8097e4a4b9c56c39609b8",
+      "actual_force_times_sha256": "7c5c087f58daca1db25b24f84dd3c5755e66e4415b814c37453b0b539aaf4ea8",
+      "native_scalar_fingerprints": {
+        "balance": "82961c93bec885291ca139135237f9ebe8522148d97442de5014fbf868de8912",
+        "charge": "4db280e9e984c6310434b9302b717b4a7d91c06661f6373a0bdcdf586bd5f7ad",
+        "dark": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "dark_coherent": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "dark_gauss": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "dark_mode_E": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "density_rms": "2ed0869e4acec83cf6910df4441a7fce19909b12acc209675e004ae5ab7a72cb",
+        "electric": "1a7241cdcde85394f88404fc746f9da5126c5b2c2aa37cbdc62e02fc09b382b3",
+        "grid_charge": "bd728b20ca048aee0c93607432c34cc4e32a4a8b8edcc2c5e514194b3b034e84",
+        "kinetic": "b3c3f72b198a184ecc66cd8b1a48f15acc4715d2f20a48267b7816c3469ba780",
+        "local_density_rms": "aa8ec677a372452992c6c8270c94c30fd0248bf4c4f317a96e052396885ed145",
+        "local_spread": "59041b76fbbafcf17602aae1bcdb7faafa7ab8a53b16c58b805a535e3daad103",
+        "magnetic": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "max_speed": "3090c6695610351419a7b7ac75673551271c2737dc7cac93e2fe1764fd2a737c",
+        "mean": "bd8a8c47f9c5d32c2b31edeac37b4477c8ab3758a7cb8040696c9e792614f17e",
+        "mean_A": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "mean_D": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+        "mean_E": "cafa53fb1b2ba0e7ed95964075d024155ad303b31be90a6d96af73cc4c481b6e",
+        "mode_E": "ffb9521d7362ca38d38f166c393ba3998eadef1a9cb491c1976275322081d652",
+        "momentum": "c83625cd1210752ded00ca37d50471e064ed79d56b2d0d3b89f62a8a6e94fbd4",
+        "ordinary_gauss": "8f721653cc7727c5bfd52b3f058cf8e1e1326112b11319825b3a368a19dde899",
+        "rms": "050af68794e716775fbb8bd3ae648e3309b03843bc8c95a1769f1f2cde531be1",
+        "spread": "92275d0dfa2cbf08f3f7e51f91bb9adcb4bb7500de7bdad9de22b3ae9b860d52",
+        "t": "e53a982b4f0e948f89c4afa90a0531735d74a5d7b05bc1ac96a32f733164bf55",
+        "work": "9e0d4080842164ee696cae84f317a2c8248f68c4ea0eb925487d080517016f28"
+      },
+      "final_leaves": {
+        "format": "7cd44462061113e9b5afc1301ff886e3226f710c249149fb91e507b142c2ef27",
+        "E": "c6f1e6d2efe7e70256cdd8116373719e94f39909d0397c441d96a6ee3b41644b",
+        "B": "e424938afae20691e08f36df7685139e47ec1b70d3013d12dee42143021005fc",
+        "x": "a4a102a1a5cf38e8e031c9d0a492710d9f94bf226d2727ce15b8acf7f4d5b0cc",
+        "u": "14a6d0cd67c194a9407e46009fb52de5757394828fbe3a1d7331c254d631f89d",
+        "w": "9148e1179a23aa518c9ab1a9ce61c7a39d4d0351b474ea0ed4b4aefffe181bcf",
+        "qm": "c7a86b77056f316d5b3fe0f5a8669f02df5c056316c89cce9c7fbf32adcc8a02",
+        "rho": "fe382064bbcdd033b30ccda835aab429a424274b5ffe9125c6c550fca009c994",
+        "sigma": "c224346cb4d107c5a55601c8c5ea4766b3e99e6aa6851e434750fe0df65031b4",
+        "key": "ab022e5cb19c73f083d7527fc5a0443605ac5058b989a6f4574714769bc0878f",
+        "time": "fbae3246c6f4135bbc392d6de1ab0534551c351d295e66a2bbb3b1276365a643",
+        "steps": "cbc000b498dd32efcb944c398456c968691d27f5572b09e73d799f550f0776a3",
+        "wall.arrived": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.collected": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.injected": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.energy_in": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.energy_out": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.energy_injected": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.momentum": "5d885bcdd32c1398ff2118ec2544870e54886684efa4e436abb51bac911b8e42",
+        "wall.momentum_injected": "5d885bcdd32c1398ff2118ec2544870e54886684efa4e436abb51bac911b8e42",
+        "wall.truncated": "b5d9face8c5bbaa0547c12164b02d5686e84bdae515748e0a93930dffffdbc2c",
+        "wall.overflow": "7291cba052eac3b57feb85f85d5fb72f58c7abba160e115f21e0d6ade12009cb",
+        "names": "f3d80366b6fe17a42a16388014bb30031e967a0d7a4365346e367bb67b2e2f27",
+        "counts": "ceadcac5570374d57a9e3b5f5b34d746b357f16f88a97fd67d0bec3d2542bfc6",
+        "cells": "15e2f53a3446b0a63585acf2bce08f6562f0c16e571d8106826c655a418c971c",
+        "algorithm": "cd64ced760e3b39674e5743defc35cc9f9b5633e421384a4c93c58f6ba8ed552",
+        "dark.format": "d72c5c1327c349b7cb8f28c700435d5759ffc181b46e5ee06884e087adfe4aba",
+        "dark.mode": "2835807e1958fc6e851ac2dfba9c46b3952f00e8cfd86ce7282e8985c26d7665",
+        "dark.omega": "7291cba052eac3b57feb85f85d5fb72f58c7abba160e115f21e0d6ade12009cb",
+        "dark.eta": "dc7930f040e465a4924bd4d6deee6014f2eb540fc8da7794c74929732ab9895d",
+        "dark.cells": "15e2f53a3446b0a63585acf2bce08f6562f0c16e571d8106826c655a418c971c",
+        "dark.length": "3a4e00b8ba6033ee78a55a9040c9382e762ed1902864636d32fbc649cc5f0298",
+        "dark.length_y": "4bb892a3b9d84173431ddb3eab6fbb2d0521a7d77cb4e69f8f24ddd7ebd896b1",
+        "dark.length_z": "4bb892a3b9d84173431ddb3eab6fbb2d0521a7d77cb4e69f8f24ddd7ebd896b1",
+        "dark.dt": "f343ec2a7870b41e68134d362f42a613dd1c708edede25d0031b1eddf835ca96",
+        "dark.relativistic": "761ad34ce1c000bcbf8b5b43280785f6409589fe452edf0826412bd56be8e633",
+        "dark.mass": "4f307845e2830a30aca693e12c25eb84891375d5e2ed0f038b85250df45cce16",
+        "dark.charge": "b4d3b1eeb3b3d97286b7849c457cfbf27b56c347506520fef6df2da2f9262572",
+        "dark.density": "b2456b0448ceb220ba98b8293196fe5d9e2e20f08acd5c8a7b8dc11376379345",
+        "dark.has_external_B": "f5ce4fbd8d869a4111b0bc07cf30584771eb1b35c7b8756bce12db396c371154",
+        "dark.amplitude": "619ecfe0cd3256d605b281695787888c6098ae80fab8097e4a4b9c56c39609b8",
+        "dark.phase": "7291cba052eac3b57feb85f85d5fb72f58c7abba160e115f21e0d6ade12009cb",
+        "dark.times": "7c5c087f58daca1db25b24f84dd3c5755e66e4415b814c37453b0b539aaf4ea8",
+        "dark.background": "566677ac8a89174edfc74db0ea2e4e456b985f1671ba99eaee5335af5cf66c1d",
+        "dark.work": "3e7280e2d303b921169eab4f237df18731dcb54c96f9713c2273b384a763c278",
+        "dark.initial_ordinary": "1925ee48055e1bb107d90a2db3235bbb6c0e3535c563ef3971816fe70e3546c4",
+        "dark.initial_dark": "7291cba052eac3b57feb85f85d5fb72f58c7abba160e115f21e0d6ade12009cb",
+        "dark.initial_projection_norm": "7291cba052eac3b57feb85f85d5fb72f58c7abba160e115f21e0d6ade12009cb",
+        "dark.max_balance_error": "ed3e0f83df5835c4b6a6e1cfe32c236afca8f895bb294a31dfa1f18e766546d0",
+        "dark.max_ordinary_gauss": "2301cbab6deb9e0e25f02538c3a3e760307a864a8e2746d14e43a99be8b35fc4",
+        "dark.max_dark_gauss": "7291cba052eac3b57feb85f85d5fb72f58c7abba160e115f21e0d6ade12009cb"
+      },
+      "legacy_shape_order_default": 2
+    }
+  ],
+  "all_scalar_histories_bitwise_equal": false,
+  "nominal_clock_bound_omega0": 1e-09,
+  "nominal_clock_errors_omega0": [
+    6.252776074688882e-12,
+    6.252776074688882e-12
+  ],
+  "nominal_clock_gates": [
+    true,
+    true
+  ],
+  "original_gauss_bound_over_en_eps0": 2e-13,
+  "original_gauss_gates": [
+    {
+      "ordinary_gauss_over_en_eps0": false,
+      "dark_gauss_over_en_eps0": true
+    },
+    {
+      "ordinary_gauss_over_en_eps0": false,
+      "dark_gauss_over_en_eps0": true
+    }
+  ],
+  "conservation_budget": 0.001,
+  "rate_accounting_budget": 0.3333333333333333,
+  "notes": "Raw native samples and Fourier face phase; no interpolation or alignment. Rates use omega0. Global bounds remain global; accounting envelopes do not bound discretization or execution uncertainty. Tiny repeat differences are not a physical effect or convergence certification.",
+  "donor": {
+    "reviewed_source_transition": [
+      "472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad",
+      "527f2dcdc1b7d2f60f7a2c4ec8b78dc62e245265"
+    ],
+    "native_run": {
+      "jaxincell": "0.7.dev302+g83d327118",
+      "jax": "0.6.2",
+      "numpy": "2.2.4",
+      "python": "3.10.12",
+      "platform": "Linux x86_64",
+      "jax_enable_x64": true,
+      "backend": "gpu",
+      "git": "472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad",
+      "example": "pair_waveform_branch",
+      "settings": {
+        "label": "realized_fine",
+        "model": "PrescribedDrive",
+        "parent_revision": "2d693cbd36f617545463132dd9af493d47600639",
+        "cells": 8192,
+        "particles_per_cell_per_species": 128,
+        "pair_loading": "global",
+        "dt_omega0": 0.003125,
+        "horizon_omega0": 170.0,
+        "shape_order": 2,
+        "seed_mode": 134,
+        "scalar_dt_omega0": 0.2,
+        "forcing_native_dt_omega0": 0.003125,
+        "velocity_seed_over_c": 0.0002,
+        "eta": 0.5,
+        "dark_mass_over_omega0": 1.0,
+        "force_quiver_over_c": 0.05,
+        "block_steps": 3200,
+        "scalar_units": "native SI",
+        "XLA_FLAGS": "",
+        "initial_dark_energy_over_energy_scale": 0.004999999999999998,
+        "normalization": {
+          "omega0_rad_s": 1000000000.0,
+          "field_scale_V_m": 1704509.0240267625,
+          "energy_scale_J_m2": 539.8412698189296
+        }
+      },
+      "results": {
+        "compile_s": 8.223197150044143,
+        "warm_primal_s": 952.817951522069,
+        "compiler_temporary_MiB": 304.4174118041992,
+        "block_steps": 3200,
+        "local_spread_initial": [
+          [
+            0.00020833715968806706,
+            0.00020833831803358148
+          ],
+          [
+            0.00020833715968812276,
+            0.00020833831803365404
+          ]
+        ],
+        "local_spread_final": [
+          [
+            0.0011818919292463437,
+            0.0011879950841597736
+          ],
+          [
+            0.001177727125676278,
+            0.0011855413711911243
+          ]
+        ],
+        "initial_ordinary_fingerprints": {
+          "x": "3a69f97666356fd9269fc69657757ba7f0a869bf546025b5dffc3e3f285418a6",
+          "u": "deec1bd6447078bca0a383fd4d63de7e6e5f8905a16658f6e87ac6a1ffa136e6",
+          "w": "87ca7f532e116b1f708a59be0140b1097b0f31920a5d33d898f3546174aa919f",
+          "E": "f0628c529fd45c787a9e091b2f2332e544a69fa742c80ddd43d9f38a69057629",
+          "B": "145aa7bc3a0476ca01bc19afca4a1f7252a7c71f45a7e048fc1627257fbfab01",
+          "rho": "18f799061e6a8c0c6cb47536f03b9ab7da41deed3988b1a07c8c4631dc4b6e0a"
+        },
+        "all_step_maxima": {
+          "energy_work_over_energy_scale": 3.5834358525129244e-07,
+          "momentum_over_energy_scale_over_c": 1.213623361979059e-15,
+          "charge_over_enL": 0.0,
+          "continuity_over_enomega0": 1.0235728341127021e-12,
+          "ordinary_gauss_over_en_eps0": 5.021274850490867e-13,
+          "dark_gauss_over_en_eps0": 0.0,
+          "grid_charge_over_enL": 2.1378960874578418e-17,
+          "dark_sector_work_over_energy_scale": 0.0,
+          "ordinary_sector_work_over_energy_scale": 3.5834358525129244e-07
+        }
+      }
+    },
+    "native_sha256": {
+      "run_sha256": "6a20252978fb3cf0a80b11e8f793538f26de13cf4304be55a6750b77a89a9311",
+      "data_sha256": "a07cd2d36bcdcfc4d383e14c7f94c35fe9d79260a3d1ebf40209b4029bca2293",
+      "initial_state_sha256": "55dcb9ac09af93790b791eab1f85835a03c5b01fe16edfca11f2b058e85fab48",
+      "final_state_sha256": "978002768829499be7c435f07181b968fdbd62d441ac15270170cc237d01335d"
+    },
+    "original_gauss_gates": {
+      "ordinary_gauss_over_en_eps0": false,
+      "dark_gauss_over_en_eps0": true
+    },
+    "comparisons": [
+      [
+        {
+          "bounds_omega0": [
+            0.0,
+            169.99999999999375
+          ],
+          "samples": 851,
+          "actual_clocks_omega0": [
+            0.0,
+            169.99999999999375
+          ],
+          "reductions": [
+            {
+              "work_increment": 0.0035226273864603537,
+              "injection_rate_over_wp": 0.005961085431426676,
+              "plasma_mean_energy": 0.003476101425786031,
+              "electric_mean": 0.0010403581715372773,
+              "nonzero_electric_mean": 2.9282311141116135e-05,
+              "kinetic_increment_mean": [
+                0.0010112149425896108,
+                0.0010073821586414717
+              ],
+              "spread_increment_mean": [
+                0.000479888298043712,
+                0.00047615520131174974
+              ],
+              "local_spread_increment_mean": [
+                [
+                  0.0004712581456677593,
+                  0.00047658128556750796
+                ],
+                [
+                  0.0004675601329144568,
+                  0.00047286098110864856
+                ]
+              ]
+            },
+            {
+              "work_increment": 0.003522627385378328,
+              "injection_rate_over_wp": 0.005961085429767508,
+              "plasma_mean_energy": 0.0034761014256858114,
+              "electric_mean": 0.0010403581715145646,
+              "nonzero_electric_mean": 2.9282311124176883e-05,
+              "kinetic_increment_mean": [
+                0.0010112149425689913,
+                0.0010073821585845854
+              ],
+              "spread_increment_mean": [
+                0.00047988829802142913,
+                0.0004761552012541718
+              ],
+              "local_spread_increment_mean": [
+                [
+                  0.0004712581456474022,
+                  0.0004765812855447025
+                ],
+                [
+                  0.0004675601328606804,
+                  0.0004728609810511604
+                ]
+              ]
+            }
+          ],
+          "observables": {
+            "mean_E": {
+              "l2_difference": 9.717310275383743e-11,
+              "reference_l2_norm": 1.311812149049652,
+              "relative_l2_difference": 7.407547096147487e-11,
+              "max_absolute_difference": 1.632437501147832e-11,
+              "reference_mean": -4.116114984385462e-05,
+              "comparison_mean": -4.1161149739713475e-05
+            },
+            "mode_E": {
+              "l2_difference": 3.5675812245239806e-10,
+              "reference_l2_norm": 0.11909017283450801,
+              "relative_l2_difference": 2.9956974111387172e-09,
+              "max_absolute_difference": 9.134170560112199e-11,
+              "reference_mean": {
+                "real": 2.5779724826261994e-05,
+                "imag": -1.2925115931619717e-06
+              },
+              "comparison_mean": {
+                "real": 2.5779724663440652e-05,
+                "imag": -1.2925108712167278e-06
+              }
+            },
+            "electric": {
+              "l2_difference": 3.539717220599394e-12,
+              "reference_l2_norm": 0.04591239097578768,
+              "relative_l2_difference": 7.709720938877037e-11,
+              "max_absolute_difference": 9.082918878827728e-13,
+              "reference_mean": 0.0010403581715372773,
+              "comparison_mean": 0.0010403581715145646
+            },
+            "nonzero_electric": {
+              "l2_difference": 2.0315092049332765e-12,
+              "reference_l2_norm": 0.0012927170818857314,
+              "relative_l2_difference": 1.5715033346429085e-09,
+              "max_absolute_difference": 4.433560723410279e-13,
+              "reference_mean": 2.9282311141116135e-05,
+              "comparison_mean": 2.9282311124176883e-05
+            },
+            "rms": {
+              "l2_difference": [
+                5.1583340638281305e-11,
+                1.5542664612591875e-10
+              ],
+              "reference_l2_norm": [
+                1.530595783741316,
+                1.5264389905696638
+              ],
+              "relative_l2_difference": [
+                3.370147833034887e-11,
+                1.0182303196272119e-10
+              ],
+              "max_absolute_difference": [
+                1.1120632192884727e-11,
+                2.7340796293628955e-11
+              ],
+              "reference_mean": [
+                0.04999681015703428,
+                0.049880604675044314
+              ],
+              "comparison_mean": [
+                0.04999681015637736,
+                0.049880604673364956
+              ]
+            },
+            "work": {
+              "l2_difference": 8.384018330402384e-12,
+              "reference_l2_norm": 0.10068002429510181,
+              "relative_l2_difference": 8.3273900548813e-11,
+              "max_absolute_difference": 1.1426766650945996e-12,
+              "reference_mean": 0.0030588977608449193,
+              "comparison_mean": 0.0030588977607447806
+            },
+            "momentum": {
+              "l2_difference": [
+                4.167108572517089e-17,
+                0.0,
+                0.0
+              ],
+              "reference_l2_norm": [
+                2.1344840153178193e-14,
+                0.0,
+                0.0
+              ],
+              "relative_l2_difference": [
+                0.0019522791187998741,
+                null,
+                null
+              ],
+              "max_absolute_difference": [
+                5.2898393294470914e-18,
+                0.0,
+                0.0
+              ],
+              "reference_mean": [
+                -5.640625412467203e-16,
+                0.0,
+                0.0
+              ],
+              "comparison_mean": [
+                -5.634957778679193e-16,
+                0.0,
+                0.0
+              ]
+            },
+            "local_spread": {
+              "l2_difference": [
+                [
+                  1.7949304764556793e-12,
+                  1.81686443055268e-12
+                ],
+                [
+                  5.106434086663164e-12,
+                  5.389054193193283e-12
+                ]
+              ],
+              "reference_l2_norm": [
+                [
+                  0.022626828199967034,
+                  0.022788841972321637
+                ],
+                [
+                  0.022483656254673384,
+                  0.022644811400151378
+                ]
+              ],
+              "relative_l2_difference": [
+                [
+                  7.932753369552231e-11,
+                  7.972605333607415e-11
+                ],
+                [
+                  2.2711760172911183e-10,
+                  2.379818536778477e-10
+                ]
+              ],
+              "max_absolute_difference": [
+                [
+                  5.639696609022193e-13,
+                  5.150717092422541e-13
+                ],
+                [
+                  8.46609241045293e-13,
+                  9.537251630803434e-13
+                ]
+              ],
+              "reference_mean": [
+                [
+                  0.0006795953053558257,
+                  0.0006849196036010902
+                ],
+                [
+                  0.0006758972926025792,
+                  0.0006811992991423024
+                ]
+              ],
+              "comparison_mean": [
+                [
+                  0.0006795953053354694,
+                  0.0006849196035782844
+                ],
+                [
+                  0.0006758972925488021,
+                  0.0006811992990848149
+                ]
+              ]
+            },
+            "local_density_rms": {
+              "l2_difference": [
+                [
+                  2.9823088424309267e-09,
+                  1.2982545993806578e-09
+                ],
+                [
+                  1.8712350928531214e-09,
+                  1.1097319565010151e-09
+                ]
+              ],
+              "reference_l2_norm": [
+                [
+                  1.7927681703148188,
+                  0.7773204729769787
+                ],
+                [
+                  1.7910155665814076,
+                  0.774730442307901
+                ]
+              ],
+              "relative_l2_difference": [
+                [
+                  1.6635217491100473e-09,
+                  1.6701664815395995e-09
+                ],
+                [
+                  1.0447899659659755e-09,
+                  1.4324104177385281e-09
+                ]
+              ],
+              "max_absolute_difference": [
+                [
+                  1.0025354713061319e-09,
+                  4.51397738632231e-10
+                ],
+                [
+                  3.8467989904589217e-10,
+                  2.5064716274725285e-10
+                ]
+              ],
+              "reference_mean": [
+                [
+                  0.052119738339054755,
+                  0.01847565303894077
+                ],
+                [
+                  0.05200936203895516,
+                  0.01841046265109718
+                ]
+              ],
+              "comparison_mean": [
+                [
+                  0.05211973833124042,
+                  0.018475653038627696
+                ],
+                [
+                  0.052009362025632215,
+                  0.018410462648842236
+                ]
+              ]
+            },
+            "momentum_increment": {
+              "l2_difference": [
+                4.167108572517089e-17,
+                0.0,
+                0.0
+              ],
+              "reference_l2_norm": [
+                2.1345001566742387e-14,
+                0.0,
+                0.0
+              ],
+              "relative_l2_difference": [
+                0.0019522643554216713,
+                null,
+                null
+              ],
+              "max_absolute_difference": [
+                5.2898393294470914e-18,
+                0.0,
+                0.0
+              ],
+              "reference_mean": [
+                -5.640697187763392e-16,
+                0.0,
+                0.0
+              ],
+              "comparison_mean": [
+                -5.635029553975377e-16,
+                0.0,
+                0.0
+              ]
+            },
+            "local_spread_increment": {
+              "l2_difference": [
+                [
+                  1.7949294300087383e-12,
+                  1.8168644305528773e-12
+                ],
+                [
+                  5.1064350579549775e-12,
+                  5.3890541931935374e-12
+                ]
+              ],
+              "reference_l2_norm": [
+                [
+                  0.017548016427182733,
+                  0.017703162511271638
+                ],
+                [
+                  0.017400735688125984,
+                  0.017554979844145006
+                ]
+              ],
+              "relative_l2_difference": [
+                [
+                  1.0228674206323998e-10,
+                  1.0262937084806605e-10
+                ],
+                [
+                  2.9346087139519834e-10,
+                  3.06981508440234e-10
+                ]
+              ],
+              "max_absolute_difference": [
+                [
+                  5.639695524820021e-13,
+                  5.150717092422541e-13
+                ],
+                [
+                  8.466093494655103e-13,
+                  9.537251630803434e-13
+                ]
+              ],
+              "reference_mean": [
+                [
+                  0.0004712581456677593,
+                  0.00047658128556750796
+                ],
+                [
+                  0.0004675601329144568,
+                  0.00047286098110864856
+                ]
+              ],
+              "comparison_mean": [
+                [
+                  0.0004712581456474022,
+                  0.0004765812855447025
+                ],
+                [
+                  0.0004675601328606804,
+                  0.0004728609810511604
+                ]
+              ]
+            }
+          },
+          "mode_phase": {
+            "alignment": false,
+            "reference_amplitude_squared_weighted_rms_rad": 1.5788650375338935e-09,
+            "reference_weight_fraction_with_defined_phase": 1.0,
+            "endpoint_rad": 4.357807829533259e-07
+          },
+          "accounting": {
+            "global_energy_sector_defects": [
+              3.5834358525129244e-07,
+              3.583435852496472e-07
+            ],
+            "global_defect_over_abs_window_work": [
+              0.00010172622475730177,
+              0.00010172622478808137
+            ],
+            "two_endpoint_bound_over_abs_window_work": [
+              0.00020345244951460353,
+              0.00020345244957616275
+            ],
+            "transfer_gates": [
+              true,
+              true
+            ],
+            "two_endpoint_transfer_gates": [
+              true,
+              true
+            ],
+            "global_defect_sum_over_abs_work_difference": 662356.9886475025,
+            "two_endpoint_bound_over_abs_work_difference": 1324713.977295005,
+            "difference_gate": false,
+            "two_endpoint_difference_gate": false,
+            "absolute_rate_accounting_envelope_over_omega0": [
+              1.2127974327895743e-06,
+              1.2127974328189723e-06
+            ],
+            "accounting_over_abs_rate_difference": 1461934.047483128,
+            "rate_difference_gate": false
+          }
+        },
+        {
+          "bounds_omega0": [
+            150.0,
+            170.0
+          ],
+          "samples": 101,
+          "actual_clocks_omega0": [
+            149.9999999999499,
+            169.99999999999375
+          ],
+          "reductions": [
+            {
+              "work_increment": 0.0009458016660675835,
+              "injection_rate_over_wp": 0.012556886795905293,
+              "plasma_mean_energy": 0.003766067503188483,
+              "electric_mean": 0.0007550424748818364,
+              "nonzero_electric_mean": 4.926190012760252e-05,
+              "kinetic_increment_mean": [
+                0.0013012644284647636,
+                0.0012926144468242127
+              ],
+              "spread_increment_mean": [
+                0.0009634373443393197,
+                0.0009551276374431594
+              ],
+              "local_spread_increment_mean": [
+                [
+                  0.0009394038265046364,
+                  0.0009464419835232493
+                ],
+                [
+                  0.0009310637916953807,
+                  0.0009380273045423437
+                ]
+              ]
+            },
+            {
+              "work_increment": 0.000945801665168812,
+              "injection_rate_over_wp": 0.012556886786614926,
+              "plasma_mean_energy": 0.0037660675023960554,
+              "electric_mean": 0.0007550424746841901,
+              "nonzero_electric_mean": 4.926189999881869e-05,
+              "kinetic_increment_mean": [
+                0.0013012644283194117,
+                0.0012926144463747827
+              ],
+              "spread_increment_mean": [
+                0.0009634373441884812,
+                0.0009551276369958863
+              ],
+              "local_spread_increment_mean": [
+                [
+                  0.0009394038263660625,
+                  0.0009464419833669974
+                ],
+                [
+                  0.000931063791277369,
+                  0.0009380273040937025
+                ]
+              ]
+            }
+          ],
+          "observables": {
+            "mean_E": {
+              "l2_difference": 9.677944420017115e-11,
+              "reference_l2_norm": 0.377581350307924,
+              "relative_l2_difference": 2.563141535492838e-10,
+              "max_absolute_difference": 1.632437501147832e-11,
+              "reference_mean": -0.0017068807919661667,
+              "comparison_mean": -0.0017068807912745643
+            },
+            "mode_E": {
+              "l2_difference": 3.5508825587376855e-10,
+              "reference_l2_norm": 0.0025906579297799003,
+              "relative_l2_difference": 1.3706489451655876e-07,
+              "max_absolute_difference": 9.134170560112199e-11,
+              "reference_mean": {
+                "real": -9.339694192456345e-06,
+                "imag": 1.8400769988386775e-05
+              },
+              "comparison_mean": {
+                "real": -9.339695602254047e-06,
+                "imag": 1.840077619904051e-05
+              }
+            },
+            "electric": {
+              "l2_difference": 3.504826480416448e-12,
+              "reference_l2_norm": 0.01110577784589412,
+              "relative_l2_difference": 3.1558586251679845e-10,
+              "max_absolute_difference": 9.082918878827728e-13,
+              "reference_mean": 0.0007550424748818364,
+              "comparison_mean": 0.0007550424746841901
+            },
+            "nonzero_electric": {
+              "l2_difference": 2.006629340288852e-12,
+              "reference_l2_norm": 0.000541743442718865,
+              "relative_l2_difference": 3.704021464880346e-09,
+              "max_absolute_difference": 4.433560723410279e-13,
+              "reference_mean": 4.926190012760252e-05,
+              "comparison_mean": 4.926189999881869e-05
+            },
+            "rms": {
+              "l2_difference": [
+                5.054618065504493e-11,
+                1.5482390506100955e-10
+              ],
+              "reference_l2_norm": [
+                0.6880387879906631,
+                0.6855948163409928
+              ],
+              "relative_l2_difference": [
+                7.346414408213691e-11,
+                2.2582420603367735e-10
+              ],
+              "max_absolute_difference": [
+                1.1120632192884727e-11,
+                2.7340796293628955e-11
+              ],
+              "reference_mean": [
+                0.06845470295997738,
+                0.06821026257165468
+              ],
+              "comparison_mean": [
+                0.06845470295557204,
+                0.06821026255865804
+              ]
+            },
+            "work": {
+              "l2_difference": 8.36689018731668e-12,
+              "reference_l2_norm": 0.03510780326150118,
+              "relative_l2_difference": 2.3831995767424495e-10,
+              "max_absolute_difference": 1.1426766650945996e-12,
+              "reference_mean": 0.0033488837053515246,
+              "comparison_mean": 0.0033488837045594615
+            },
+            "momentum": {
+              "l2_difference": [
+                1.4296430422367433e-17,
+                0.0,
+                0.0
+              ],
+              "reference_l2_norm": [
+                1.178577658752871e-14,
+                0.0,
+                0.0
+              ],
+              "relative_l2_difference": [
+                0.0012130240477742813,
+                null,
+                null
+              ],
+              "max_absolute_difference": [
+                3.5887648096657615e-18,
+                0.0,
+                0.0
+              ],
+              "reference_mean": [
+                -1.172466127978119e-15,
+                0.0,
+                0.0
+              ],
+              "comparison_mean": [
+                -1.1719030294600874e-15,
+                0.0,
+                0.0
+              ]
+            },
+            "local_spread": {
+              "l2_difference": [
+                [
+                  1.7720178183589973e-12,
+                  1.786866243310978e-12
+                ],
+                [
+                  5.091506765052871e-12,
+                  5.373252733930754e-12
+                ]
+              ],
+              "reference_l2_norm": [
+                [
+                  0.011537749646438113,
+                  0.011608807719913412
+                ],
+                [
+                  0.011454693588363114,
+                  0.011525001771310214
+                ]
+              ],
+              "relative_l2_difference": [
+                [
+                  1.5358435333237167e-10,
+                  1.5392332153506508e-10
+                ],
+                [
+                  4.4449087404881447e-10,
+                  4.662257620911323e-10
+                ]
+              ],
+              "max_absolute_difference": [
+                [
+                  5.639696609022193e-13,
+                  5.150717092422541e-13
+                ],
+                [
+                  8.46609241045293e-13,
+                  9.537251630803434e-13
+                ]
+              ],
+              "reference_mean": [
+                [
+                  0.0011477409861927038,
+                  0.0011547803015568318
+                ],
+                [
+                  0.0011394009513835035,
+                  0.0011463656225759982
+                ]
+              ],
+              "comparison_mean": [
+                [
+                  0.0011477409860541296,
+                  0.0011547803014005794
+                ],
+                [
+                  0.0011394009509654922,
+                  0.0011463656221273567
+                ]
+              ]
+            },
+            "local_density_rms": {
+              "l2_difference": [
+                [
+                  2.9696631328600377e-09,
+                  1.2871903500211242e-09
+                ],
+                [
+                  1.8321765971725357e-09,
+                  1.0864771995176167e-09
+                ]
+              ],
+              "reference_l2_norm": [
+                [
+                  0.7901553507847479,
+                  0.5630135166977074
+                ],
+                [
+                  0.7863302416627148,
+                  0.5634135803679674
+                ]
+              ],
+              "relative_l2_difference": [
+                [
+                  3.758328194462896e-09,
+                  2.2862512388174884e-09
+                ],
+                [
+                  2.330034507255314e-09,
+                  1.928383051768178e-09
+                ]
+              ],
+              "max_absolute_difference": [
+                [
+                  1.0025354713061319e-09,
+                  4.51397738632231e-10
+                ],
+                [
+                  3.8467989904589217e-10,
+                  2.5064716274725285e-10
+                ]
+              ],
+              "reference_mean": [
+                [
+                  0.07843853968631181,
+                  0.05592021550604082
+                ],
+                [
+                  0.07804937581692525,
+                  0.05597226623168192
+                ]
+              ],
+              "comparison_mean": [
+                [
+                  0.07843853962800751,
+                  0.05592021551273936
+                ],
+                [
+                  0.07804937572217722,
+                  0.05597226622627626
+                ]
+              ]
+            },
+            "momentum_increment": {
+              "l2_difference": [
+                1.4296430422367433e-17,
+                0.0,
+                0.0
+              ],
+              "reference_l2_norm": [
+                1.1785848704664251e-14,
+                0.0,
+                0.0
+              ],
+              "relative_l2_difference": [
+                0.0012130166253287826,
+                null,
+                null
+              ],
+              "max_absolute_difference": [
+                3.5887648096657615e-18,
+                0.0,
+                0.0
+              ],
+              "reference_mean": [
+                -1.172473305507738e-15,
+                0.0,
+                0.0
+              ],
+              "comparison_mean": [
+                -1.1719102069897063e-15,
+                0.0,
+                0.0
+              ]
+            },
+            "local_spread_increment": {
+              "l2_difference": [
+                [
+                  1.7720169620224634e-12,
+                  1.786866243310978e-12
+                ],
+                [
+                  5.0915076640818596e-12,
+                  5.373252733930754e-12
+                ]
+              ],
+              "reference_l2_norm": [
+                [
+                  0.00944467335953145,
+                  0.009515783724549783
+                ],
+                [
+                  0.009361793422135218,
+                  0.009432153267225808
+                ]
+              ],
+              "relative_l2_difference": [
+                [
+                  1.8762077782543588e-10,
+                  1.877791987538598e-10
+                ],
+                [
+                  5.438602877140393e-10,
+                  5.696740268843341e-10
+                ]
+              ],
+              "max_absolute_difference": [
+                [
+                  5.639695524820021e-13,
+                  5.150717092422541e-13
+                ],
+                [
+                  8.466093494655103e-13,
+                  9.537251630803434e-13
+                ]
+              ],
+              "reference_mean": [
+                [
+                  0.0009394038265046364,
+                  0.0009464419835232493
+                ],
+                [
+                  0.0009310637916953807,
+                  0.0009380273045423437
+                ]
+              ],
+              "comparison_mean": [
+                [
+                  0.0009394038263660625,
+                  0.0009464419833669974
+                ],
+                [
+                  0.000931063791277369,
+                  0.0009380273040937025
+                ]
+              ]
+            }
+          },
+          "mode_phase": {
+            "alignment": false,
+            "reference_amplitude_squared_weighted_rms_rad": 7.182537743984661e-08,
+            "reference_weight_fraction_with_defined_phase": 1.0,
+            "endpoint_rad": 4.357807829533259e-07
+          },
+          "accounting": {
+            "global_energy_sector_defects": [
+              3.5834358525129244e-07,
+              3.583435852496472e-07
+            ],
+            "global_defect_over_abs_window_work": [
+              0.00037887814973005824,
+              0.0003788781500883571
+            ],
+            "two_endpoint_bound_over_abs_window_work": [
+              0.0007577562994601165,
+              0.0007577563001767142
+            ],
+            "transfer_gates": [
+              true,
+              true
+            ],
+            "two_endpoint_transfer_gates": [
+              true,
+              true
+            ],
+            "global_defect_sum_over_abs_work_difference": 797407.5319903989,
+            "two_endpoint_bound_over_abs_work_difference": 1594815.0639807978,
+            "difference_gate": false,
+            "two_endpoint_difference_gate": false,
+            "absolute_rate_accounting_envelope_over_omega0": [
+              9.515060071204793e-06,
+              9.515060073163196e-06
+            ],
+            "accounting_over_abs_rate_difference": 2048371.1748612288,
+            "rate_difference_gate": false
+          }
+        }
+      ],
+      [
+        {
+          "bounds_omega0": [
+            0.0,
+            169.99999999999375
+          ],
+          "samples": 851,
+          "actual_clocks_omega0": [
+            0.0,
+            169.99999999999375
+          ],
+          "reductions": [
+            {
+              "work_increment": 0.0035226273864603537,
+              "injection_rate_over_wp": 0.005961085431426676,
+              "plasma_mean_energy": 0.003476101425786031,
+              "electric_mean": 0.0010403581715372773,
+              "nonzero_electric_mean": 2.9282311141116135e-05,
+              "kinetic_increment_mean": [
+                0.0010112149425896108,
+                0.0010073821586414717
+              ],
+              "spread_increment_mean": [
+                0.000479888298043712,
+                0.00047615520131174974
+              ],
+              "local_spread_increment_mean": [
+                [
+                  0.0004712581456677593,
+                  0.00047658128556750796
+                ],
+                [
+                  0.0004675601329144568,
+                  0.00047286098110864856
+                ]
+              ]
+            },
+            {
+              "work_increment": 0.0035226273855537226,
+              "injection_rate_over_wp": 0.005961085429969189,
+              "plasma_mean_energy": 0.0034761014257412817,
+              "electric_mean": 0.0010403581715207728,
+              "nonzero_electric_mean": 2.9282311136810433e-05,
+              "kinetic_increment_mean": [
+                0.0010112149425575202,
+                0.0010073821586453178
+              ],
+              "spread_increment_mean": [
+                0.00047988829801519725,
+                0.0004761552013180052
+              ],
+              "local_spread_increment_mean": [
+                [
+                  0.00047125814563848424,
+                  0.000476581285537753
+                ],
+                [
+                  0.00046756013292106153,
+                  0.0004728609811138487
+                ]
+              ]
+            }
+          ],
+          "observables": {
+            "mean_E": {
+              "l2_difference": 5.087895945928934e-11,
+              "reference_l2_norm": 1.311812149049652,
+              "relative_l2_difference": 3.8785247945865436e-11,
+              "max_absolute_difference": 1.481405276226866e-11,
+              "reference_mean": -4.116114984385462e-05,
+              "comparison_mean": -4.1161149764739775e-05
+            },
+            "mode_E": {
+              "l2_difference": 2.735344940389276e-10,
+              "reference_l2_norm": 0.11909017283450801,
+              "relative_l2_difference": 2.2968687300424105e-09,
+              "max_absolute_difference": 6.604946723474686e-11,
+              "reference_mean": {
+                "real": 2.5779724826261994e-05,
+                "imag": -1.2925115931619717e-06
+              },
+              "comparison_mean": {
+                "real": 2.577972512374176e-05,
+                "imag": -1.2925115440420434e-06
+              }
+            },
+            "electric": {
+              "l2_difference": 2.4666825266656247e-12,
+              "reference_l2_norm": 0.04591239097578768,
+              "relative_l2_difference": 5.3725856446170544e-11,
+              "max_absolute_difference": 8.143292897638821e-13,
+              "reference_mean": 0.0010403581715372773,
+              "comparison_mean": 0.0010403581715207728
+            },
+            "nonzero_electric": {
+              "l2_difference": 1.4912065523659305e-12,
+              "reference_l2_norm": 0.0012927170818857314,
+              "relative_l2_difference": 1.1535444013709912e-09,
+              "max_absolute_difference": 3.172192868626522e-13,
+              "reference_mean": 2.9282311141116135e-05,
+              "comparison_mean": 2.9282311136810433e-05
+            },
+            "rms": {
+              "l2_difference": [
+                9.973916560844295e-11,
+                3.645695974688575e-11
+              ],
+              "reference_l2_norm": [
+                1.530595783741316,
+                1.5264389905696638
+              ],
+              "relative_l2_difference": [
+                6.516362234099799e-11,
+                2.3883666476103372e-11
+              ],
+              "max_absolute_difference": [
+                2.0301274550327264e-11,
+                7.0451006140004324e-12
+              ],
+              "reference_mean": [
+                0.04999681015703428,
+                0.049880604675044314
+              ],
+              "comparison_mean": [
+                0.04999681015621197,
+                0.049880604675235723
+              ]
+            },
+            "work": {
+              "l2_difference": 4.70950437140013e-12,
+              "reference_l2_norm": 0.10068002429510181,
+              "relative_l2_difference": 4.6776949095643516e-11,
+              "max_absolute_difference": 9.066311069949595e-13,
+              "reference_mean": 0.0030588977608449193,
+              "comparison_mean": 0.00305889776080096
+            },
+            "momentum": {
+              "l2_difference": [
+                4.301113297793339e-17,
+                0.0,
+                0.0
+              ],
+              "reference_l2_norm": [
+                2.1344840153178193e-14,
+                0.0,
+                0.0
+              ],
+              "relative_l2_difference": [
+                0.002015059970900234,
+                null,
+                null
+              ],
+              "max_absolute_difference": [
+                8.483840010049586e-18,
+                0.0,
+                0.0
+              ],
+              "reference_mean": [
+                -5.640625412467203e-16,
+                0.0,
+                0.0
+              ],
+              "comparison_mean": [
+                -5.642803583959478e-16,
+                0.0,
+                0.0
+              ]
+            },
+            "local_spread": {
+              "l2_difference": [
+                [
+                  3.4983527706310145e-12,
+                  3.4955766091467633e-12
+                ],
+                [
+                  1.171378667816585e-12,
+                  1.1293239565175494e-12
+                ]
+              ],
+              "reference_l2_norm": [
+                [
+                  0.022626828199967034,
+                  0.022788841972321637
+                ],
+                [
+                  0.022483656254673384,
+                  0.022644811400151378
+                ]
+              ],
+              "relative_l2_difference": [
+                [
+                  1.5461083364022322e-10,
+                  1.5338983057552212e-10
+                ],
+                [
+                  5.2099118335039744e-11,
+                  4.987120168772967e-11
+                ]
+              ],
+              "max_absolute_difference": [
+                [
+                  6.466274998090382e-13,
+                  6.534026791849001e-13
+                ],
+                [
+                  2.238244312113835e-13,
+                  1.9246800334049574e-13
+                ]
+              ],
+              "reference_mean": [
+                [
+                  0.0006795953053558257,
+                  0.0006849196036010902
+                ],
+                [
+                  0.0006758972926025792,
+                  0.0006811992991423024
+                ]
+              ],
+              "comparison_mean": [
+                [
+                  0.0006795953053265528,
+                  0.000684919603571336
+                ],
+                [
+                  0.0006758972926091841,
+                  0.0006811992991475035
+                ]
+              ]
+            },
+            "local_density_rms": {
+              "l2_difference": [
+                [
+                  2.183955486971306e-09,
+                  9.521972058624881e-10
+                ],
+                [
+                  2.1944141649467344e-09,
+                  8.779741410083473e-10
+                ]
+              ],
+              "reference_l2_norm": [
+                [
+                  1.7927681703148188,
+                  0.7773204729769787
+                ],
+                [
+                  1.7910155665814076,
+                  0.774730442307901
+                ]
+              ],
+              "relative_l2_difference": [
+                [
+                  1.2182029573783612e-09,
+                  1.2249737900453943e-09
+                ],
+                [
+                  1.225234557360834e-09,
+                  1.1332640271536072e-09
+                ]
+              ],
+              "max_absolute_difference": [
+                [
+                  6.001991265103257e-10,
+                  2.0206227663299714e-10
+                ],
+                [
+                  4.695068778204359e-10,
+                  2.338192695017227e-10
+                ]
+              ],
+              "reference_mean": [
+                [
+                  0.052119738339054755,
+                  0.01847565303894077
+                ],
+                [
+                  0.05200936203895516,
+                  0.01841046265109718
+                ]
+              ],
+              "comparison_mean": [
+                [
+                  0.0521197383422095,
+                  0.01847565304412372
+                ],
+                [
+                  0.05200936203690914,
+                  0.018410462654659336
+                ]
+              ]
+            },
+            "momentum_increment": {
+              "l2_difference": [
+                4.3011132977933383e-17,
+                0.0,
+                0.0
+              ],
+              "reference_l2_norm": [
+                2.1345001566742387e-14,
+                0.0,
+                0.0
+              ],
+              "relative_l2_difference": [
+                0.0020150447327653967,
+                null,
+                null
+              ],
+              "max_absolute_difference": [
+                8.483840010049586e-18,
+                0.0,
+                0.0
+              ],
+              "reference_mean": [
+                -5.640697187763392e-16,
+                0.0,
+                0.0
+              ],
+              "comparison_mean": [
+                -5.642875359255668e-16,
+                0.0,
+                0.0
+              ]
+            },
+            "local_spread_increment": {
+              "l2_difference": [
+                [
+                  3.4983527706311663e-12,
+                  3.4955766091485857e-12
+                ],
+                [
+                  1.1713781445631688e-12,
+                  1.129323956517777e-12
+                ]
+              ],
+              "reference_l2_norm": [
+                [
+                  0.017548016427182733,
+                  0.017703162511271638
+                ],
+                [
+                  0.017400735688125984,
+                  0.017554979844145006
+                ]
+              ],
+              "relative_l2_difference": [
+                [
+                  1.9935887256248788e-10,
+                  1.9745492405229547e-10
+                ],
+                [
+                  6.731773676457258e-11,
+                  6.433068944220024e-11
+                ]
+              ],
+              "max_absolute_difference": [
+                [
+                  6.466274998090382e-13,
+                  6.534026791849001e-13
+                ],
+                [
+                  2.2382432279116626e-13,
+                  1.9246800334049574e-13
+                ]
+              ],
+              "reference_mean": [
+                [
+                  0.0004712581456677593,
+                  0.00047658128556750796
+                ],
+                [
+                  0.0004675601329144568,
+                  0.00047286098110864856
+                ]
+              ],
+              "comparison_mean": [
+                [
+                  0.00047125814563848424,
+                  0.000476581285537753
+                ],
+                [
+                  0.00046756013292106153,
+                  0.0004728609811138487
+                ]
+              ]
+            }
+          },
+          "mode_phase": {
+            "alignment": false,
+            "reference_amplitude_squared_weighted_rms_rad": 1.4910797830471684e-09,
+            "reference_weight_fraction_with_defined_phase": 1.0,
+            "endpoint_rad": -4.0222857314501573e-07
+          },
+          "accounting": {
+            "global_energy_sector_defects": [
+              3.5834358525129244e-07,
+              3.5834358524635667e-07
+            ],
+            "global_defect_over_abs_window_work": [
+              0.00010172622475730177,
+              0.00010172622478208224
+            ],
+            "two_endpoint_bound_over_abs_window_work": [
+              0.00020345244951460353,
+              0.00020345244956416448
+            ],
+            "transfer_gates": [
+              true,
+              true
+            ],
+            "two_endpoint_transfer_gates": [
+              true,
+              true
+            ],
+            "global_defect_sum_over_abs_work_difference": 790494.794374658,
+            "two_endpoint_bound_over_abs_work_difference": 1580989.588749316,
+            "difference_gate": false,
+            "two_endpoint_difference_gate": false,
+            "absolute_rate_accounting_envelope_over_omega0": [
+              1.2127974327895743e-06,
+              1.2127974327884823e-06
+            ],
+            "accounting_over_abs_rate_difference": 1664230.97915986,
+            "rate_difference_gate": false
+          }
+        },
+        {
+          "bounds_omega0": [
+            150.0,
+            170.0
+          ],
+          "samples": 101,
+          "actual_clocks_omega0": [
+            149.9999999999499,
+            169.99999999999375
+          ],
+          "reductions": [
+            {
+              "work_increment": 0.0009458016660675835,
+              "injection_rate_over_wp": 0.012556886795905293,
+              "plasma_mean_energy": 0.003766067503188483,
+              "electric_mean": 0.0007550424748818364,
+              "nonzero_electric_mean": 4.926190012760252e-05,
+              "kinetic_increment_mean": [
+                0.0013012644284647636,
+                0.0012926144468242127
+              ],
+              "spread_increment_mean": [
+                0.0009634373443393197,
+                0.0009551276374431594
+              ],
+              "local_spread_increment_mean": [
+                [
+                  0.0009394038265046364,
+                  0.0009464419835232493
+                ],
+                [
+                  0.0009310637916953807,
+                  0.0009380273045423437
+                ]
+              ]
+            },
+            {
+              "work_increment": 0.0009458016651325207,
+              "injection_rate_over_wp": 0.012556886784783259,
+              "plasma_mean_energy": 0.0037660675028009026,
+              "electric_mean": 0.0007550424747703727,
+              "nonzero_electric_mean": 4.926190009428564e-05,
+              "kinetic_increment_mean": [
+                0.0013012644281839897,
+                0.0012926144468288698
+              ],
+              "spread_increment_mean": [
+                0.0009634373440814378,
+                0.0009551276374615764
+              ],
+              "local_spread_increment_mean": [
+                [
+                  0.0009394038262414966,
+                  0.0009464419832569142
+                ],
+                [
+                  0.0009310637917172078,
+                  0.0009380273045531925
+                ]
+              ]
+            }
+          ],
+          "observables": {
+            "mean_E": {
+              "l2_difference": 5.006873719792684e-11,
+              "reference_l2_norm": 0.377581350307924,
+              "relative_l2_difference": 1.3260384062161688e-10,
+              "max_absolute_difference": 1.481405276226866e-11,
+              "reference_mean": -0.0017068807919661667,
+              "comparison_mean": -0.001706880791146393
+            },
+            "mode_E": {
+              "l2_difference": 2.702924269387505e-10,
+              "reference_l2_norm": 0.0025906579297799003,
+              "relative_l2_difference": 1.0433350687935643e-07,
+              "max_absolute_difference": 6.604946723474686e-11,
+              "reference_mean": {
+                "real": -9.339694192456345e-06,
+                "imag": 1.8400769988386775e-05
+              },
+              "comparison_mean": {
+                "real": -9.33969188418838e-06,
+                "imag": 1.840077092604967e-05
+              }
+            },
+            "electric": {
+              "l2_difference": 2.4204495919103013e-12,
+              "reference_l2_norm": 0.01110577784589412,
+              "relative_l2_difference": 2.179450755720958e-10,
+              "max_absolute_difference": 8.143292897638821e-13,
+              "reference_mean": 0.0007550424748818364,
+              "comparison_mean": 0.0007550424747703727
+            },
+            "nonzero_electric": {
+              "l2_difference": 1.4778887284038556e-12,
+              "reference_l2_norm": 0.000541743442718865,
+              "relative_l2_difference": 2.7280232890069306e-09,
+              "max_absolute_difference": 3.172192868626522e-13,
+              "reference_mean": 4.926190012760252e-05,
+              "comparison_mean": 4.926190009428564e-05
+            },
+            "rms": {
+              "l2_difference": [
+                9.935704350187755e-11,
+                3.33890698625255e-11
+              ],
+              "reference_l2_norm": [
+                0.6880387879906631,
+                0.6855948163409928
+              ],
+              "relative_l2_difference": [
+                1.4440616610008019e-10,
+                4.870087851702609e-11
+              ],
+              "max_absolute_difference": [
+                2.0301274550327264e-11,
+                7.0451006140004324e-12
+              ],
+              "reference_mean": [
+                0.06845470295997738,
+                0.06821026257165468
+              ],
+              "comparison_mean": [
+                0.06845470295252358,
+                0.06821026257223095
+              ]
+            },
+            "work": {
+              "l2_difference": 4.680693828388361e-12,
+              "reference_l2_norm": 0.03510780326150118,
+              "relative_l2_difference": 1.3332346069972303e-10,
+              "max_absolute_difference": 9.066311069949595e-13,
+              "reference_mean": 0.0033488837053515246,
+              "comparison_mean": 0.0033488837049702362
+            },
+            "momentum": {
+              "l2_difference": [
+                1.2259892282921315e-17,
+                0.0,
+                0.0
+              ],
+              "reference_l2_norm": [
+                1.178577658752871e-14,
+                0.0,
+                0.0
+              ],
+              "relative_l2_difference": [
+                0.0010402277857442417,
+                null,
+                null
+              ],
+              "max_absolute_difference": [
+                3.72513787243292e-18,
+                0.0,
+                0.0
+              ],
+              "reference_mean": [
+                -1.172466127978119e-15,
+                0.0,
+                0.0
+              ],
+              "comparison_mean": [
+                -1.1723276407420238e-15,
+                0.0,
+                0.0
+              ]
+            },
+            "local_spread": {
+              "l2_difference": [
+                [
+                  3.487287993597025e-12,
+                  3.485443333141427e-12
+                ],
+                [
+                  1.07642328342367e-12,
+                  1.0340539277641382e-12
+                ]
+              ],
+              "reference_l2_norm": [
+                [
+                  0.011537749646438113,
+                  0.011608807719913412
+                ],
+                [
+                  0.011454693588363114,
+                  0.011525001771310214
+                ]
+              ],
+              "relative_l2_difference": [
+                [
+                  3.022502741402095e-10,
+                  3.002412837937352e-10
+                ],
+                [
+                  9.397224597235969e-11,
+                  8.972266974728476e-11
+                ]
+              ],
+              "max_absolute_difference": [
+                [
+                  6.466274998090382e-13,
+                  6.534026791849001e-13
+                ],
+                [
+                  2.238244312113835e-13,
+                  1.9246800334049574e-13
+                ]
+              ],
+              "reference_mean": [
+                [
+                  0.0011477409861927038,
+                  0.0011547803015568318
+                ],
+                [
+                  0.0011394009513835035,
+                  0.0011463656225759982
+                ]
+              ],
+              "comparison_mean": [
+                [
+                  0.0011477409859295634,
+                  0.001154780301290496
+                ],
+                [
+                  0.0011394009514053307,
+                  0.0011463656225868455
+                ]
+              ]
+            },
+            "local_density_rms": {
+              "l2_difference": [
+                [
+                  2.156113358997421e-09,
+                  9.369183778027038e-10
+                ],
+                [
+                  2.1793859890130838e-09,
+                  8.714233797973222e-10
+                ]
+              ],
+              "reference_l2_norm": [
+                [
+                  0.7901553507847479,
+                  0.5630135166977074
+                ],
+                [
+                  0.7863302416627148,
+                  0.5634135803679674
+                ]
+              ],
+              "relative_l2_difference": [
+                [
+                  2.728720822881302e-09,
+                  1.6641134715523234e-09
+                ],
+                [
+                  2.7715912138959807e-09,
+                  1.5466850820816078e-09
+                ]
+              ],
+              "max_absolute_difference": [
+                [
+                  6.001991265103257e-10,
+                  2.0206227663299714e-10
+                ],
+                [
+                  4.695068778204359e-10,
+                  2.338192695017227e-10
+                ]
+              ],
+              "reference_mean": [
+                [
+                  0.07843853968631181,
+                  0.05592021550604082
+                ],
+                [
+                  0.07804937581692525,
+                  0.05597226623168192
+                ]
+              ],
+              "comparison_mean": [
+                [
+                  0.07843853971323317,
+                  0.05592021554399689
+                ],
+                [
+                  0.07804937580963914,
+                  0.05597226625926473
+                ]
+              ]
+            },
+            "momentum_increment": {
+              "l2_difference": [
+                1.2259892282921315e-17,
+                0.0,
+                0.0
+              ],
+              "reference_l2_norm": [
+                1.1785848704664251e-14,
+                0.0,
+                0.0
+              ],
+              "relative_l2_difference": [
+                0.00104022142063214,
+                null,
+                null
+              ],
+              "max_absolute_difference": [
+                3.72513787243292e-18,
+                0.0,
+                0.0
+              ],
+              "reference_mean": [
+                -1.172473305507738e-15,
+                0.0,
+                0.0
+              ],
+              "comparison_mean": [
+                -1.1723348182716424e-15,
+                0.0,
+                0.0
+              ]
+            },
+            "local_spread_increment": {
+              "l2_difference": [
+                [
+                  3.487287993597025e-12,
+                  3.485443333141427e-12
+                ],
+                [
+                  1.0764230613772232e-12,
+                  1.0340539277641382e-12
+                ]
+              ],
+              "reference_l2_norm": [
+                [
+                  0.00944467335953145,
+                  0.009515783724549783
+                ],
+                [
+                  0.009361793422135218,
+                  0.009432153267225808
+                ]
+              ],
+              "relative_l2_difference": [
+                [
+                  3.692333086435113e-10,
+                  3.6628021758726263e-10
+                ],
+                [
+                  1.1498043300465339e-10,
+                  1.0963073843988488e-10
+                ]
+              ],
+              "max_absolute_difference": [
+                [
+                  6.466274998090382e-13,
+                  6.534026791849001e-13
+                ],
+                [
+                  2.2382432279116626e-13,
+                  1.9246800334049574e-13
+                ]
+              ],
+              "reference_mean": [
+                [
+                  0.0009394038265046364,
+                  0.0009464419835232493
+                ],
+                [
+                  0.0009310637916953807,
+                  0.0009380273045423437
+                ]
+              ],
+              "comparison_mean": [
+                [
+                  0.0009394038262414966,
+                  0.0009464419832569142
+                ],
+                [
+                  0.0009310637917172078,
+                  0.0009380273045531925
+                ]
+              ]
+            }
+          },
+          "mode_phase": {
+            "alignment": false,
+            "reference_amplitude_squared_weighted_rms_rad": 6.76862523825034e-08,
+            "reference_weight_fraction_with_defined_phase": 1.0,
+            "endpoint_rad": -4.0222857314501573e-07
+          },
+          "accounting": {
+            "global_energy_sector_defects": [
+              3.5834358525129244e-07,
+              3.5834358524635667e-07
+            ],
+            "global_defect_over_abs_window_work": [
+              0.00037887814973005824,
+              0.0003788781500994159
+            ],
+            "two_endpoint_bound_over_abs_window_work": [
+              0.0007577562994601165,
+              0.0007577563001988318
+            ],
+            "transfer_gates": [
+              true,
+              true
+            ],
+            "two_endpoint_transfer_gates": [
+              true,
+              true
+            ],
+            "global_defect_sum_over_abs_work_difference": 766458.8702816125,
+            "two_endpoint_bound_over_abs_work_difference": 1532917.740563225,
+            "difference_gate": false,
+            "two_endpoint_difference_gate": false,
+            "absolute_rate_accounting_envelope_over_omega0": [
+              9.515060071204793e-06,
+              9.515060072052966e-06
+            ],
+            "accounting_over_abs_rate_difference": 1711028.792111899,
+            "rate_difference_gate": false
+          }
+        }
+      ]
+    ],
+    "claim": "Different producer sources; reviewed algorithm-matched only. No shared executable claim."
+  },
+  "observer": {
+    "source": "527f2dcdc1b7d2f60f7a2c4ec8b78dc62e245265",
+    "wrapper_script_sha256": "bbaf99e5036ceae27d8609d6f8b5b677f20cef3a213cae90c26d992e41dcb75b",
+    "producer_script_sha256": "13db5b0ebee193003ce31530e17d87d0349152502cbdc3e0f5598838fab16bd6",
+    "compilations": [
+      {
+        "index": 1,
+        "runtime_available": true,
+        "same_loaded_executable_as_first": false,
+        "stablehlo_sha256": "dc58e2d563ff4633847a8df6f6a98a96a8e4ec9263387e72a52dce5fd459e46d",
+        "optimized_hlo_text_sha256": "93197b47ab17ce9448f15d3645926db6658093cfcbebcd47321f573ff9681bf1",
+        "observer_seconds": 0.08980764797888696
+      },
+      {
+        "index": 2,
+        "runtime_available": true,
+        "same_loaded_executable_as_first": true,
+        "stablehlo_sha256": "dc58e2d563ff4633847a8df6f6a98a96a8e4ec9263387e72a52dce5fd459e46d",
+        "optimized_hlo_text_sha256": "93197b47ab17ce9448f15d3645926db6658093cfcbebcd47321f573ff9681bf1",
+        "observer_seconds": 0.08061958698090166
+      }
+    ],
+    "observer_sha256": "64c7f7abd01406d3df807ced4d4d90fd91a0662dc6851488a28fb66c54dabbc1",
+    "claim": "Observed runtime-object identity in one process is nonserializable. Equal HLO text hashes are not binary identity or bitwise trajectories.",
+    "method": "Observe lower/compile; return the compiled object unchanged. No traced operations added.",
+    "timing_note": "Public compilation timing includes observer text-hashing overhead.",
+    "native_interpretation": "Runtime object identity is local to this process. HLO text is not binary serialization."
+  },
+  "validation_source": {
+    "git": "2b5b5995c8f77366600f1b5d4ada25ea5ace6d19",
+    "script": "docs/scripts/compare_replays.py",
+    "script_sha256": "7c3afb07f2ce30b0c5f327a47a17d9c518db8dddc8adf20b43e2d8a2ef747544",
+    "numpy": "2.2.2",
+    "tracked_source_dirty": false
+  }
+}

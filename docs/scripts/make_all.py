@@ -296,6 +296,27 @@ for kind in ('realized', 'homogeneous'):
     comparison = long_window['comparisons'][f'{kind}_coarse_vs_{kind}_fine']
     for key in ('mode_E', 'electric', 'nonzero_electric'):
         measured[f'pair_long_{kind}_{key}_table_l2_percent'] = f"{100 * comparison[key]['relative_l2_difference']:.3f}"
+pair_repeat_native = ROOT / 'artifacts' / 'pair_execution_repeat' / 'late_realized_fine'
+pair_repeat_file = pair_long / 'execution_repeat.json'
+run_example('examples/dark_reservoir.py', study='pair_repeat', samples=2, observe_executable=True,
+            initial_state=pair_long_native / 'realized_fine' / 'initial_state.npz', output=pair_repeat_native)
+run_example('docs/scripts/compare_replays.py',
+            pair_repeats=tuple(pair_repeat_native / f'execution_{i}' for i in (1, 2)),
+            pair_repeat_observer=pair_repeat_native / 'executable_observer.json',
+            pair_repeat_donor=pair_long_native / 'realized_fine', output=pair_repeat_file)
+pair_repeat_record = json.loads(pair_repeat_file.read_text())
+for label, row in zip(('full', 'late'), pair_repeat_record['windows']):
+    for key in ('mode_E', 'nonzero_electric'):
+        measured[f'pair_repeat_{label}_{key}'] = f"{row['observables'][key]['relative_l2_difference']:.3e}"
+    measured[f'pair_repeat_{label}_phase_rad'] = (
+        f"{row['mode_phase']['reference_amplitude_squared_weighted_rms_rad']:.3e}")
+    for key in ('global_defect_over_abs_window_work', 'two_endpoint_bound_over_abs_window_work'):
+        measured[f'pair_repeat_{label}_{key}_percent'] = f"{100 * max(row['accounting'][key]):.4f}"
+pair_repeat_provenance = dict(
+    run='pair_waveform_long/execution_repeat.json', validation_source=pair_repeat_record['validation_source'],
+    native_git=sorted({row['git'] for row in pair_repeat_record['native_runs']}),
+    donor_git=pair_repeat_record['donor']['native_run']['git'],
+    observer_sha256=pair_repeat_record['observer']['observer_sha256'])
 dark_pair_gauss = max(dark_pair_result["max_ordinary_gauss_over_scale"],
                       dark_pair_result["max_dark_gauss_over_scale"])
 dark_pair_refinements = {
@@ -385,6 +406,7 @@ measured["_provenance"] = {"cold_exchange": provenance(cold_record, "cold_exchan
                            "oscillating_pair": provenance(pair_record, "oscillating_pair"),
                            "oscillating_dark_pair": provenance(dark_pair_record, "oscillating_dark_pair"),
                            "pair_waveform_controls": provenance(pair_control_record, "pair_waveform_controls"),
+                           "pair_execution_repeat": pair_repeat_provenance,
                            "pair_sampling_cost": provenance(sampling_record,
                                                             "pair_waveform_controls/sampling_cost.json"),
                            "profile_design": provenance(design_record, "profile_design")}
