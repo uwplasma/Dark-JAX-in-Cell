@@ -834,9 +834,10 @@ def _refined_source(first, second, against):
 
 def _step_contraction(first, second):
     """Raw adjacent differences; a ratio does not establish temporal order or convergence."""
-    if any(row['variant'] != 'dt' or not np.isclose(row['sources'][0]['varied_parameter'],
-               2 * row['sources'][1]['varied_parameter'], rtol=2e-12, atol=0) for row in (first, second)):
-        raise ValueError('adjacent contractions require two consecutive timestep halvings')
+    for row in (first, second):
+        coarse, fine = [source['varied_parameter'] for source in row['sources']]
+        if row['variant'] != 'dt' or not np.isclose(coarse, 2 * fine, rtol=2e-12, atol=0):
+            raise ValueError('adjacent contractions require two consecutive timestep halvings')
     if [row['window_omega_p'] for row in first['windows']] != [row['window_omega_p'] for row in second['windows']]:
         raise ValueError('adjacent timestep contractions require the same native comparison windows')
     result = []
