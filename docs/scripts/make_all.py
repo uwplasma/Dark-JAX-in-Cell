@@ -29,7 +29,8 @@ def run_example(script, **inputs):
 def provenance(record, folder):
     """Keep substitutions slim; the complete run record lives beside its figure."""
     keys = ("jaxincell", "jax", "numpy", "python", "platform", "jax_enable_x64", "backend", "git")
-    return {**{key: record[key] for key in keys}, "run": f"{folder}/run.json"}
+    run = folder if folder.endswith('.json') else f'{folder}/run.json'
+    return {**{key: record[key] for key in keys}, "run": run}
 
 
 def replay_measurements(record, labels):
@@ -464,8 +465,18 @@ run_example('docs/scripts/compare_replays.py', first=late_runs[0], second=late_r
 late_record = json.loads((late_folder / 'run.json').read_text())
 replay_measurements(late_record, (
     ("late_repeat", "comparison", ".4f"), ("late_dt", "refinement_comparison", ".4f")))
-for label, key in (("late_repeat", "comparison"), ("late_dt", "refinement_comparison")):
-    a, b = late_record['results'][key]['windows'][-1]['realization_summaries']
+shape_folder = EVIDENCE.parent / 'shape_controls'
+shape_runs = [ROOT / 'artifacts' / 'shape_controls' / f'late_s{order}' for order in (2, 5)]
+for order, folder in zip((2, 5), shape_runs):
+    run_example('examples/dark_reservoir.py', study='paper', cells=2000, particles=206000,
+                dt=.005, horizon=1000., block_horizon=100., local_moments=True, shape_order=order, output=folder)
+run_example('docs/scripts/compare_replays.py', first=shape_runs[0], second=shape_runs[1],
+            variant='shape', constraints=True, destination=shape_folder)
+shape_record = json.loads((shape_folder / 'run.json').read_text())
+replay_measurements(shape_record, (("shape", "comparison", ".4f"),))
+for label, record, key in (("late_repeat", late_record, "comparison"),
+                           ("late_dt", late_record, "refinement_comparison"), ("shape", shape_record, "comparison")):
+    a, b = record['results'][key]['windows'][-1]['realization_summaries']
     for observable in ('electric_mean', 'work'):
         field = 'work_increment' if observable == 'work' else observable
         measured[f'{label}_{observable}_change_percent'] = f'{100 * (b[field] / a[field] - 1):.2f}'
@@ -475,6 +486,23 @@ for label, key in (("late_repeat", "comparison"), ("late_dt", "refinement_compar
         measured[f'{label}_local_spread_increment_{species}_change_percent'] = f'{change:.3f}'
     measured[f'{label}_injection_rate_difference'] = f"{b['injection_rate_over_wp'] - a['injection_rate_over_wp']:.3e}"
 measured['_provenance']['late_step_controls'] = provenance(late_record, late_folder.name)
+measured['_provenance']['shape_controls'] = provenance(shape_record, shape_folder.name)
+for order, name, native in zip((2, 5), ('quadratic', 'quintic'), shape_record['results']['native_runs']):
+    folder, saved = ROOT / 'artifacts' / 'shape_controls' / f'cost_s{order}', shape_folder / f'cost_{name}.json'
+    run_example('docs/scripts/benchmark_field_cost.py', replay=True, cells=2000, particles=206000,
+                dt=.005, steps=100, stride=100, shape_order=order, output=folder)
+    if not records_only:
+        copyfile(folder / 'run.json', saved)
+    cost = json.loads(saved.read_text())
+    prefix = f'shape_{order}'
+    for kernel in ('deposition', 'short_run'):
+        for key in ('compile_s', 'warm_median_s', 'compiler_temporary_MiB'):
+            measured[f'{prefix}_{kernel}_{key}'] = f'{cost["results"][kernel][key]:.5g}'
+    measured[f'{prefix}_rss_MiB'] = f'{cost["results"]["peak_rss_bytes"] / 2**20:.2f}'
+    for suffix, key in (('balance', 'max_ordinary_work_defect_over_nmc2L'),
+                        ('momentum', 'max_momentum_defect_over_nmecL'), ('gauss', 'max_ordinary_gauss_over_en_eps0')):
+        measured[f'{prefix}_{suffix}'] = f'{native["results"][key]:.3e}'
+    measured['_provenance'][f'shape_cost_{order}'] = provenance(cost, f'{shape_folder.name}/{saved.name}')
 resolution = EVIDENCE.parent / "replay_resolution"
 mesh, seed, loading = [ROOT / "artifacts" / name for name in
                        ("paper_fixed_mesh", "paper_fixed_seed", "paper_fixed_particles")]

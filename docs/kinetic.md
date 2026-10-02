@@ -434,6 +434,33 @@ These reductions use 401 aligned native samples, without shifting or interpolati
 
 The work and field changes exceed the [prospective acceptance bounds](#prospective-late-conversion-acceptance), and both residual-rate differences exceed $10^{-5}\omega_p$. Similar repeat and refinement shifts prevent assigning the observed change to truncation error alone; no cause or confidence interval follows from one repeat. This bounded study does not establish the late conversion rate, convergence through $5000$, or a discrepancy with the paper. The [record](_static/figures/late_step_controls/run.json) retains `realization_summaries`, all-step conservation maxima and fingerprints; the [compressed histories](_static/figures/late_step_controls/data.npz) reproduce the reductions. All three native computations use source [c9b3503](https://github.com/uwplasma/Dark-JAX-in-Cell/tree/c9b35031fbb8bb9ed1d5a30a20c21a61e0ba943f).
 
+#### Particle weighting under nonlinear drive
+
+Two new prescribed-drive runs change the periodic cell weights and compatible gather from degree 2 to degree 5, holding the same physical initial positions, velocities, weights, timestep, 2,000 cells and 206,000 particles per species. Both reach $\tau=1000$ with seed 0, $\Delta\tau=0.005$, $100/\omega_p$ compiled blocks and $0.5/\omega_p$ scalar cadence. The six-cell quintic weights match the integrated $W^5$ family in [SHARP, Appendix B](https://arxiv.org/html/1702.04732v2#A2.T2); the field gather uses the face-centred approximation described in [the weighting method](physics.md#particle-weighting). This is not the complete SHARP algorithm used in the target paper.
+
+![Quadratic and quintic weighting at matched loading and timestep](_static/figures/shape_controls/figure.png)
+
+[Simulation script](../examples/dark_reservoir.py) · `study='paper', cells=2000, particles=206000, dt=.005, horizon=1000, block_horizon=100, local_moments=True, shape_order=2` or `5`; [comparison and plot](scripts/compare_replays.py) · `variant='shape'` ([complete inputs](scripts/make_all.py)).
+
+| All-step maximum | Degree 2 | Degree 5 |
+|---|---:|---:|
+| Energy/work defect, $nm_ec^2L$ | {{ shape_2_balance }} | {{ shape_5_balance }} |
+| Momentum change, $nm_ecL$ | {{ shape_2_momentum }} | {{ shape_5_momentum }} |
+| Ordinary Gauss, $en/\epsilon_0$ | {{ shape_2_gauss }} | {{ shape_5_gauss }} |
+
+Particle charge is unchanged in both runs. Independent serial endpoint redeposition agrees with each native charge array within $7.1\times10^{-14}en$; quartic-spline quadrature checks the integrated quintic weights without using the production polynomial. Independent endpoint energy, work and momentum agree with the native records. The [record](_static/figures/shape_controls/run.json) retains both native sources, exact loading fingerprints, clock checks and endpoint Gauss/projection diagnostics. These prescribed controls have zero dark fields and no finite dark reservoir.
+
+On the inclusive $800\leq\tau\leq1000$ window, changing degree 2 to 5 changes mean total electric energy by **{{ shape_electric_mean_change_percent }}%**, mean nonzero-mode energy by **{{ shape_nonzero_mean_change_percent }}%**, and injected work by **{{ shape_work_change_percent }}%**. Local electron/ion spread **increments** at $2\lambda_{D0}$ change by **{{ shape_local_spread_increment_0_change_percent }}% / {{ shape_local_spread_increment_1_change_percent }}%**. The residual-rate difference is **{{ shape_injection_rate_difference }}$\omega_p$**, above the $10^{-5}\omega_p$ target. Each window uses 401 raw native samples; displayed field and density averages use the same trimmed 13-sample window as the timestep comparison. One matched loading does not supply uncertainty, and default GPU accumulation remains non-bitwise in both shapes. Higher-order weighting improves the work ledger here, but does not establish late convergence or agreement with the paper's conversion rate.
+
+Separate 100-step GPU probes use the same loading, grid and timestep, three calls to each compiled executable, and independent NumPy charge references. They completed before unrelated compute contention affected the long campaign. The table reports seconds and compiler temporary memory; process peaks include Python/JAX allocations.
+
+| Weighting | Deposit compile / warm (s) | 100 PIC steps compile / warm (s) | PIC temporary (MiB) | Process peak (MiB) |
+|---|---:|---:|---:|---:|
+| Degree 2 | {{ shape_2_deposition_compile_s }} / {{ shape_2_deposition_warm_median_s }} | {{ shape_2_short_run_compile_s }} / {{ shape_2_short_run_warm_median_s }} | {{ shape_2_short_run_compiler_temporary_MiB }} | {{ shape_2_rss_MiB }} |
+| Degree 5 | {{ shape_5_deposition_compile_s }} / {{ shape_5_deposition_warm_median_s }} | {{ shape_5_short_run_compile_s }} / {{ shape_5_short_run_warm_median_s }} | {{ shape_5_short_run_compiler_temporary_MiB }} | {{ shape_5_rss_MiB }} |
+
+[Cost companion](scripts/benchmark_field_cost.py) · `replay=True, cells=2000, particles=206000, dt=.005, steps=100, stride=100, shape_order=2` or `5`; [quadratic record](_static/figures/shape_controls/cost_quadratic.json), [quintic record](_static/figures/shape_controls/cost_quintic.json). JAX/CUDA packages are 0.6.2, x64, on an RTX A4000. The measured particle-step cost is about 1.69 times higher with quintic weighting. Both kernels pass the independent charge reference and vary at roundoff between calls under default settings. Long-run times are retained as shared-resource observations and are not used for throughput comparisons.
+
 #### Prospective late-conversion acceptance
 
 The attached paper starts from co-located neutral positions and independent finite-marker Gaussian velocities, without a prescribed spatial perturbation. An exactly homogeneous continuum stays homogeneous under its uniform driver. If a growing mode starts at noise amplitude proportional to $N_p^{-1/2}$, its onset approximately satisfies $\int_0^{\tau_{\rm nl}}\gamma(\tau)d\tau=\tfrac12\log N_p+C$. Particle refinement can therefore change the experiment's trigger as well as its numerical error. The unseeded finite-loading reproduction retains that sensitivity; a separate continuum extension fixes $m=16$, $k\lambda_{D0}=0.07948$ and $\delta u_e=0.05\sigma_e\cos(kx)$, with $\delta u_i=-\delta u_e/1836$. The seed preserves local neutral density and cancels its imposed particle momentum. Its cold quadratic energy scale is $6.25\times10^{-7}nm_ec^2L$, 0.125% of initial electron thermal energy. This extension requires a matched no-drive control and measured seed/noise dominance; it does not replace Figure 2 or establish a different mechanism by construction.
