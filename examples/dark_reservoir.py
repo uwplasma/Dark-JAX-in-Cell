@@ -33,6 +33,7 @@ from jaxincell import (Domain, Simulation, Solver, Species, elementary_charge as
                        epsilon_0, mass_electron, mass_proton, quiet_start,
                        provenance, save_run, speed_of_light as c)
 from jaxincell._simulation import _van_der_corput
+from jaxincell._core import wrap_positions
 from darkjaxincell import DarkField, DarkSimulation, PrescribedDrive, load_state, midnight, save_state
 from darkjaxincell._proca import energy as dark_energy
 
@@ -44,7 +45,7 @@ from drive_reference import forced_cold, gaussian_tangent, homogeneous  # noqa: 
 
 
 # Inputs: the default is a small mobile-ion comparison.
-study = globals().get('study', 'mobile_ions')  # pair_table varies one archived prescribed branch.
+study = globals().get('study', 'mobile_ions')  # pair_table/pair_dt vary one archived prescribed branch.
 full = globals().get('full', False)
 output = Path(globals().get('output', 'artifacts/dark_reservoir'))
 # Paper controls use omega_p time units and markers per species.
@@ -61,6 +62,7 @@ initial_state = globals().get('initial_state', None)
 initial_state = None if initial_state is None else Path(initial_state)
 samples = globals().get('samples', 1)  # pair_repeat executions reuse one exact archived state/table.
 table_every = globals().get('table_every', 1)  # pair_table retains every nth archived midpoint.
+pic_dt = globals().get('pic_dt', None)  # pair_dt changes PIC dt in omega0 units, preserving the SI force table.
 observe_executable = globals().get('observe_executable', False)  # Host-only repeat compilation evidence.
 momentum_seed = globals().get('momentum_seed', 0.)  # Electron δu / initial σe; zero keeps the paper loading.
 seed_mode = globals().get('seed_mode', 16)
@@ -717,12 +719,10 @@ def pair_repeat_initial(initial_state):
     return sim, start, setting
 
 
-def pair_decimated_drive(sim, setting, every, steps):
-    """Vary only the archived piecewise-linear force, retaining its first impulse."""
-    if every == 1:
-        return sim
+def pair_fine_table(sim, setting, steps):
+    """Require the archived fine table's actual accepted midpoint clocks."""
     if not setting['label'].endswith('_fine'):
-        raise ValueError('table decimation requires a fine prescribed donor')
+        raise ValueError('table/PIC timestep variation requires a fine prescribed donor')
     times, amplitude = np.asarray(sim.dark.times), np.asarray(sim.dark.amplitude)
     expected, clock, dt = np.empty(steps + 2), 0., float(sim.plasma.domain.dt)
     expected[0] = 0.
@@ -732,6 +732,14 @@ def pair_decimated_drive(sim, setting, every, steps):
     expected[-1] = clock
     if not np.array_equal(times, expected):
         raise ValueError('fine donor must retain every accepted native force midpoint and endpoint')
+    return times, amplitude
+
+
+def pair_decimated_drive(sim, setting, every, steps):
+    """Vary only the archived piecewise-linear force, retaining its first impulse."""
+    if every == 1:
+        return sim
+    times, amplitude = pair_fine_table(sim, setting, steps)
     selected = np.unique(np.r_[0, np.arange(1, len(times) - 1, every), len(times) - 1])
     kept_t, kept_a = times[selected], amplitude[selected]
     model = PrescribedDrive(sim.dark.eta, jnp.asarray(kept_a), sim.dark.omega,
@@ -746,14 +754,59 @@ def pair_decimated_drive(sim, setting, every, steps):
     return DarkSimulation(sim.plasma, model)
 
 
-def pair_repeat(folder, initial_state, samples=1, observe_executable=False, table_every=1):
-    """Replay the archived force, optionally varying its knots at unchanged PIC clocks."""
+def pair_pic_timestep(sim, start, setting, pic_dt):
+    """Restagger zero-time longitudinal particles; preserve the integer state and force."""
+    if pic_dt is None:
+        return sim, start
+    old = setting['dt_omega0']
+    if (isinstance(pic_dt, (bool, np.bool_)) or np.ndim(pic_dt) != 0
+            or not np.isfinite(pic_dt) or pic_dt <= 0 or pic_dt == old):
+        raise ValueError('pic_dt must be a distinct positive finite scalar')
+    p, o, d = sim.plasma, start.ordinary, sim.plasma.domain
+    if (getattr(p.solver, 'shape_order', 2) != 2 or p.external_B is not None or o.moments is not None
+            or any(value is not None and np.any(np.asarray(value)) for value in vars(o.wall).values())
+            or np.any(np.asarray(o.sigma)) or np.any(np.asarray(o.B))
+            or any(np.any(np.asarray(value)[:, 1:]) for value in (o.E, o.u, sim.dark.amplitude))
+            or any(getattr(start, key) is not None for key in ('E', 'B', 'A', 'phi'))
+            or float(start.initial_dark) != 0 or float(start.initial_projection_norm) != 0):
+        raise ValueError('PIC timestep replay requires a quadratic longitudinal prescribed state without walls/moments')
+    times, amplitude = pair_fine_table(sim, setting, round(setting['horizon_omega0'] / old))
+    blocks = setting['block_steps']
+    duration = blocks * old
+    new_blocks = round(duration / pic_dt)
+    if (type(blocks) is not int or blocks < 1 or new_blocks < 1
+            or not np.isclose(new_blocks * pic_dt, duration, rtol=0, atol=1e-10)):
+        raise ValueError('PIC timestep replay must preserve the physical block duration')
+    new_dt = float(pic_dt) / setting['normalization']['omega0_rad_s']
+    velocity, box = p._velocity(o.u), (d.length, d.length_y, d.length_z)
+    integer = wrap_positions(o.x - d.dt * velocity / 2, o.w, box, d.particle_bc, d.dx)
+    x = wrap_positions(integer + new_dt * velocity / 2, o.w, box, d.particle_bc, d.dx)
+    recovered = wrap_positions(x - new_dt * velocity / 2, o.w, box, d.particle_bc, d.dx)
+    error = np.max(abs((np.asarray(recovered)[:, 0] - np.asarray(integer)[:, 0]
+                        + d.length / 2) % d.length - d.length / 2)) / d.length
+    if error > 2e-13:
+        raise ValueError('PIC timestep restaggering exceeds the canonical position bound')
+    setting.update(dt_omega0=float(pic_dt), block_steps=new_blocks,
+                   initial_state_source='Complete archived integer-time state; longitudinal positions restaggered')
+    setting['pic_dt_replay'] = dict(
+        donor_dt_omega0=old, pic_dt_omega0=float(pic_dt), block_horizon_omega0=duration,
+        canonical_integer_positions_sha256=array_fingerprint(integer), canonical_position_error_over_L=float(error),
+        times_sha256=array_fingerprint(times), amplitude_sha256=array_fingerprint(amplitude),
+        intervention='Same archived piecewise-linear force and integer-time state; PIC timestep/restaggering changed.')
+    return DarkSimulation(p.replace(domain=d.replace(time_step=new_dt)), sim.dark), start.replace(
+        ordinary=o.replace(x=x))
+
+
+def pair_repeat(folder, initial_state, samples=1, observe_executable=False, table_every=1, pic_dt=None):
+    """Replay an archived force, varying either its knots or the longitudinal PIC timestep."""
     if (type(samples) is not int or samples < 1 or type(table_every) is not int or table_every < 1
-            or table_every > 1 and samples != 1):
-        raise ValueError('samples/table_every must be positive integers; varied-table replays use one execution')
+            or table_every > 1 and samples != 1 or pic_dt is not None and (table_every != 1 or samples != 1)):
+        raise ValueError('positive integer samples/table_every required; varied replays use one execution, '
+                         'and PIC timestep replay retains the force table')
     if type(observe_executable) is not bool:
         raise ValueError('observe_executable must be a boolean')
     sim, start, setting = pair_repeat_initial(initial_state)
+    sim, start = pair_pic_timestep(sim, start, setting, pic_dt)
     wp, energy_scale = [setting['normalization'][key] for key in ('omega0_rad_s', 'energy_scale_J_m2')]
     dtau, horizon, cadence = [setting[key] for key in ('dt_omega0', 'horizon_omega0', 'scalar_dt_omega0')]
     scales = np.asarray(setting['local_spread_lengths_c_over_omega0']) * c / wp
@@ -792,7 +845,8 @@ def pair_repeat(folder, initial_state, samples=1, observe_executable=False, tabl
 
     for index in range(samples):
         destination = Path(folder) / f'execution_{index + 1}' if samples > 1 else Path(folder)
-        action = 'table replay' if table_every > 1 else 'archived repeat'
+        action = ('PIC timestep replay' if pic_dt is not None else
+                  'table replay' if table_every > 1 else 'archived repeat')
         with elapsed_progress(f"{setting['label']} {action} {index + 1}/{samples}"):
             final, values, maximum, _, compile_s, warm_s, memory = paper_run(
                 sim, start, steps, stride, blocks * dtau, wp, jnp.asarray(scales) if setting['local_moments'] else None,
@@ -807,13 +861,16 @@ def pair_repeat(folder, initial_state, samples=1, observe_executable=False, tabl
                        local_spread_initial=(np.asarray(coarse_spread(sim, start, scales)) / energy_scale).tolist(),
                        local_spread_final=(np.asarray(coarse_spread(sim, final, scales)) / energy_scale).tolist(),
                        execution_index=index + 1, samples=samples,
-                       claim=('Archived state/timestep; prescribed table changed, not an exact-force repeat.'
+                       claim=('Archived force/integer-time state; PIC timestep changed, not an exact-state repeat.'
+                              if pic_dt is not None else
+                              'Archived state/timestep; prescribed table changed, not an exact-force repeat.'
                               if table_every > 1 else
                               'Exact archived force/state; donor and producer sources are recorded separately.'),
                        timing_note=('One postcompile execution per call; local executable observations are separate.'
                                     if observe_executable else
                                     'One postcompile execution per call; executable identity is not asserted.'))
-        save_run(destination, 'pair_waveform_table_replay' if table_every > 1 else 'pair_waveform_repeat',
+        save_run(destination, 'pair_waveform_pic_dt_replay' if pic_dt is not None else
+                 'pair_waveform_table_replay' if table_every > 1 else 'pair_waveform_repeat',
                  setting, results, **values)
         np.savez_compressed(destination / 'data.npz', **values)
         histories.append(dict(history=values, settings=setting, results=results))
@@ -1770,11 +1827,15 @@ if __name__ == "__main__":  # noqa: C901
         pair_repeat(output, initial_state, samples, observe_executable)
     elif study == 'pair_table':
         pair_repeat(output, initial_state, samples, observe_executable, table_every=table_every)
+    elif study == 'pair_dt':
+        if pic_dt is None:
+            raise ValueError('pair_dt requires pic_dt in omega0 units')
+        pair_repeat(output, initial_state, samples, observe_executable, pic_dt=pic_dt)
     elif study == 'paper_pilot':
         paper_geometry_pilot(output)
     elif study != 'mobile_ions':
         raise ValueError('study must be mobile_ions, paper, paper_continue, pair, pair_dark, pair_waveform, '
-                         'pair_repeat, pair_table or paper_pilot')
+                         'pair_repeat, pair_table, pair_dt or paper_pilot')
     else:
         presets = ((64, 4000, 0.04, 40), (128, 8000, 0.02, 40)) if full else (
             (32, 1000, 0.08, 20),)

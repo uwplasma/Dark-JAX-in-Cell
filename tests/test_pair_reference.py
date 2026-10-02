@@ -250,7 +250,7 @@ def test_waveform_initial_archive_rejects_changed_experiment(tmp_path, waveform_
         pair_waveform_control(tmp_path, 512, 2, dtau, .05, **settings)
 
 
-@pytest.mark.parametrize('study', ['pair_waveform', 'pair_repeat', 'pair_table'])
+@pytest.mark.parametrize('study', ['pair_waveform', 'pair_repeat', 'pair_table', 'pair_dt'])
 def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path, study):
     import ast
     from pathlib import Path
@@ -261,16 +261,17 @@ def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path, study)
     def stub(*args, **kwargs):
         calls.append((args, kwargs))
 
-    namespace = {**vars(example), '__name__': '__main__', 'study': study, 'samples': 2, 'table_every': 2,
+    namespace = {**vars(example), '__name__': '__main__', 'study': study,
+                 'samples': 2, 'table_every': 2, 'pic_dt': .0125,
                  'initial_state': tmp_path / 'initial.npz', 'pair_waveform_control': stub, 'pair_repeat': stub}
     # Execute the actual dispatch block with a producer stub, avoiding five runs.
     dispatch = ast.parse(Path(example.__file__).read_text()).body[-1]
     exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
     assert len(calls) == 1
     assert calls[0][0][-1 if study == 'pair_waveform' else 1] == namespace['initial_state']
-    if study in ('pair_repeat', 'pair_table'):
+    if study in ('pair_repeat', 'pair_table', 'pair_dt'):
         assert calls[0][0][2:] == (2, False)
-        assert calls[0][1] == (dict(table_every=2) if study == 'pair_table' else {})
+        assert calls[0][1] == ({'pair_table': dict(table_every=2), 'pair_dt': dict(pic_dt=.0125)}.get(study, {}))
 
 
 @pytest.fixture
@@ -400,6 +401,147 @@ def test_archived_pair_table_changes_only_force_knots_and_retains_complete_resta
     monkeypatch.setattr(comparator, '_pair_source', lambda _: (record, run['history'], {}))
     with pytest.raises(ValueError, match='complete quadratic realized-force branches'):
         comparator.pair_repeat_comparison((folder, folder))
+
+
+def test_archived_pair_pic_dt_preserves_force_integer_state_charge_energy_and_complete_restart(
+        tmp_path, prescribed_pair_archive, monkeypatch):
+    import json
+    from darkjaxincell import load_state
+    from docs.scripts import compare_replays as comparator
+    from examples import dark_reservoir as example
+
+    path, donor, initial = prescribed_pair_archive
+    sim, start, setting = example.pair_repeat_initial(path)
+    unchanged = example.pair_pic_timestep(sim, start, setting, None)
+    assert unchanged[0] is sim and unchanged[1] is start
+    changed, shifted = example.pair_pic_timestep(sim, start, setting, .0125)
+    length, dx = float(sim.plasma.domain.length), float(sim.plasma.domain.dx)
+    momentum = np.asarray(start.ordinary.u)
+    gamma = np.sqrt(1 + np.sum((momentum / example.c)**2, axis=1))
+    velocity = momentum / gamma[:, None]
+    integer = (np.asarray(start.ordinary.x)[:, 0] - float(sim.plasma.domain.dt) * velocity[:, 0] / 2
+               + length / 2) % length - length / 2
+    recovered = (np.asarray(shifted.ordinary.x)[:, 0] - float(changed.plasma.domain.dt) * velocity[:, 0] / 2
+                 + length / 2) % length - length / 2
+    np.testing.assert_allclose(recovered / length, integer / length, rtol=0, atol=2e-13)
+    # Independent cardinal S2 deposit at integer positions; stored rho is never replaced.
+    r = (recovered - float(sim.plasma.domain.grid[0])) / dx
+    nearest = np.floor(r + .5).astype(int)
+    delta = r - nearest
+    weights = np.stack((.5 * (.5 - delta)**2, .75 - delta**2, .5 * (.5 + delta)**2), axis=1)
+    charge = np.concatenate([np.full(s.n, s.charge_si) for s in sim.plasma.species])
+    rho = np.zeros(sim.plasma.domain.cells)
+    np.add.at(rho, (nearest[:, None] + [-1, 0, 1]) % len(rho),
+              charge[:, None] * np.asarray(start.ordinary.w)[:, None] * weights / dx)
+    density = sim.plasma.species[0].density
+    np.testing.assert_allclose(rho / (example.e * density), start.ordinary.rho / (example.e * density),
+                               rtol=0, atol=1e-10)
+    mass = np.concatenate([np.full(s.n, s.mass) for s in sim.plasma.species])
+    kinetic = np.sum(mass * np.asarray(start.ordinary.w) * np.sum(momentum**2, axis=1) / (gamma + 1))
+    total = kinetic + .5 * example.epsilon_0 * dx * np.sum(np.asarray(start.ordinary.E)**2)
+    np.testing.assert_allclose(total, float(start.initial_ordinary), rtol=2e-13)
+    folder = tmp_path / 'pic_dt'
+    run = example.pair_repeat(folder, path, pic_dt=.0125)[0]
+    with np.load(path) as original, np.load(folder / 'initial_state.npz') as restored:
+        assert original.files == restored.files
+        for key in original.files:
+            expected = {'x': shifted.ordinary.x, 'dark.dt': changed.plasma.domain.dt}.get(key, original[key])
+            np.testing.assert_array_equal(restored[key], expected)
+    final = load_state(folder / 'final_state.npz', changed)
+    assert int(final.ordinary.steps) == 4 and float(final.ordinary.time) == float(run['history']['t'][-1])
+    assert float(final.work) == float(run['history']['work'][-1])
+    with pytest.raises(ValueError, match='dark.dt'):
+        load_state(folder / 'initial_state.npz', donor)
+    info = run['settings']['pic_dt_replay']
+    assert (info['donor_dt_omega0'], info['pic_dt_omega0'], info['block_horizon_omega0']) == (.025, .0125, .05)
+    assert run['settings']['forcing_native_dt_omega0'] == .025 and run['settings']['block_steps'] == 4
+    for key in ('times', 'amplitude'):
+        assert info[key + '_sha256'] == example.array_fingerprint(getattr(donor.dark, key))
+    record = json.loads((folder / 'run.json').read_text())
+    assert record['example'] == 'pair_waveform_pic_dt_replay' and str(path) not in json.dumps(record)
+    assert 'not an exact-state repeat' in run['results']['claim']
+    monkeypatch.setattr(comparator, '_pair_source', lambda _: (record, run['history'], {}))
+    with pytest.raises(ValueError, match='complete quadratic realized-force branches'):
+        comparator.pair_repeat_comparison((folder, folder))
+
+
+def test_pic_dt_restagger_crosses_periodic_wall_and_matches_independent_relativistic_work(prescribed_pair_archive):
+    from examples import dark_reservoir as example
+
+    path, _, _ = prescribed_pair_archive
+    sim, state, setting = example.pair_repeat_initial(path)
+    p, o, d = sim.plasma, state.ordinary, sim.plasma.domain
+    mass, charge = (np.asarray(value) for value in p.per_particle)
+    u0 = np.zeros_like(o.u)
+    u0[:, 0] = np.where(charge < 0, .25, -.11) * example.c
+    gamma0 = np.sqrt(1 + np.sum((u0 / example.c)**2, axis=1))
+    v0 = u0 / gamma0[:, None]
+    count = p.species[0].n
+    # A uniform lattice shifted near the right wall includes genuine wrap crossings.
+    integer = np.tile(np.asarray(p.species[0].x), (2, 1))
+    integer[:, 0] = (integer[:, 0] + d.length / (2 * count) - .001 * example.c / 1e9
+                     + d.length / 2) % d.length - d.length / 2
+    old_x = integer.copy()
+    old_x[:, 0] = (integer[:, 0] + d.dt * v0[:, 0] / 2 + d.length / 2) % d.length - d.length / 2
+    field = setting['normalization']['field_scale_V_m']
+    E0 = np.zeros_like(o.E)
+    E0[:, 0] = .02 * field
+    state = state.replace(ordinary=o.replace(x=example.jnp.asarray(old_x), u=example.jnp.asarray(u0),
+                                             E=example.jnp.asarray(E0), rho=example.jnp.zeros_like(o.rho)))
+    replay, start = example.pair_pic_timestep(sim, state, setting, .0125)
+    dt = float(replay.plasma.domain.dt)
+    expected_x = integer.copy()
+    expected_x[:, 0] = (integer[:, 0] + dt * v0[:, 0] / 2 + d.length / 2) % d.length - d.length / 2
+    np.testing.assert_allclose(start.ordinary.x / d.length, expected_x / d.length, rtol=0, atol=2e-13)
+    assert np.any(abs(old_x[:, 0] - integer[:, 0]) > d.length / 2)
+    # Independent uniform Ampere half-kick and the fixed table's midpoint value.
+    current = np.sum(charge * np.asarray(o.w) * v0[:, 0]) / d.length
+    Ehalf = .02 * field - dt / 2 * current / example.epsilon_0
+    drive = np.interp(dt / 2, np.asarray(sim.dark.times), np.asarray(sim.dark.amplitude)[:, 0])
+    u1 = u0.copy()
+    u1[:, 0] += np.asarray(o.qm) * dt * (Ehalf + sim.dark.eta * drive)
+    gamma1 = np.sqrt(1 + np.sum((u1 / example.c)**2, axis=1))
+    mean_v = (u0[:, 0] + u1[:, 0]) / (gamma0 + gamma1)
+    work = dt * np.sum(charge * np.asarray(o.w) * sim.dark.eta * drive * mean_v)
+    accepted = replay._step(start, replay.plasma.per_particle)[0]
+    np.testing.assert_allclose(accepted.ordinary.u / example.c, u1 / example.c, rtol=0, atol=2e-13)
+    np.testing.assert_allclose(float(accepted.work), work, rtol=2e-13)
+    energy = [np.sum(mass * np.asarray(o.w) * np.sum(u**2, axis=1) / (gamma + 1))
+              for u, gamma in ((u0, gamma0), (u1, gamma1))]
+    np.testing.assert_allclose(energy[1] - energy[0], work + dt * np.sum(charge * np.asarray(o.w) * mean_v * Ehalf),
+                               rtol=2e-13)
+
+
+@pytest.mark.parametrize('change', ['zero', 'boolean', 'equal', 'nan', 'table', 'samples', 'coverage',
+                                    'B', 'E', 'u', 'drive', 'sigma', 'wall', 'moments', 'external_B'])
+def test_archived_pair_pic_dt_rejects_incompatible_variations(tmp_path, prescribed_pair_archive, change):
+    from darkjaxincell import DarkSimulation, PrescribedDrive
+    from examples import dark_reservoir as example
+
+    path, _, _ = prescribed_pair_archive
+    dtau = {'zero': 0., 'boolean': True, 'equal': .025, 'nan': np.nan, 'coverage': .005}.get(change, .0125)
+    if change in ('table', 'samples', 'coverage', 'zero', 'boolean', 'equal', 'nan'):
+        with pytest.raises(ValueError):
+            example.pair_repeat(tmp_path / 'bad', path, pic_dt=dtau,
+                                table_every=2 if change == 'table' else 1, samples=2 if change == 'samples' else 1)
+        return
+    sim, state, setting = example.pair_repeat_initial(path)
+    o = state.ordinary
+    if change in ('B', 'E', 'u'):
+        state = state.replace(ordinary=o.replace(**{change: getattr(o, change).at[0, 1].set(1.)}))
+    elif change == 'drive':
+        drive = PrescribedDrive(sim.dark.eta, sim.dark.amplitude.at[0, 1].set(1.), 0., times=sim.dark.times)
+        sim = DarkSimulation(sim.plasma, drive)
+    elif change == 'external_B':
+        sim = DarkSimulation(sim.plasma.replace(external_B=example.jnp.ones_like(o.B)), sim.dark)
+    else:
+        value = {
+            'sigma': example.jnp.ones_like(o.sigma),
+            'wall': o.wall.replace(momentum=example.jnp.ones_like(o.wall.momentum)),
+            'moments': example.jnp.zeros((2, 4, sim.plasma.domain.cells))}[change]
+        state = state.replace(ordinary=o.replace(**{change: value}))
+    with pytest.raises(ValueError, match='quadratic longitudinal'):
+        example.pair_pic_timestep(sim, state, setting, dtau)
 
 
 @pytest.mark.parametrize('change', ['zero', 'boolean', 'fraction', 'samples', 'coarse', 'midpoint'])
