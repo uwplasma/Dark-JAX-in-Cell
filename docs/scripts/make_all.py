@@ -442,8 +442,10 @@ if 'finer_step' in pair_pic_record:
     for key, suffix in (('work_increment', 'work'), ('injection_rate_over_wp', 'rate')):
         a, b = (row[key] for row in late['reductions'])
         measured[f'pair_fixed_pic_finer_{suffix}_change_percent'] = f'{100 * (b - a) / abs(a):+.3f}'
-    measured['pair_fixed_pic_finer_mode_percent'] = (
-        f"{100 * late['observables']['mode_E']['relative_l2_difference']:.3f}")
+    for key, suffix in (('mean_E', 'mean'), ('electric', 'electric'),
+                        ('nonzero_electric', 'nonzero'), ('mode_E', 'mode')):
+        measured[f'pair_fixed_pic_finer_{suffix}_percent'] = (
+            f"{100 * late['observables'][key]['relative_l2_difference']:.3f}")
     measured['pair_fixed_pic_finer_phase_rad'] = (
         f"{late['mode_phase']['reference_amplitude_squared_weighted_rms_rad']:.4f}")
     for key, suffix in (('global_defect_sum_over_abs_work_difference', 'difference'),

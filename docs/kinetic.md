@@ -353,29 +353,34 @@ The [measurement record](_static/figures/pair_waveform_long/table_resolution.jso
 
 #### PIC timesteps with a fixed driving waveform
 
-The fine donor uses [472ebfe](https://github.com/uwplasma/Dark-JAX-in-Cell/tree/472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad); the coarser replay uses [faa08ef](https://github.com/uwplasma/Dark-JAX-in-Cell/tree/faa08ef6582249a262dcde9f5f9d3f868e4a74cb). Both have 8,192 cells, 1,048,576 particles per species, parent `2d693cb`, JAX/CUDA 0.6.2 and float64. The native SI piecewise-linear force and its knot times are byte-identical. All complete initial leaves except positions and the timestep are identical, including momenta, physical weights, fields, charge/background, reference energies, work and key.
+The donor uses [472ebfe](https://github.com/uwplasma/Dark-JAX-in-Cell/tree/472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad); the coarser replay uses [faa08ef](https://github.com/uwplasma/Dark-JAX-in-Cell/tree/faa08ef6582249a262dcde9f5f9d3f868e4a74cb), and the finer replay uses [e8628aa](https://github.com/uwplasma/Dark-JAX-in-Cell/tree/e8628aaf6e630420d6aa8e58621ad5ef159cd0a0). All have 8,192 cells, 1,048,576 particles per species, parent `2d693cb`, JAX/CUDA 0.6.2 and float64. The donor and coarse replay have byte-identical native SI piecewise-linear force tables. The finer run appends two genuine coupled-step knots for endpoint coverage: all 217,600 PIC midpoints remain inside the byte-identical original 108,802-knot prefix. The whole-table hash and compile shape change; no clamp or extrapolation supplies the tail.
+
+Every complete initial leaf except positions, timestep and the explicitly extended force arrays is identical, including momenta, physical weights, fields, charge/background, reference energies, work and key. The continuation restores the complete coupled checkpoint and preserves its original references and all nine maxima. It changes neither the original force prefix nor the prescribed donor's particle preparation.
 
 The periodic integer-time position is reconstructed by reversing the donor's half drift, then advanced by the new half drift. Independent NumPy reconstruction agrees within $1.7\times10^{-16}L$. Neither fields nor charge are redeposited. The two runs sample the same waveform at different PIC midpoints, retain their own accepted clocks and save 851 corresponding scalar samples at $0.2/\omega_0$ cadence through 170. Norms use these native samples without interpolation or phase alignment. Sources are reviewed as algorithm-matched; shared executable identity is unobserved, so the differences also include execution variation.
 
-| Measurement, 150–170 (101 samples) | Fine → coarse |
-|---|---:|
-| Fine work increment / $U_\star$ | {{ pair_fixed_pic_fine_work }} |
-| Coarse work increment / $U_\star$ | {{ pair_fixed_pic_coarse_work }} |
-| Work-increment change | {{ pair_fixed_pic_work_change_percent }}% |
-| Injection-rate change | {{ pair_fixed_pic_rate_change_percent }}% |
-| Mean-field trajectory $L^2$ difference | {{ pair_fixed_pic_mean_percent }}% |
-| Electric-energy trajectory $L^2$ difference | {{ pair_fixed_pic_electric_percent }}% |
-| Nonzero-electric-energy trajectory $L^2$ difference | {{ pair_fixed_pic_nonzero_percent }}% |
-| Raw complex-mode trajectory $L^2$ difference | {{ pair_fixed_pic_mode_percent }}% |
-| Reference-amplitude-squared-weighted phase RMS | {{ pair_fixed_pic_phase_rad }} rad |
+| Measurement, 150–170 (101 samples) | Donor → coarse | Donor → finer |
+|---|---:|---:|
+| $\Delta t\omega_0$ | $0.0015625\to0.003125$ | $0.0015625\to0.00078125$ |
+| Donor work increment / $U_\star$ | {{ pair_fixed_pic_fine_work }} | {{ pair_fixed_pic_finer_donor_work }} |
+| Replay work increment / $U_\star$ | {{ pair_fixed_pic_coarse_work }} | {{ pair_fixed_pic_finer_finer_work }} |
+| Work-increment change | {{ pair_fixed_pic_work_change_percent }}% | {{ pair_fixed_pic_finer_work_change_percent }}% |
+| Injection-rate change | {{ pair_fixed_pic_rate_change_percent }}% | {{ pair_fixed_pic_finer_rate_change_percent }}% |
+| Mean-field trajectory $L^2$ difference | {{ pair_fixed_pic_mean_percent }}% | {{ pair_fixed_pic_finer_mean_percent }}% |
+| Electric-energy trajectory $L^2$ difference | {{ pair_fixed_pic_electric_percent }}% | {{ pair_fixed_pic_finer_electric_percent }}% |
+| Nonzero-electric-energy trajectory $L^2$ difference | {{ pair_fixed_pic_nonzero_percent }}% | {{ pair_fixed_pic_finer_nonzero_percent }}% |
+| Raw complex-mode trajectory $L^2$ difference | {{ pair_fixed_pic_mode_percent }}% | {{ pair_fixed_pic_finer_mode_percent }}% |
+| Reference-amplitude-squared-weighted phase RMS | {{ pair_fixed_pic_phase_rad }} rad | {{ pair_fixed_pic_finer_phase_rad }} rad |
 
-[Companion simulation](../examples/dark_reservoir.py) · `study='pair_dt', pic_dt=.003125, initial_state=donor/'initial_state.npz'`; [JSON reduction](scripts/compare_replays.py) · `pair_pic_steps=(fine, coarse)`; [complete regeneration recipe](scripts/make_all.py).
+[Companion simulation](../examples/dark_reservoir.py) · `study='pair_dt', pic_dt=.00078125, initial_state=donor/'initial_state.npz', force_extension=tail`; prepare `tail` with `study='pair_force_extension', initial_state=donor/'initial_state.npz'`. [JSON reduction](scripts/compare_replays.py) · `pair_pic_steps=(donor, finer), pair_pic_extension=tail`; [complete regeneration recipe](scripts/make_all.py).
 
-Historical reduction requires `pair_pic_transition=('472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad', 'faa08ef6582249a262dcde9f5f9d3f868e4a74cb')`. Fresh full regeneration uses one source revision and omits that transition. The full-history complex-mode difference is only 0.412%; the late 15.856% failure must be retained. All other original 1%/5% trajectory gates pass, including local kinetic spread and density. Frames remain correlated samples, not independent realizations.
+Historical reduction requires `pair_pic_transition=('472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad', replay_git)`, with `replay_git` equal to the full coarse or finer source SHA above. Fresh full regeneration uses one source revision and omits that transition. The coarse full-history complex-mode difference is only 0.412%; both late failures remain. All other original 1%/5% trajectory gates pass, including local kinetic spread and density. The adjacent complex differences have ratio 0.862, while local-spread differences increase; this is not uniform contraction or an observed asymptotic order. Frames remain correlated samples, not independent realizations.
 
-Both global and two-endpoint ledger bounds pass the original 0.1% budget relative to late transferred work: the largest two-endpoint ratio is **{{ pair_fixed_pic_max_two_endpoint_transfer_percent }}%**. Relative to the smaller difference in work, their ratios are **{{ pair_fixed_pic_difference_budget }}** and **{{ pair_fixed_pic_two_endpoint_difference_budget }}**, above the $10^{-3}$ budget. The rate-accounting ratio **{{ pair_fixed_pic_rate_budget }}** also exceeds its original $1/3$ bound. Thus the small work/rate changes are unresolved by those accounting gates.
+Both global and two-endpoint ledger bounds pass the original 0.1% budget relative to late transferred work: the largest two-endpoint ratios are **{{ pair_fixed_pic_max_two_endpoint_transfer_percent }}%** (coarse pair) and **{{ pair_fixed_pic_finer_max_two_endpoint_transfer_percent }}%** (finer pair). The finer largest global ratio is **{{ pair_fixed_pic_finer_max_transfer_percent }}%**. Relative to the smaller work differences, global/two-endpoint ratios are **{{ pair_fixed_pic_difference_budget }}/{{ pair_fixed_pic_two_endpoint_difference_budget }}** and **{{ pair_fixed_pic_finer_difference_budget }}/{{ pair_fixed_pic_finer_two_endpoint_difference_budget }}**, all above $10^{-3}$. The rate-accounting ratio **{{ pair_fixed_pic_rate_budget }}** fails its original $1/3$ bound; **{{ pair_fixed_pic_finer_rate_budget }}** passes. Passing this latter necessary bound does not resolve the remaining work or trajectory failures.
 
-The [measurement record](_static/figures/pair_waveform_long/pic_timestep.json) retains all nine maxima, complete archive fingerprints, endpoint checks and 14 scalar histories per run. Independent physical energy, momentum, charge redeposition and source-force checks pass. Original ordinary-Gauss failures remain: $6.91\times10^{-13}$ and $5.21\times10^{-13}$ exceed $2\times10^{-13}$; dark-Gauss and nominal-clock bounds pass. This fixed-force comparison does not certify late convergence or contradict the prescribed-drive results of [Hook, Huang and Shalaby](https://arxiv.org/pdf/2510.13956v1).
+The [measurement record](_static/figures/pair_waveform_long/pic_timestep.json) preserves its old coarse comparison and adds `finer_step`, with separate clean-validator/native-source provenance, all nine maxima, complete archive fingerprints and endpoint checks. Its fourteen finer scalar histories live in the existing `data.npz`; every prior array remains byte-identical. Independent physical energy, momentum, charge redeposition and source-force checks pass. Original ordinary-Gauss failures remain: $6.91\times10^{-13}$, $5.21\times10^{-13}$ and **{{ pair_fixed_pic_finer_gauss }}** exceed $2\times10^{-13}$. For these three prescribed runs, dark-Gauss and nominal-clock bounds pass; the coupled continuation retains both original Gauss failures.
+
+The finer replay compiles in **{{ pair_fixed_pic_finer_compile_s }} s**, takes **{{ pair_fixed_pic_finer_warm_primal_s }} s** for seventeen blocks, and uses **{{ pair_fixed_pic_finer_compiler_temporary_MiB }} MiB** of compiler temporary memory. These measurements include shared-resource conditions and establish no throughput advantage. This fixed-force sensitivity study neither certifies late convergence nor contradicts the prescribed-drive results of [Hook, Huang and Shalaby](https://arxiv.org/pdf/2510.13956v1).
 
 #### Exact forcing and execution repeats
 

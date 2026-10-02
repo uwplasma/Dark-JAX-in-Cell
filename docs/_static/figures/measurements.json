@@ -241,6 +241,63 @@
         "faa08ef6582249a262dcde9f5f9d3f868e4a74cb"
       ]
     },
+    "pair_fixed_force_pic_finer": {
+      "run": "pair_waveform_long/pic_timestep.json",
+      "record_key": "finer_step",
+      "validation_source": {
+        "git": "25b65b78f13a75dc0a37d4b89e9148263b3f39fd",
+        "script": "docs/scripts/compare_replays.py",
+        "script_sha256": "2db7435f98583532ccd636cfa619a8df72e122edfe318071f2b56cb6c0f95f55",
+        "numpy": "2.2.2",
+        "tracked_source_dirty": false
+      },
+      "native_git": [
+        "472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad",
+        "e8628aaf6e630420d6aa8e58621ad5ef159cd0a0"
+      ],
+      "scalar_histories": {
+        "file": "data.npz",
+        "file_sha256": "d9b4da5fc97024d32fc7b3175d10aa40e42adef5e342eb5113cecdd2e344d03f",
+        "keys": {
+          "density_rms": "fixed_pic_finer_density_rms",
+          "electric": "fixed_pic_finer_electric",
+          "kinetic": "fixed_pic_finer_kinetic",
+          "local_density_rms": "fixed_pic_finer_local_density_rms",
+          "local_spread": "fixed_pic_finer_local_spread",
+          "magnetic": "fixed_pic_finer_magnetic",
+          "mean_E": "fixed_pic_finer_mean_E",
+          "mode_E": "fixed_pic_finer_mode_E",
+          "momentum": "fixed_pic_finer_momentum",
+          "rms": "fixed_pic_finer_rms",
+          "spread": "fixed_pic_finer_spread",
+          "t": "fixed_pic_finer_t",
+          "work": "fixed_pic_finer_work",
+          "nonzero_electric": "fixed_pic_finer_nonzero_electric"
+        },
+        "array_sha256": {
+          "fixed_pic_finer_density_rms": "7eb8febfad4b167094f8f47d0262dae29e1a071928f71054f3c533bfa7c0c95d",
+          "fixed_pic_finer_electric": "57fcb0ae62554df2193415e9be0229229665a2bceff2c3bbadc6b48c092ec83d",
+          "fixed_pic_finer_kinetic": "380f1c8d0e66b9732ec11c48e617de59868932844a0b62a2218a43529c02cbec",
+          "fixed_pic_finer_local_density_rms": "346616d368d8bb37b646868a0e1a86d0b8ee00f1703b38fb35d74f5b667d7ab7",
+          "fixed_pic_finer_local_spread": "9557ddf26e2db57043b041d9b7a5096ed77d7c5278ee71539f8d8264f081ef52",
+          "fixed_pic_finer_magnetic": "796676c097be9a756875243648c2e470f54662737c94fc2fb9336ae8fead0cfe",
+          "fixed_pic_finer_mean_E": "ac3caa0b00b1efcebe276867ac8ac68952c36d9adc3eee97117caf19d6ff0a8a",
+          "fixed_pic_finer_mode_E": "7faee89fa490bfc485e3f22c8e8ca35cf9b9339fe102d24850fc2cd9cc154942",
+          "fixed_pic_finer_momentum": "6db348137067ead626100f7b2f18b8b36e6910803062ebd475adaaf8b6b88e4d",
+          "fixed_pic_finer_rms": "a82a7ea1bfeddcfbafbf08bd14603dda1b9bc7b64a852cd34ab8fc33f69966d4",
+          "fixed_pic_finer_spread": "854de3cd2395ca023acc8f02a54a9cf994d56f02c9c302e0991b6fa84ae2d5d1",
+          "fixed_pic_finer_t": "6cb69834e1b0c53b7264a6c05fc40104e2bd1060357cf0bacd052edca1ac71af",
+          "fixed_pic_finer_work": "f18664416373cb35151f288f9d1ae4a5909e15192ef03c30c2c394a289bc4c45",
+          "fixed_pic_finer_nonzero_electric": "db8e61f270084ae12a3f74504cfacb2d94a0d3fbbf4ca029fd2350c6125aedb3"
+        }
+      },
+      "native_sha256": {
+        "run_sha256": "480da4f3d0106a42a9eb9c5f7501bf27c2a70dc8723ac55653df3a36059a6ec5",
+        "data_sha256": "55bfbb5a03be5fe29c100d273a33ae202b13c45e866166b334b334f75095144d",
+        "initial_state_sha256": "12dbf506767fbadc9c04fe9113b5a49dbc6f312a4fc614ef04b23fe2c0e7809f",
+        "final_state_sha256": "93fe82137cb4cf7f55c994f433bd8ecd2962e55d1336c330ce6d09990ca83cef"
+      }
+    },
     "pair_execution_repeat": {
       "run": "pair_waveform_long/execution_repeat.json",
       "validation_source": {
@@ -777,6 +834,24 @@
   "pair_fixed_pic_two_endpoint_difference_budget": "0.3487",
   "pair_fixed_pic_rate_budget": "0.3465",
   "pair_fixed_pic_max_two_endpoint_transfer_percent": "0.0759",
+  "pair_fixed_pic_finer_donor_work": "9.402517785e-04",
+  "pair_fixed_pic_finer_finer_work": "9.353900709e-04",
+  "pair_fixed_pic_finer_work_change_percent": "-0.517",
+  "pair_fixed_pic_finer_rate_change_percent": "-0.461",
+  "pair_fixed_pic_finer_mean_percent": "0.055",
+  "pair_fixed_pic_finer_electric_percent": "0.066",
+  "pair_fixed_pic_finer_nonzero_percent": "0.761",
+  "pair_fixed_pic_finer_mode_percent": "13.661",
+  "pair_fixed_pic_finer_phase_rad": "0.0972",
+  "pair_fixed_pic_finer_difference_budget": "0.1449",
+  "pair_fixed_pic_finer_two_endpoint_difference_budget": "0.2897",
+  "pair_fixed_pic_finer_rate_budget": "0.3251",
+  "pair_fixed_pic_finer_max_transfer_percent": "0.0376",
+  "pair_fixed_pic_finer_max_two_endpoint_transfer_percent": "0.0751",
+  "pair_fixed_pic_finer_gauss": "9.408e-13",
+  "pair_fixed_pic_finer_compile_s": "7.807",
+  "pair_fixed_pic_finer_warm_primal_s": "4535.313",
+  "pair_fixed_pic_finer_compiler_temporary_MiB": "304.417",
   "pair_repeat_full_mode_E": "2.701e-09",
   "pair_repeat_full_nonzero_electric": "1.268e-09",
   "pair_repeat_full_phase_rad": "2.201e-09",

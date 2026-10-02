@@ -383,18 +383,18 @@ Both comparisons exceed the 5% trajectory target on $150\leq\omega_0t\leq170$. B
 
 ### PIC timesteps with a fixed driving waveform
 
-Two **2,097,152-particle** runs use exactly the same archived driving waveform at $\Delta t\omega_0=0.0015625$ and $0.003125$. Integer-time particle preparation is preserved; positions are staggered for each timestep.
+Three **2,097,152-particle** runs sample one archived driving waveform at different timesteps. Integer-time particle preparation is preserved; positions are staggered for each timestep.
 
-| Difference over $150\leq\omega_0t\leq170$ | Measurement |
-|---|---:|
-| Transferred-work change, fine → coarse | +0.434% |
-| Complex electric-mode $L^2$ difference | 15.856% |
-| Nonzero-electric-energy $L^2$ difference | 0.830% |
-| Amplitude-weighted phase RMS | 0.1172 rad |
+| Difference over $150\leq\omega_0t\leq170$ | $0.0015625\to0.003125$ | $0.0015625\to0.00078125$ |
+|---|---:|---:|
+| Transferred-work change | +0.434% | −0.517% |
+| Injection-rate change | +0.437% | −0.461% |
+| Complex electric-mode $L^2$ difference | 15.856% | 13.661% |
+| Amplitude-weighted phase RMS | 0.1172 rad | 0.0972 rad |
 
-[Simulation script](examples/dark_reservoir.py) · `study='pair_dt', pic_dt=.003125, initial_state=donor/'initial_state.npz'`; [reduction script](docs/scripts/compare_replays.py) · `pair_pic_steps=(fine, coarse)` ([full inputs](docs/scripts/make_all.py)); [native measurements](docs/_static/figures/pair_waveform_long/pic_timestep.json).
+[Simulation script](examples/dark_reservoir.py) · `study='pair_dt', pic_dt=.00078125, initial_state=donor/'initial_state.npz', force_extension=tail`; prepare `tail` with `study='pair_force_extension'` from the same donor. [Reduction script](docs/scripts/compare_replays.py) · `pair_pic_steps=(donor, finer), pair_pic_extension=tail` ([full inputs](docs/scripts/make_all.py)); [native measurements](docs/_static/figures/pair_waveform_long/pic_timestep.json).
 
-The complex mode exceeds the 5% trajectory target. Bulk observables pass their trajectory gates, while accounting bounds cannot resolve the small work difference. These separate executions establish timestep sensitivity at fixed forcing; they do not isolate truncation error or certify late conversion. Historical reduction requires `pair_pic_transition=(donor_git, replay_git)`, with the full source SHAs in the record. [Preparation, clocks and conservation](docs/kinetic.md#pic-timesteps-with-a-fixed-driving-waveform).
+Both complex-mode differences exceed the 5% target; bulk observables pass. The finer run's rate-accounting bound passes, but work-difference and Gauss checks still fail. A genuine coupled continuation supplies endpoint coverage; every finer PIC midpoint uses the byte-identical original force prefix. The whole table and compile shape change. These separate executions establish sensitivity, without certifying a convergence order or late conversion. Historical reduction also requires `pair_pic_transition=(donor_git, replay_git)`. [Preparation, clocks and conservation](docs/kinetic.md#pic-timesteps-with-a-fixed-driving-waveform).
 
 ### Exact forcing and execution repeats
 
