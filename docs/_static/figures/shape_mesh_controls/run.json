@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "c682c721422b8afed2fe817cd65f34aaf2c1c2fe",
+ "git": "5ec948b85bc59d9b13ebf23a5712b0c1422a5327-dirty",
  "example": "controlled_paper_replay",
  "settings": {
   "variant": "mesh",
@@ -1771,8 +1771,1995 @@
      "claim": "Fig. 2 parameter replay; late reproduction requires loading/grid/time/seed convergence",
      "initial_seed_noise": null
     }
+   },
+   {
+    "jaxincell": "0.7.dev302+g83d327118",
+    "jax": "0.6.2",
+    "numpy": "2.2.4",
+    "python": "3.10.12",
+    "platform": "Linux x86_64",
+    "jax_enable_x64": true,
+    "backend": "gpu",
+    "git": "34ba046bfde32e93a50e8f8f743a47316f09a898",
+    "example": "paper_resonant_conversion",
+    "settings": {
+     "source": "Hook, Huang, Shalaby arXiv:2510.13956v1 Fig. 2 and Appendix B",
+     "cells": 4000,
+     "particles_per_species": 824000,
+     "dt_omega_p": 0.0025,
+     "horizon_omega_p": 999.9999999934187,
+     "seed": 0,
+     "length_c_over_omega_p": 40,
+     "mass_ratio": 1836,
+     "T_each_over_mec2": 0.001,
+     "drive_quiver_over_sigma": 0.03,
+     "force_quiver_over_c": 0.0009486832980505137,
+     "coupling": null,
+     "output_dt_omega_p": 0.5,
+     "block_steps": 40000,
+     "block_horizon_omega_p": 100.0,
+     "local_moments_output_dt_omega_p": 0.5,
+     "initial_fingerprints": {
+      "loading": {
+       "x": "f3cbe9373f0721e46fef46962ffeee23e635d10132352ced2bebcef9fe6efb0f",
+       "v": "1fc0578bfe58a1316549c9a21cf4db70bfa3282df2c60c1d48b52cf7635d389e"
+      },
+      "state": {
+       "x": "d2b5d0ca4a9528e3c9b991a2e65a4662997b81453b7cd9def43b8f37ce3f0a39",
+       "u": "5b76c0ef80fc06517f0d11c70326ed05581dbf3d5eef473f021cf3be3422adf1",
+       "w": "b47ab4cebfeb09fee04e3f01d674013969d9b85b3034ff669b6491b0492cecaf",
+       "E": "ccd2c401d641308611de23ab15fbf1bd6613e69c2e7d9e8d1d8f4c1c50a43541",
+       "B": "e1decc84d52db6fe5c29784aef27b2f2cb8d3bd81187693b839e4237a7ec8889",
+       "rho": "cded94ff568eef6c27e6ab6ae815f7ee2af4ab2be394fc48fbae18849fe00bca"
+      }
+     },
+     "initial_state_source": "native initialization",
+     "timing": "one synchronized run including host scalar transfers; compilation reported separately",
+     "normalization": {
+      "omega_p_rad_s": 1000000000.0,
+      "field_scale_V_m": 1704509.0240267625,
+      "energy_scale_J_m2": 308.48072561081693,
+      "charge_density_C_m3": 5.034163677108044e-05,
+      "epsilon0_F_m": 8.8541878128e-12,
+      "c_m_s": 299792458.0
+     },
+     "local_spread_lengths_c_over_wp": [
+      0.06324555320336758,
+      0.12649110640673517
+     ],
+     "loading": "co-located lattice; independent Gaussian velocities, zero mean and exact variance",
+     "momentum_seed_over_sigma_e": 0.0,
+     "initial_rms_over_c": [
+      0.03162277660168379,
+      0.0007380124046167463
+     ],
+     "thermal_temperature_over_mec2": [
+      0.001,
+      0.001
+     ],
+     "seed_mode": null,
+     "seed_phase": null,
+     "recorded_mode": 1,
+     "mode_basis": "native fft index basis",
+     "pusher": "relativistic Boris; electric 1V uses the same momentum kick as Vay",
+     "shape": "quintic cell weights with face-centred gather; not the complete SHARP algorithm",
+     "shape_order": 5,
+     "XLA_FLAGS": "",
+     "inferred_t_noise": 0.424018209428987,
+     "parent_revision": "2d693cbd36f617545463132dd9af493d47600639"
+    },
+    "results": {
+     "early_mean_error_over_homogeneous_peak": 0.0010094275193973203,
+     "early_mean_error_over_cold_peak": 0.014643699011377735,
+     "max_energy_work_defect_over_initial_thermal": 0.0006687059584892135,
+     "max_momentum_defect_over_nmecL": 9.145378560004102e-15,
+     "max_particle_charge_change_over_enL": 0.0,
+     "max_grid_charge_change_over_enL": 1.2648589553154e-16,
+     "max_continuity_over_enwp": 1.3040364156709764e-13,
+     "max_ordinary_gauss_over_en_eps0": 1.3382183254468445e-12,
+     "max_dark_gauss_over_en_eps0": 0.0,
+     "max_dark_work_defect_over_nmc2L": 0.0,
+     "max_ordinary_work_defect_over_nmc2L": 6.687059584892135e-07,
+     "late_electron_spread_over_initial": 25.967003321056538,
+     "late_ion_spread_over_initial": 1.2923980610243293,
+     "late_electric_energy_over_initial_electron_thermal": 0.9880015045161774,
+     "late_nonzero_electric_energy_over_initial_electron_thermal": 0.8465488802007852,
+     "local_spread_final_over_initial": [
+      [
+       25.55532491515152,
+       25.56273981822655
+      ],
+      [
+       1.261106504190049,
+       1.2648265980591247
+      ]
+     ],
+     "final_particle_kinetic_increment": 0.014268948910244487,
+     "final_homogeneous_particle_kinetic_increment": 0.00025379162393952186,
+     "max_energy_work_defect_over_peak_injected_work": 4.5748239606760915e-05,
+     "max_speed_over_c": 0.8928123842082821,
+     "compile_s": 8.036504428950138,
+     "warm_primal_s": 10575.529856070061,
+     "compiler_temporary_MiB": 245.60394287109375,
+     "compiler_arguments_MiB": 100.80025100708008,
+     "compiler_outputs_MiB": 100.86035537719727,
+     "process_peak_MiB": 1355.90234375,
+     "claim": "Fig. 2 parameter replay; late reproduction requires loading/grid/time/seed convergence",
+     "initial_seed_noise": null
+    }
    }
   ],
-  "claim": "Controlled numerical sensitivity study; no convergence or statistical uncertainty claim"
+  "claim": "Controlled numerical sensitivity study; no convergence or statistical uncertainty claim",
+  "refined_against": "first",
+  "refinement_comparison": {
+   "variant": "resolution",
+   "initial_fingerprints": {
+    "verified": true,
+    "matches": {
+     "loading": {
+      "x": false,
+      "v": false
+     },
+     "state": {
+      "B": false,
+      "E": false,
+      "rho": false,
+      "u": false,
+      "w": false,
+      "x": false
+     }
+    }
+   },
+   "windows": [
+    {
+     "window_omega_p": [
+      0,
+      100
+     ],
+     "samples": 201,
+     "realization_summaries": [
+      {
+       "work_increment": 0.001105077840047354,
+       "injection_rate_over_wp": 0.008037006686709026,
+       "plasma_mean_energy": 0.0013749868366714282,
+       "electric_mean": 0.00018782288414904906,
+       "nonzero_electric_mean": 1.7057898668995356e-06,
+       "kinetic_increment_mean": [
+        0.0001862251897427549,
+        -1.9382350958093352e-07
+       ],
+       "spread_increment_mean": [
+        2.8501468825415307e-06,
+        -2.9356843639950975e-07
+       ],
+       "local_spread_increment_mean": [
+        [
+         2.4505971710598885e-06,
+         2.5754988650318647e-06
+        ],
+        [
+         -2.376472521157479e-07,
+         -2.8511094141180096e-07
+        ]
+       ]
+      },
+      {
+       "work_increment": 0.001109887423829487,
+       "injection_rate_over_wp": 0.008066909093564525,
+       "plasma_mean_energy": 0.0013758521522376787,
+       "electric_mean": 0.00018861232467200077,
+       "nonzero_electric_mean": 5.40921458144911e-07,
+       "kinetic_increment_mean": [
+        0.00018611622795441525,
+        -6.511350072328668e-09
+       ],
+       "spread_increment_mean": [
+        8.143007617807233e-07,
+        -1.0731105050796195e-07
+       ],
+       "local_spread_increment_mean": [
+        [
+         6.74502829451388e-07,
+         7.180415880869112e-07
+        ],
+        [
+         -9.264483436759192e-08,
+         -1.0383808160509577e-07
+        ]
+       ]
+      }
+     ],
+     "observables": {
+      "mean_E": {
+       "l2_difference": 0.0015853397250385952,
+       "reference_l2_norm": 0.2735307512902784,
+       "relative_l2_difference": 0.005795837278113527,
+       "max_absolute_difference": 0.00038975882759639813,
+       "reference_mean": 0.0004490803822265137,
+       "comparison_mean": 0.0004531698703488531
+      },
+      "rms": {
+       "l2_difference": [
+        0.0017245405810625224,
+        2.2031181475528855e-06
+       ],
+       "reference_l2_norm": [
+        0.44960622665481575,
+        0.010460059566114845
+       ],
+       "relative_l2_difference": [
+        0.0038356688115588197,
+        0.00021062195044183524
+       ],
+       "max_absolute_difference": [
+        0.0003750182925828169,
+        2.0660163851785908e-07
+       ],
+       "reference_mean": [
+        0.03171240460280482,
+        0.0007377957078571908
+       ],
+       "comparison_mean": [
+        0.03164847338313624,
+        0.000737933202644423
+       ]
+      },
+      "electric": {
+       "l2_difference": 4.657755214313099e-05,
+       "reference_l2_norm": 0.0043411321871664335,
+       "relative_l2_difference": 0.010729355876521542,
+       "max_absolute_difference": 1.5729172101798007e-05,
+       "reference_mean": 0.00018782288414904906,
+       "comparison_mean": 0.00018861232467200077
+      },
+      "nonzero_electric": {
+       "l2_difference": 1.892746817783235e-05,
+       "reference_l2_norm": 2.782802336050306e-05,
+       "relative_l2_difference": 0.6801585557347393,
+       "max_absolute_difference": 4.16617797247969e-06,
+       "reference_mean": 1.7057898668995356e-06,
+       "comparison_mean": 5.40921458144911e-07
+      },
+      "density_rms": {
+       "l2_difference": [
+        0.14503868920361607,
+        0.11825441229395368
+       ],
+       "reference_l2_norm": [
+        0.68561378018769,
+        0.6023951202056033
+       ],
+       "relative_l2_difference": [
+        0.21154576146925028,
+        0.1963070554980464
+       ],
+       "max_absolute_difference": [
+        0.01576859827790627,
+        0.011997681134073963
+       ],
+       "reference_mean": [
+        0.048149282096841356,
+        0.04056994432104106
+       ],
+       "comparison_mean": [
+        0.038136777931161284,
+        0.034121825141907494
+       ]
+      },
+      "local_spread": {
+       "l2_difference": [
+        [
+         4.434940824865026e-05,
+         4.807320704708606e-05
+        ],
+        [
+         6.312472607532871e-06,
+         4.92167549064539e-06
+        ]
+       ],
+       "reference_l2_norm": [
+        [
+         0.00711777744164492,
+         0.00712274643431875
+        ],
+        [
+         0.007079487725772929,
+         0.007081660943519344
+        ]
+       ],
+       "relative_l2_difference": [
+        [
+         0.0062307944596819405,
+         0.006749251498756179
+        ],
+        [
+         0.0008916566921293282,
+         0.0006949888634740941
+        ]
+       ],
+       "max_absolute_difference": [
+        [
+         8.957921298068734e-06,
+         9.746758274815264e-06
+        ],
+        [
+         5.147141138993772e-07,
+         4.2421730662989265e-07
+        ]
+       ],
+       "reference_mean": [
+        [
+         0.0005020324820851603,
+         0.0005023810789183772
+        ],
+        [
+         0.0004993485494388944,
+         0.0004995018298669187
+        ]
+       ],
+       "comparison_mean": [
+        [
+         0.0005005683715737988,
+         0.0005006684384218762
+        ],
+        [
+         0.000499786748152675,
+         0.0004998352997687724
+        ]
+       ]
+      },
+      "local_density_rms": {
+       "l2_difference": [
+        [
+         0.08584552728136194,
+         0.04243474603021691
+        ],
+        [
+         0.05987467122666744,
+         0.02726192094656098
+        ]
+       ],
+       "reference_l2_norm": [
+        [
+         0.18934857790267037,
+         0.09466264631194088
+        ],
+        [
+         0.14125926180993967,
+         0.06214149584118604
+        ]
+       ],
+       "relative_l2_difference": [
+        [
+         0.45337297080461075,
+         0.4482733969889465
+        ],
+        [
+         0.42386368482674863,
+         0.438707188771796
+        ]
+       ],
+       "max_absolute_difference": [
+        [
+         0.010761708502550944,
+         0.006698480022410457
+        ],
+        [
+         0.006220555065200388,
+         0.0031961030405699272
+        ]
+       ],
+       "reference_mean": [
+        [
+         0.0127696422373861,
+         0.005986613402606677
+        ],
+        [
+         0.008967310703040441,
+         0.0038474151848990074
+        ]
+       ],
+       "comparison_mean": [
+        [
+         0.00693708472033254,
+         0.0032684941613679436
+        ],
+        [
+         0.005140611543662975,
+         0.002156790405653114
+        ]
+       ]
+      }
+     }
+    },
+    {
+     "window_omega_p": [
+      0,
+      250
+     ],
+     "samples": 501,
+     "realization_summaries": [
+      {
+       "work_increment": 0.006460260314040385,
+       "injection_rate_over_wp": 0.007927879074566137,
+       "plasma_mean_energy": 0.003259515062369843,
+       "electric_mean": 0.001060388046334386,
+       "nonzero_electric_mean": 5.9308191845026724e-05,
+       "kinetic_increment_mean": [
+        0.0011942673915861495,
+        3.727038160102257e-06
+       ],
+       "spread_increment_mean": [
+        0.00018475185618848264,
+        3.1807092941381946e-06
+       ],
+       "local_spread_increment_mean": [
+        [
+         0.00012405652942664932,
+         0.00013663096357242018
+        ],
+        [
+         5.521979986889877e-07,
+         1.3017864588042042e-06
+        ]
+       ]
+      },
+      {
+       "work_increment": 0.0067597816191977125,
+       "injection_rate_over_wp": 0.008177873492506453,
+       "plasma_mean_energy": 0.0033063762237948977,
+       "electric_mean": 0.0011341731488267498,
+       "nonzero_electric_mean": 2.9685119654568186e-05,
+       "kinetic_increment_mean": [
+        0.001168695416796256,
+        2.3775472105567027e-06
+       ],
+       "spread_increment_mean": [
+        6.239140459198125e-05,
+        1.7757945638399192e-06
+       ],
+       "local_spread_increment_mean": [
+        [
+         3.0659902456286044e-05,
+         3.763918499166852e-05
+        ],
+        [
+         2.7723013285849235e-07,
+         6.992126614731852e-07
+        ]
+       ]
+      }
+     ],
+     "observables": {
+      "mean_E": {
+       "l2_difference": 0.07921735438061583,
+       "reference_l2_norm": 1.001539821573929,
+       "relative_l2_difference": 0.0790955613288796,
+       "max_absolute_difference": 0.016701216008796774,
+       "reference_mean": 3.1420463456752306e-05,
+       "comparison_mean": 7.609565317342845e-05
+      },
+      "rms": {
+       "l2_difference": [
+        0.11607881680824007,
+        4.838249036276673e-05
+       ],
+       "reference_l2_norm": [
+        0.8283244291344181,
+        0.016571411958188037
+       ],
+       "relative_l2_difference": [
+        0.14013689893166623,
+        0.002919635966135079
+       ],
+       "max_absolute_difference": [
+        0.019768737844215338,
+        6.346367585536618e-06
+       ],
+       "reference_mean": [
+        0.0362720908096628,
+        0.0007403404952119932
+       ],
+       "comparison_mean": [
+        0.033388642769636434,
+        0.0007393157743618035
+       ]
+      },
+      "electric": {
+       "l2_difference": 0.0055270402950719135,
+       "reference_l2_norm": 0.037003737697846775,
+       "relative_l2_difference": 0.14936437881499545,
+       "max_absolute_difference": 0.0015381103928166192,
+       "reference_mean": 0.001060388046334386,
+       "comparison_mean": 0.0011341731488267498
+      },
+      "nonzero_electric": {
+       "l2_difference": 0.0012856403961154126,
+       "reference_l2_norm": 0.002666136322888402,
+       "relative_l2_difference": 0.4822110501546272,
+       "max_absolute_difference": 0.00026785838755922445,
+       "reference_mean": 5.9308191845026724e-05,
+       "comparison_mean": 2.9685119654568186e-05
+      },
+      "density_rms": {
+       "l2_difference": [
+        0.48541903637357386,
+        0.27802179175888686
+       ],
+       "reference_l2_norm": [
+        1.7306351024024849,
+        1.147123961436125
+       ],
+       "relative_l2_difference": [
+        0.28048606878463883,
+        0.24236420919219712
+       ],
+       "max_absolute_difference": [
+        0.07475551885032465,
+        0.023834691357279884
+       ],
+       "reference_mean": [
+        0.0701137927897141,
+        0.049718284439916764
+       ],
+       "comparison_mean": [
+        0.051939341710416455,
+        0.03873361344819577
+       ]
+      },
+      "local_spread": {
+       "l2_difference": [
+        [
+         0.004330922129887061,
+         0.004536210137787756
+        ],
+        [
+         1.7287123027297265e-05,
+         3.1358582121561824e-05
+        ]
+       ],
+       "reference_l2_norm": [
+        [
+         0.01481435981619488,
+         0.015244358934938477
+        ],
+        [
+         0.011194667016365456,
+         0.011216087241206634
+        ]
+       ],
+       "relative_l2_difference": [
+        [
+         0.2923462224234995,
+         0.2975664740739761
+        ],
+        [
+         0.001544228426091215,
+         0.002795857543471483
+        ]
+       ],
+       "max_absolute_difference": [
+        [
+         0.0008757193945329565,
+         0.0009407184936646719
+        ],
+        [
+         2.5303196553302454e-06,
+         4.392266754538144e-06
+        ]
+       ],
+       "reference_mean": [
+        [
+         0.0006236384143407503,
+         0.0006364365436257655
+        ],
+        [
+         0.0005001383946896988,
+         0.0005010887272671352
+        ]
+       ],
+       "comparison_mean": [
+        [
+         0.0005305537712006334,
+         0.0005375895818254577
+        ],
+        [
+         0.0005001566231199009,
+         0.000500638350511851
+        ]
+       ]
+      },
+      "local_density_rms": {
+       "l2_difference": [
+        [
+         0.41126093591642215,
+         0.30184309725956904
+        ],
+        [
+         0.21752003091109515,
+         0.14709193214765762
+        ]
+       ],
+       "reference_l2_norm": [
+        [
+         1.2377181512968531,
+         0.9704116770903155
+        ],
+        [
+         0.533290039417746,
+         0.3725774790005003
+        ]
+       ],
+       "relative_l2_difference": [
+        [
+         0.33227349496774544,
+         0.3110464397590681
+        ],
+        [
+         0.40788316831978855,
+         0.3947955537791915
+        ]
+       ],
+       "max_absolute_difference": [
+        [
+         0.06769048654462287,
+         0.049960039634745414
+        ],
+        [
+         0.019784562436967502,
+         0.014600020311101723
+        ]
+       ],
+       "reference_mean": [
+        [
+         0.04074549487895516,
+         0.030016150543131975
+        ],
+        [
+         0.019934126780590332,
+         0.01268621248444841
+        ]
+       ],
+       "comparison_mean": [
+        [
+         0.02645926618883932,
+         0.020228265990132967
+        ],
+        [
+         0.011600198479866774,
+         0.007460254632380413
+        ]
+       ]
+      }
+     }
+    },
+    {
+     "window_omega_p": [
+      0,
+      500
+     ],
+     "samples": 1001,
+     "realization_summaries": [
+      {
+       "work_increment": 0.012338490310851241,
+       "injection_rate_over_wp": 0.0034800821787906518,
+       "plasma_mean_energy": 0.007090918936356485,
+       "electric_mean": 0.0013071722423011562,
+       "nonzero_electric_mean": 0.000284877881197589,
+       "kinetic_increment_mean": [
+        0.004757092650075476,
+        2.5521457690644897e-05
+       ],
+       "spread_increment_mean": [
+        0.003471608403190144,
+        2.4954098548570463e-05
+       ],
+       "local_spread_increment_mean": [
+        [
+         0.003202766397918812,
+         0.0032301394841222275
+        ],
+        [
+         1.2154431084218626e-05,
+         1.5485086274992357e-05
+        ]
+       ]
+      },
+      {
+       "work_increment": 0.013102987252932677,
+       "injection_rate_over_wp": 0.003547832921334131,
+       "plasma_mean_energy": 0.007386473683199627,
+       "electric_mean": 0.0013198806408134705,
+       "nonzero_electric_mean": 0.0002523669186165881,
+       "kinetic_increment_mean": [
+        0.005024882062827682,
+        4.058086859714089e-05
+       ],
+       "spread_increment_mean": [
+        0.003687412759301823,
+        3.998974028634691e-05
+       ],
+       "local_spread_increment_mean": [
+        [
+         0.003455351903778049,
+         0.0034867757634344564
+        ],
+        [
+         2.0482402473505476e-05,
+         2.6337275614488896e-05
+        ]
+       ]
+      }
+     ],
+     "observables": {
+      "mean_E": {
+       "l2_difference": 0.3565456666311348,
+       "reference_l2_norm": 1.4306059244003364,
+       "relative_l2_difference": 0.24922703069371613,
+       "max_absolute_difference": 0.02921736883706485,
+       "reference_mean": -8.575461508948428e-05,
+       "comparison_mean": -0.0001025643431940977
+      },
+      "rms": {
+       "l2_difference": [
+        0.2763961635521475,
+        0.0005426234762418022
+       ],
+       "reference_l2_norm": [
+        2.819780137384237,
+        0.023925243335832118
+       ],
+       "relative_l2_difference": [
+        0.09802046616604153,
+        0.022679956421974245
+       ],
+       "max_absolute_difference": [
+        0.027855128410876638,
+        3.705452680287467e-05
+       ],
+       "reference_mean": [
+        0.07759359649015349,
+        0.0007560180865954728
+       ],
+       "comparison_mean": [
+        0.07743325819650343,
+        0.0007664135632670728
+       ]
+      },
+      "electric": {
+       "l2_difference": 0.019017314177204057,
+       "reference_l2_norm": 0.05484111330934869,
+       "relative_l2_difference": 0.3467711180466171,
+       "max_absolute_difference": 0.002349339578429257,
+       "reference_mean": 0.0013071722423011562,
+       "comparison_mean": 0.0013198806408134705
+      },
+      "nonzero_electric": {
+       "l2_difference": 0.005478910174592932,
+       "reference_l2_norm": 0.012512150026491682,
+       "relative_l2_difference": 0.4378871866939386,
+       "max_absolute_difference": 0.00072391968465637,
+       "reference_mean": 0.000284877881197589,
+       "comparison_mean": 0.0002523669186165881
+      },
+      "density_rms": {
+       "l2_difference": [
+        1.151953123317959,
+        0.9776478660909866
+       ],
+       "reference_l2_norm": [
+        4.090099581258203,
+        2.9975368059544074
+       ],
+       "relative_l2_difference": [
+        0.28164427306280726,
+        0.3261504126151026
+       ],
+       "max_absolute_difference": [
+        0.09670405877254853,
+        0.06073709863859758
+       ],
+       "reference_mean": [
+        0.1162860510567881,
+        0.08627069546116259
+       ],
+       "comparison_mean": [
+        0.12339739721530457,
+        0.0950726432839476
+       ]
+      },
+      "local_spread": {
+       "l2_difference": [
+        [
+         0.028654428357379535,
+         0.028575392680389132
+        ],
+        [
+         0.00044990820859180914,
+         0.0005564026540039145
+        ]
+       ],
+       "reference_l2_norm": [
+        [
+         0.15918768275403297,
+         0.15992208327087232
+        ],
+        [
+         0.016195693032095032,
+         0.016309544065942382
+        ]
+       ],
+       "relative_l2_difference": [
+        [
+         0.18000405472108416,
+         0.17868321932743206
+        ],
+        [
+         0.027779497160153956,
+         0.03411515685259378
+        ]
+       ],
+       "max_absolute_difference": [
+        [
+         0.0018159511810175544,
+         0.0018896297984838033
+        ],
+        [
+         2.6621480678588622e-05,
+         3.586054455579854e-05
+        ]
+       ],
+       "reference_mean": [
+        [
+         0.003702348282832917,
+         0.0037299450641755734
+        ],
+        [
+         0.0005117406277752283,
+         0.0005152720270833228
+        ]
+       ],
+       "comparison_mean": [
+        [
+         0.003955245772522396,
+         0.003986726160268242
+        ],
+        [
+         0.000520361795460548,
+         0.0005262764134648663
+        ]
+       ]
+      },
+      "local_density_rms": {
+       "l2_difference": [
+        [
+         1.055818723457396,
+         0.83131831646982
+        ],
+        [
+         0.9563959255815676,
+         0.7675526769892808
+        ]
+       ],
+       "reference_l2_norm": [
+        [
+         3.3442186597592225,
+         2.643814259002362
+        ],
+        [
+         2.4577612448034825,
+         2.0118899470640907
+        ]
+       ],
+       "relative_l2_difference": [
+        [
+         0.3157146200282887,
+         0.3144390017714468
+        ],
+        [
+         0.38913296708689826,
+         0.3815082818567459
+        ]
+       ],
+       "max_absolute_difference": [
+        [
+         0.09280436217020827,
+         0.0843210530176495
+        ],
+        [
+         0.06039602037050737,
+         0.049045739876614466
+        ]
+       ],
+       "reference_mean": [
+        [
+         0.08843272092383221,
+         0.06927277155949259
+        ],
+        [
+         0.06297186006945557,
+         0.04994931187235754
+        ]
+       ],
+       "comparison_mean": [
+        [
+         0.09720220214925474,
+         0.0776164197385119
+        ],
+        [
+         0.07375331459971433,
+         0.05968064554258198
+        ]
+       ]
+      }
+     }
+    },
+    {
+     "window_omega_p": [
+      0,
+      1000
+     ],
+     "samples": 2001,
+     "realization_summaries": [
+      {
+       "work_increment": 0.015081560997225523,
+       "injection_rate_over_wp": 0.0014043057215746898,
+       "plasma_mean_energy": 0.010739514028621472,
+       "electric_mean": 0.000984776979812814,
+       "nonzero_electric_mean": 0.00039162206088278454,
+       "kinetic_increment_mean": [
+        0.008697735810180057,
+        5.586865233938641e-05
+       ],
+       "spread_increment_mean": [
+        0.007404950491959692,
+        5.553684310654532e-05
+       ],
+       "local_spread_increment_mean": [
+        [
+         0.0070213808233015014,
+         0.007040691908269053
+        ],
+        [
+         3.4482186294289775e-05,
+         3.745497652349513e-05
+        ]
+       ]
+      },
+      {
+       "work_increment": 0.01461708612696845,
+       "injection_rate_over_wp": 0.0013061222143420843,
+       "plasma_mean_energy": 0.011191208576471169,
+       "electric_mean": 0.0010124372472300857,
+       "nonzero_electric_mean": 0.0003835413042173859,
+       "kinetic_increment_mean": [
+        0.00908702805313058,
+        9.061316514917023e-05
+       ],
+       "spread_increment_mean": [
+        0.007835484978279445,
+        9.02621177678149e-05
+       ],
+       "local_spread_increment_mean": [
+        [
+         0.007463460659431671,
+         0.0074821584145373645
+        ],
+        [
+         6.190345788384435e-05,
+         6.810251226185578e-05
+        ]
+       ]
+      }
+     ],
+     "observables": {
+      "mean_E": {
+       "l2_difference": 0.5463723009433746,
+       "reference_l2_norm": 1.5407160626014054,
+       "relative_l2_difference": 0.35462231763901925,
+       "max_absolute_difference": 0.030810709510202136,
+       "reference_mean": 1.606314508378164e-05,
+       "comparison_mean": 1.70640395449676e-05
+      },
+      "rms": {
+       "l2_difference": [
+        0.3111822688600521,
+        0.0012695679822767691
+       ],
+       "reference_l2_norm": [
+        5.624554370687751,
+        0.034798348805394716
+       ],
+       "relative_l2_difference": [
+        0.055325675307144696,
+        0.03648356964799292
+       ],
+       "max_absolute_difference": [
+        0.027855128410876638,
+        3.8285998627892175e-05
+       ],
+       "reference_mean": [
+        0.1156902073378144,
+        0.0007775248038973952
+       ],
+       "comparison_mean": [
+        0.11769257613085429,
+        0.0008008563316530088
+       ]
+      },
+      "electric": {
+       "l2_difference": 0.02128768111837361,
+       "reference_l2_norm": 0.059283419203482915,
+       "relative_l2_difference": 0.35908322098133894,
+       "max_absolute_difference": 0.002349339578429257,
+       "reference_mean": 0.000984776979812814,
+       "comparison_mean": 0.0010124372472300857
+      },
+      "nonzero_electric": {
+       "l2_difference": 0.009206385497932118,
+       "reference_l2_norm": 0.02074298779027402,
+       "relative_l2_difference": 0.4438312161688111,
+       "max_absolute_difference": 0.0008280697624960271,
+       "reference_mean": 0.00039162206088278454,
+       "comparison_mean": 0.0003835413042173859
+      },
+      "density_rms": {
+       "l2_difference": [
+        1.185284444901986,
+        1.0291376265721406
+       ],
+       "reference_l2_norm": [
+        5.529336793615093,
+        4.562813470372322
+       ],
+       "relative_l2_difference": [
+        0.21436285926201365,
+        0.22554891477695313
+       ],
+       "max_absolute_difference": [
+        0.09670405877254853,
+        0.06073709863859758
+       ],
+       "reference_mean": [
+        0.11689729290865239,
+        0.09744476468386201
+       ],
+       "comparison_mean": [
+        0.1185456164853627,
+        0.10378851715052075
+       ]
+      },
+      "local_spread": {
+       "l2_difference": [
+        [
+         0.03515355238433304,
+         0.034988932475240195
+        ],
+        [
+         0.0015789018072655142,
+         0.0017078488468653147
+        ]
+       ],
+       "reference_l2_norm": [
+        [
+         0.3931520786308132,
+         0.3937774760618756
+        ],
+        [
+         0.02391717826106616,
+         0.02405916302318431
+        ]
+       ],
+       "relative_l2_difference": [
+        [
+         0.08941464205596569,
+         0.08885458057469561
+        ],
+        [
+         0.06601538818798482,
+         0.07098538071418227
+        ]
+       ],
+       "max_absolute_difference": [
+        [
+         0.0018159511810175544,
+         0.0018896297984838033
+        ],
+        [
+         5.6190787418313945e-05,
+         5.700234421025937e-05
+        ]
+       ],
+       "reference_mean": [
+        [
+         0.007520962708215615,
+         0.007540497488322424
+        ],
+        [
+         0.0005340683829853002,
+         0.0005372419173318261
+        ]
+       ],
+       "comparison_mean": [
+        [
+         0.007963354528176017,
+         0.007982108811371149
+        ],
+        [
+         0.0005617828508708865,
+         0.000568041650112232
+        ]
+       ]
+      },
+      "local_density_rms": {
+       "l2_difference": [
+        [
+         1.085557288871648,
+         0.859856669986804
+        ],
+        [
+         1.0195939633590365,
+         0.8134889876660948
+        ]
+       ],
+       "reference_l2_norm": [
+        [
+         4.641924592382849,
+         3.9925336444466457
+        ],
+        [
+         3.91855923316607,
+         3.5041187557571614
+        ]
+       ],
+       "relative_l2_difference": [
+        [
+         0.23385931142720193,
+         0.21536616759205238
+        ],
+        [
+         0.2601961340100089,
+         0.23215223123632922
+        ]
+       ],
+       "max_absolute_difference": [
+        [
+         0.09280436217020827,
+         0.0843210530176495
+        ],
+        [
+         0.06039602037050737,
+         0.049045739876614466
+        ]
+       ],
+       "reference_mean": [
+        [
+         0.09499051002467417,
+         0.08174201561005748
+        ],
+        [
+         0.0796079543179292,
+         0.07012435558564149
+        ]
+       ],
+       "comparison_mean": [
+        [
+         0.09945814961079417,
+         0.08552658048685982
+        ],
+        [
+         0.08812063108010006,
+         0.07669258115926202
+        ]
+       ]
+      }
+     }
+    },
+    {
+     "window_omega_p": [
+      800,
+      1000
+     ],
+     "samples": 401,
+     "realization_summaries": [
+      {
+       "work_increment": 0.0014570152575548306,
+       "injection_rate_over_wp": 0.00048326256966027624,
+       "plasma_mean_energy": 0.01507477869226009,
+       "electric_mean": 0.0005764672134774709,
+       "nonzero_electric_mean": 0.00048038520421697894,
+       "kinetic_increment_mean": [
+        0.013405901795772938,
+        9.127709672045569e-05
+       ],
+       "spread_increment_mean": [
+        0.012018056279037409,
+        9.122032852487169e-05
+       ],
+       "local_spread_increment_mean": [
+        [
+         0.01153464200623629,
+         0.011544836065509349
+        ],
+        [
+         6.852167157190188e-05,
+         6.984898546673851e-05
+        ]
+       ]
+      },
+      {
+       "work_increment": 0.0005622494817769091,
+       "injection_rate_over_wp": 0.00018389759275997243,
+       "plasma_mean_energy": 0.01528702669096551,
+       "electric_mean": 0.0004940007522580887,
+       "nonzero_electric_mean": 0.0004232744401003926,
+       "kinetic_increment_mean": [
+        0.013645655035913315,
+        0.0001462407918327761
+       ],
+       "spread_increment_mean": [
+        0.012483501660528269,
+        0.00014619903051216475
+       ],
+       "local_spread_increment_mean": [
+        [
+         0.012055822624319604,
+         0.012061002039861215
+        ],
+        [
+         0.00012323137751229138,
+         0.0001258919163184461
+        ]
+       ]
+      }
+     ],
+     "observables": {
+      "mean_E": {
+       "l2_difference": 0.28844148549068827,
+       "reference_l2_norm": 0.27759281587770707,
+       "relative_l2_difference": 1.03908123334777,
+       "max_absolute_difference": 0.030810709510202136,
+       "reference_mean": -1.3618410494210594e-05,
+       "comparison_mean": 1.4990540069310442e-05
+      },
+      "rms": {
+       "l2_difference": [
+        0.06262360084666463,
+        0.0007310582683528295
+       ],
+       "reference_l2_norm": [
+        3.1685140264464673,
+        0.016070357010433262
+       ],
+       "relative_l2_difference": [
+        0.019764343892426404,
+        0.04549110314588586
+       ],
+       "max_absolute_difference": [
+        0.004802329662637439,
+        3.8285998627892175e-05
+       ],
+       "reference_mean": [
+        0.15821784733273037,
+        0.0008025150658721858
+       ],
+       "comparison_mean": [
+        0.16113976239236266,
+        0.0008389993660791855
+       ]
+      },
+      "electric": {
+       "l2_difference": 0.005013626002466456,
+       "reference_l2_norm": 0.012509773854912417,
+       "relative_l2_difference": 0.40077670952442307,
+       "max_absolute_difference": 0.0006397640497665324,
+       "reference_mean": 0.0005764672134774709,
+       "comparison_mean": 0.0004940007522580887
+      },
+      "nonzero_electric": {
+       "l2_difference": 0.0030923351277040018,
+       "reference_l2_norm": 0.01018463883767552,
+       "relative_l2_difference": 0.30362737226033804,
+       "max_absolute_difference": 0.0005371949512226095,
+       "reference_mean": 0.00048038520421697894,
+       "comparison_mean": 0.0004232744401003926
+      },
+      "density_rms": {
+       "l2_difference": [
+        0.2168444309865943,
+        0.12703414913811858
+       ],
+       "reference_l2_norm": [
+        2.4309605902848563,
+        2.2840431786737763
+       ],
+       "relative_l2_difference": [
+        0.0892011297316773,
+        0.05561810316207798
+       ],
+       "max_absolute_difference": [
+        0.02121867690635909,
+        0.011175016809822025
+       ],
+       "reference_mean": [
+        0.12126453122866115,
+        0.11393805887153598
+       ],
+       "comparison_mean": [
+        0.1117450488304184,
+        0.1099781633314134
+       ]
+      },
+      "local_spread": {
+       "l2_difference": [
+        [
+         0.010532460067386715,
+         0.010430470674047078
+        ],
+        [
+         0.0011014683607544773,
+         0.0011253281952850371
+        ]
+       ],
+       "reference_l2_norm": [
+        [
+         0.24102037565428924,
+         0.24122901811601907
+        ],
+        [
+         0.011376638372620504,
+         0.011407189362561194
+        ]
+       ],
+       "relative_l2_difference": [
+        [
+         0.04369945917972549,
+         0.04323887215355884
+        ],
+        [
+         0.096818438336347,
+         0.09865078587880768
+        ]
+       ],
+       "max_absolute_difference": [
+        [
+         0.0006272798105276672,
+         0.0006192646990237343
+        ],
+        [
+         5.6190787418313945e-05,
+         5.700234421025937e-05
+        ]
+       ],
+       "reference_mean": [
+        [
+         0.01203422389115039,
+         0.012044641645562695
+        ],
+        [
+         0.0005681078682629118,
+         0.0005696359262750698
+        ]
+       ],
+       "comparison_mean": [
+        [
+         0.01255571649306396,
+         0.012560952436695007
+        ],
+        [
+         0.000623110770499334,
+         0.000625831054168824
+        ]
+       ]
+      },
+      "local_density_rms": {
+       "l2_difference": [
+        [
+         0.15623440618895898,
+         0.14947007602592577
+        ],
+        [
+         0.10986060181553244,
+         0.10637552043990603
+        ]
+       ],
+       "reference_l2_norm": [
+        [
+         2.155749778651655,
+         2.0618038071885687
+        ],
+        [
+         2.0680390999958562,
+         1.997401446160383
+        ]
+       ],
+       "relative_l2_difference": [
+        [
+         0.07247334905755068,
+         0.07249481037176857
+        ],
+        [
+         0.053123077709581294,
+         0.05325695575338264
+        ]
+       ],
+       "max_absolute_difference": [
+        [
+         0.01805666754117126,
+         0.017366102140805084
+        ],
+        [
+         0.009142157200590667,
+         0.009479377229201488
+        ]
+       ],
+       "reference_mean": [
+        [
+         0.10746000716179567,
+         0.10274377440442575
+        ],
+        [
+         0.10309719160893963,
+         0.09955156021004323
+        ]
+       ],
+       "comparison_mean": [
+        [
+         0.10193222428511226,
+         0.09728100951830096
+        ],
+        [
+         0.10169456688148347,
+         0.09684783397234774
+        ]
+       ]
+      }
+     }
+    }
+   ],
+   "maximum_clock_difference": 0.0,
+   "fixed_scale_endpoints": {
+    "local_spread_initial": {
+     "first": [
+      [
+       0.0004995818849141006,
+       0.0004998055800533449
+      ],
+      [
+       0.0004995861966910099,
+       0.0004997869408083308
+      ]
+     ],
+     "second": [
+      [
+       0.0004998938687443476,
+       0.0004999503968337912
+      ],
+      [
+       0.0004998793929870423,
+       0.0004999391378503777
+      ]
+     ],
+     "difference": [
+      [
+       3.1198383024699707e-07,
+       1.448167804463281e-07
+      ],
+      [
+       2.9319629603233137e-07,
+       1.5219704204696635e-07
+      ]
+     ]
+    },
+    "local_spread_final": {
+     "first": [
+      [
+       0.01240826064054802,
+       0.012417182438982719
+      ],
+      [
+       0.0005742103663882189,
+       0.0005753339747536458
+      ]
+     ],
+     "second": [
+      [
+       0.012774950238853909,
+       0.012780101916281318
+      ],
+      [
+       0.0006304011538065327,
+       0.000632336318963905
+      ]
+     ],
+     "difference": [
+      [
+       0.0003666895983058891,
+       0.0003629194772985997
+      ],
+      [
+       5.619078741831373e-05,
+       5.700234421025926e-05
+      ]
+     ]
+    }
+   },
+   "physical_scales_c_over_wp": [
+    0.06324555320336758,
+    0.12649110640673517
+   ],
+   "scalar_fingerprints": {
+    "mean_E": {
+     "initial": [
+      "e521cbd79ae6d223c5e2890d25e54b7bae52917a92367169b69cb4f87d953b00",
+      "3b3f4e88a8254657d100158222271a10dab4c7a3e4c064afe545510b11e5cdbf"
+     ],
+     "history": [
+      "fb4cf937e1231e87de15aa9eee8c1324b20dbc8f2b74d63880767ca93e05279c",
+      "530c9f1e909708260d93accade9aa8aee6ba384550a1e1e24103673371919635"
+     ]
+    },
+    "rms": {
+     "initial": [
+      "59904c4f63e4a78656a733557a5da0d614f6d60b483aea9c6181af07c47ce75d",
+      "e7789b67ed528f810e29a2bd7a506d5b744d49d85c116280620a8a9edb986929"
+     ],
+     "history": [
+      "4742650b0a5bfe17a41260bbc4718703981553359fb75c2d2459608097da3113",
+      "6253feb09a244848d2c919000de0b65766226620f112484ea1f3e21ccb7048d5"
+     ]
+    },
+    "electric": {
+     "initial": [
+      "223c50e9738b3c887e2163d8f7f720d0cc75fed5966fd58167f2d5e3032a0728",
+      "ba1186f96a39abd7f876f65daa3dc7ad0adbdf2438d213eb9b6c3997e6dea7e7"
+     ],
+     "history": [
+      "8dd4acc6421009094867e5c457dbc0b9485fb12ba3c396622a444aa6ab863421",
+      "1384f84b517c28ba6426e2dd1ac3b0830613dc32852deb609bbee78998aaee7e"
+     ]
+    },
+    "nonzero_electric": {
+     "initial": [
+      "223c50e9738b3c887e2163d8f7f720d0cc75fed5966fd58167f2d5e3032a0728",
+      "ba1186f96a39abd7f876f65daa3dc7ad0adbdf2438d213eb9b6c3997e6dea7e7"
+     ],
+     "history": [
+      "a765e584bae079486800b16284e1fff3b5772028d0725b1435f9930bfd94838a",
+      "be67b45b4fdd85b8f7216eaed1a573a3724a5ddac8189c0c40c672ad17b02be1"
+     ]
+    },
+    "density_rms": {
+     "initial": [
+      "2a0b287f934caf6af990003d7285d318fb53fc777ef5a86ad8027fd29c6119f2",
+      "73eff6327018cc06c2b82c6f9d362f1a926e10f343b77d78b70e78b85cbed78a"
+     ],
+     "history": [
+      "0a7fb85f645d747789f82b75e243348983c47ae89952a0736d371f30e5afab7b",
+      "3ad795ebc0bc1b47144273e0c5d2582e8d670335ce4d361e8eb0929dbc53eaca"
+     ]
+    }
+   },
+   "sources": [
+    {
+     "git": "34ba046bfde32e93a50e8f8f743a47316f09a898",
+     "parent": "2d693cbd36f617545463132dd9af493d47600639",
+     "data_sha256": "17c76444720a17d2045bfc3b144a04b900a212d9e47f957aff69cd979a920d70",
+     "run_sha256": "bc500936610055dd0040d26046853a6125aab02b2d84ebeac79062f7c76fdf8d",
+     "varied_parameter": {
+      "cells": 2000,
+      "particles_per_species": 206000
+     },
+     "block_steps": 40000,
+     "block_horizon": 100.0
+    },
+    {
+     "git": "34ba046bfde32e93a50e8f8f743a47316f09a898",
+     "parent": "2d693cbd36f617545463132dd9af493d47600639",
+     "data_sha256": "b1c3abb5a34b84217ffcf5d7dec99ff3c0a44136b9e8923239630c4dd9b5fd99",
+     "run_sha256": "a1a0c6e01f5b880a40f608d94306d3438004af16553b1775b169f9a74959f075",
+     "varied_parameter": {
+      "cells": 4000,
+      "particles_per_species": 824000
+     },
+     "block_steps": 40000,
+     "block_horizon": 100.0
+    }
+   ],
+   "native_all_step_maxima": [
+    {
+     "max_energy_work_defect_over_initial_thermal": 0.0021171415189550507,
+     "max_momentum_defect_over_nmecL": 7.2863983885973e-15,
+     "max_particle_charge_change_over_enL": 0.0,
+     "max_grid_charge_change_over_enL": 1.1124616420510996e-16,
+     "max_continuity_over_enwp": 7.039592537630867e-14,
+     "max_ordinary_gauss_over_en_eps0": 6.190827399923201e-13,
+     "max_dark_gauss_over_en_eps0": 0.0,
+     "max_dark_work_defect_over_nmc2L": 0.0,
+     "max_ordinary_work_defect_over_nmc2L": 2.117141518955051e-06,
+     "max_energy_work_defect_over_peak_injected_work": 0.00014037946863355394
+    },
+    {
+     "max_energy_work_defect_over_initial_thermal": 0.0006687059584892135,
+     "max_momentum_defect_over_nmecL": 9.145378560004102e-15,
+     "max_particle_charge_change_over_enL": 0.0,
+     "max_grid_charge_change_over_enL": 1.2648589553154e-16,
+     "max_continuity_over_enwp": 1.3040364156709764e-13,
+     "max_ordinary_gauss_over_en_eps0": 1.3382183254468445e-12,
+     "max_dark_gauss_over_en_eps0": 0.0,
+     "max_dark_work_defect_over_nmc2L": 0.0,
+     "max_ordinary_work_defect_over_nmc2L": 6.687059584892135e-07,
+     "max_energy_work_defect_over_peak_injected_work": 4.5748239606760915e-05
+    }
+   ],
+   "notes": "Native aligned samples, no interpolation, time shifts or curve fitting. Density RMS is at the numerical grid scale; local moments use the recorded physical Gaussian lengths. Fingerprint equality requires the same dtype/runtime. One repeat is not an uncertainty estimate; field saturation and small conservation defects do not establish convergence. Null relative errors have zero reference norm. Joint mesh/loading changes the particle microstate and thermal noise realization. It tests the dx-squared times total-particle noise criterion, not the full SHARP algorithm, a temporal refinement, an ensemble bound or a measured convergence order.",
+   "endpoint_constraints": [
+    {
+     "available": true,
+     "ordinary": {
+      "mean_residual_over_charge_scale": 1.357767545092888e-17,
+      "max_residual_over_charge_scale": 5.998647802742911e-13,
+      "max_remaining_residual_over_charge_scale": 1.3577675455358587e-17,
+      "max_correction_over_field_scale": 7.927079175069081e-15,
+      "energy_change_over_scale": -3.924929450007851e-18
+     },
+     "archive_sha256": "f05772e5f19a5c8e19ea1eb7d1023c374e80c02890d37240f9086eab39216c12",
+     "note": "Only a mean-zero longitudinal diagnostic. Particles, potentials and fields remain unchanged; the residual mean cannot be corrected by periodic divergence. Endpoint size does not bound dynamical amplification of earlier roundoff."
+    },
+    {
+     "available": true,
+     "ordinary": {
+      "mean_residual_over_charge_scale": -1.6982883743499908e-17,
+      "max_residual_over_charge_scale": 1.2880485751974295e-12,
+      "max_remaining_residual_over_charge_scale": 1.6982883743695367e-17,
+      "max_correction_over_field_scale": 8.552689372822248e-15,
+      "energy_change_over_scale": -1.1366327552984996e-18
+     },
+     "archive_sha256": "80bfbe3dab85c1fd1c0c2e7e8395a6e802ac8056d5c9fe44fb4a6493bdaa4126",
+     "note": "Only a mean-zero longitudinal diagnostic. Particles, potentials and fields remain unchanged; the residual mean cannot be corrected by periodic divergence. Endpoint size does not bound dynamical amplification of earlier roundoff."
+    }
+   ]
+  },
+  "joint_validation": {
+   "scope": "Raw diagnostic reduction after strict loading-byte rejection",
+   "scientific_acceptance": false,
+   "protocol_sha256": "48a2798b13ab64828b325ba27b34a431dc2c7218df4fde0a7d2a6e6fac2c9eac",
+   "independent_audit_sha256": "2e134ad3defe1631b1f83b43119ea7d48fb052c8f8d9ddf2421d387730e182ab",
+   "independent_audit": {
+    "source": "34ba046bfde32e93a50e8f8f743a47316f09a898",
+    "parent": "2d693cbd36f617545463132dd9af493d47600639",
+    "expected_cells": 4000,
+    "expected_particles_per_species": 824000,
+    "audit_script_sha256": "e84b76d9775a24710eb2553e0c2da69423a84f2fc5e3aaeb0506779134eecdae",
+    "files_sha256": {
+     "run.json": "a1a0c6e01f5b880a40f608d94306d3438004af16553b1775b169f9a74959f075",
+     "data.npz": "b1c3abb5a34b84217ffcf5d7dec99ff3c0a44136b9e8923239630c4dd9b5fd99",
+     "initial_state.npz": "23a34d42b976af1033dabc87a6f59ae1b8b7303b4f5bd5fd418809d89369cbd4",
+     "final_state.npz": "80bfbe3dab85c1fd1c0c2e7e8395a6e802ac8056d5c9fe44fb4a6493bdaa4126"
+    },
+    "runtime": {
+     "jaxincell": "0.7.dev302+g83d327118",
+     "jax": "0.6.2",
+     "numpy": "2.2.4",
+     "python": "3.10.12",
+     "platform": "Linux x86_64",
+     "jax_enable_x64": true,
+     "backend": "gpu"
+    },
+    "targets": {
+     "deposition_over_en": 1e-10,
+     "endpoint_energy_over_nmec2L": 2e-14,
+     "endpoint_momentum_over_nmecL": 2e-13,
+     "charge_over_enL": 2e-13,
+     "gauss_over_en_eps0": 2e-13,
+     "clock_omega_p_t": 1e-09
+    },
+    "gates": {
+     "initial_energy_reference": true,
+     "endpoint_energy": true,
+     "endpoint_momentum": true,
+     "endpoint_charge": true,
+     "original_endpoint_gauss": false,
+     "redeposition": true,
+     "exact_repeated_clocks": true,
+     "original_nominal_clock": false,
+     "physical_loading": true,
+     "original_cross_runtime_loading_bytes": false
+    },
+    "failed_original_gates": [
+     "original_endpoint_gauss",
+     "original_nominal_clock",
+     "original_cross_runtime_loading_bytes"
+    ],
+    "independent_loading_hashes": {
+     "x": {
+      "independent": "f3cbe9373f0721e46fef46962ffeee23e635d10132352ced2bebcef9fe6efb0f",
+      "donor": "f3cbe9373f0721e46fef46962ffeee23e635d10132352ced2bebcef9fe6efb0f",
+      "exact": true
+     },
+     "v": {
+      "independent": "355c3517d37e1616fb1e72846bc3cddbb4ba2dc4ec7d4575c4ce8014e2ee672f",
+      "donor": "1fc0578bfe58a1316549c9a21cf4db70bfa3282df2c60c1d48b52cf7635d389e",
+      "exact": false
+     }
+    },
+    "initial_energy_reference_error": 0.0,
+    "native_nine_all_step_maxima": {
+     "energy_work": 6.687059584892135e-07,
+     "momentum": 9.145378560004102e-15,
+     "particle_charge": 0.0,
+     "continuity": 1.3040364156709764e-13,
+     "ordinary_gauss": 1.3382183254468445e-12,
+     "dark_gauss": 0.0,
+     "grid_charge": 1.2648589553154e-16,
+     "dark_work": 0.0,
+     "ordinary_work": 6.687059584892135e-07
+    },
+    "clock_error_to_nominal": 6.581331035704352e-09,
+    "protocol": "S5 cell integral of raw centered B4, nonnegative Cox\u2013de Boor recurrence plus three-node Gauss quadrature split at B4 knots. Serial particle chunks and math.fsum reduction; x_integer wraps x_native \u2212dt\u00b7v/2. No production shape functions.",
+    "limitation": "Native all-step work and continuity maxima retained, not independently reconstructed from missing particle/current histories. Single new-count seed-zero finite-N loading, not ensemble uncertainty, temporal order, late Hook reproduction or evidence of irreversible heating. Elapsed timing is one execution, not a controlled throughput benchmark."
+   },
+   "raw_gates": {
+    "joint": {
+     "original_observable_gates": {
+      "work": {
+       "relative_change": -0.6141087206454663,
+       "bound": 0.02,
+       "passed": false
+      },
+      "electron_local_2D": {
+       "relative_change": 0.04518394396649095,
+       "bound": 0.02,
+       "passed": false
+      },
+      "electron_local_4D": {
+       "relative_change": 0.044709684175934905,
+       "bound": 0.02,
+       "passed": false
+      },
+      "ion_local_2D": {
+       "relative_change": 0.798429236843426,
+       "bound": 0.02,
+       "passed": false
+      },
+      "ion_local_4D": {
+       "relative_change": 0.8023442355994528,
+       "bound": 0.02,
+       "passed": false
+      },
+      "electric": {
+       "relative_change": -0.14305490284852973,
+       "bound": 0.05,
+       "passed": false
+      },
+      "nonzero_electric": {
+       "relative_change": -0.11888535203675987,
+       "bound": 0.05,
+       "passed": false
+      },
+      "residual_rate": {
+       "absolute_difference_over_wp": 0.0002993649769003038,
+       "bound": 1e-05,
+       "passed": false
+      }
+     },
+     "accounting": {
+      "global_energy_work_defect_over_nmc2L": [
+       2.117141518955051e-06,
+       6.687059584892135e-07
+      ],
+      "global_defect_over_abs_window_work": [
+       0.0014530675008222267,
+       0.0011893402842735646
+      ],
+      "conservation_transfer_gate": [
+       true,
+       true
+      ],
+      "global_defect_over_abs_work_difference": 0.0031134935564809804,
+      "conservation_difference_gate": true,
+      "absolute_rate_accounting_envelope_over_wp": [
+       1.4044262686743698e-06,
+       4.374336305007397e-07
+      ],
+      "accounting_over_abs_rate_difference": 0.006152556381999541,
+      "rate_accounting_gate": true
+     },
+     "two_endpoint_accounting": {
+      "over_window_work": [
+       0.0029061350016444535,
+       0.0023786805685471293
+      ],
+      "window_work_gate": [
+       true,
+       true
+      ],
+      "over_work_difference": 0.006226987112961961,
+      "work_difference_gate": true
+     },
+     "original_gauss_gates": [
+      false,
+      false
+     ],
+     "original_clock_gates": [
+      false,
+      false
+     ]
+    },
+    "isolated_mesh": {
+     "original_observable_gates": {
+      "work": {
+       "relative_change": -0.3352369525049216,
+       "bound": 0.02,
+       "passed": false
+      },
+      "electron_local_2D": {
+       "relative_change": -0.002250347291611887,
+       "bound": 0.02,
+       "passed": true
+      },
+      "electron_local_4D": {
+       "relative_change": -0.002194822171058597,
+       "bound": 0.02,
+       "passed": true
+      },
+      "ion_local_2D": {
+       "relative_change": -0.0028769480117313284,
+       "bound": 0.02,
+       "passed": true
+      },
+      "ion_local_4D": {
+       "relative_change": -0.0017476336336214038,
+       "bound": 0.02,
+       "passed": true
+      },
+      "electric": {
+       "relative_change": 0.01249528422364965,
+       "bound": 0.05,
+       "passed": true
+      },
+      "nonzero_electric": {
+       "relative_change": 0.10596966628090554,
+       "bound": 0.05,
+       "passed": false
+      },
+      "residual_rate": {
+       "absolute_difference_over_wp": 0.00015965877991166636,
+       "bound": 1e-05,
+       "passed": false
+      }
+     },
+     "accounting": {
+      "global_energy_work_defect_over_nmc2L": [
+       2.117141518955051e-06,
+       5.767065389924662e-07
+      ],
+      "global_defect_over_abs_window_work": [
+       0.0014530675008222267,
+       0.0005954206684413515
+      ],
+      "conservation_transfer_gate": [
+       true,
+       true
+      ],
+      "global_defect_over_abs_work_difference": 0.0055151472565952075,
+      "conservation_difference_gate": true,
+      "absolute_rate_accounting_envelope_over_wp": [
+       1.4044262686743698e-06,
+       3.853607696045437e-07
+      ],
+      "accounting_over_abs_rate_difference": 0.011210075883513205,
+      "rate_accounting_gate": true
+     },
+     "two_endpoint_accounting": {
+      "over_window_work": [
+       0.0029061350016444535,
+       0.001190841336882703
+      ],
+      "window_work_gate": [
+       true,
+       true
+      ],
+      "over_work_difference": 0.011030294513190415,
+      "work_difference_gate": true
+     },
+     "original_gauss_gates": [
+      false,
+      false
+     ],
+     "original_clock_gates": [
+      false,
+      false
+     ]
+    },
+    "loading_at_fine_mesh": {
+     "original_observable_gates": {
+      "work": {
+       "relative_change": -0.41950552033746924,
+       "bound": 0.02,
+       "passed": false
+      },
+      "electron_local_2D": {
+       "relative_change": 0.04754127563897681,
+       "bound": 0.02,
+       "passed": false
+      },
+      "electron_local_4D": {
+       "relative_change": 0.047007679844927264,
+       "bound": 0.02,
+       "passed": false
+      },
+      "ion_local_2D": {
+       "relative_change": 0.803618152501187,
+       "bound": 0.02,
+       "passed": false
+      },
+      "ion_local_4D": {
+       "relative_change": 0.8054995874038893,
+       "bound": 0.02,
+       "passed": false
+      },
+      "electric": {
+       "relative_change": -0.15363052993520898,
+       "bound": 0.05,
+       "passed": false
+      },
+      "nonzero_electric": {
+       "relative_change": -0.2033102942812126,
+       "bound": 0.05,
+       "passed": false
+      },
+      "residual_rate": {
+       "absolute_difference_over_wp": 0.00013970619698863745,
+       "bound": 1e-05,
+       "passed": false
+      }
+     },
+     "accounting": {
+      "global_energy_work_defect_over_nmc2L": [
+       5.767065389924662e-07,
+       6.687059584892135e-07
+      ],
+      "global_defect_over_abs_window_work": [
+       0.0005954206684413515,
+       0.0011893402842735646
+      ],
+      "conservation_transfer_gate": [
+       true,
+       true
+      ],
+      "global_defect_over_abs_work_difference": 0.0030650994458143095,
+      "conservation_difference_gate": true,
+      "absolute_rate_accounting_envelope_over_wp": [
+       3.853607696045437e-07,
+       4.374336305007397e-07
+      ],
+      "accounting_over_abs_rate_difference": 0.005889462442186461,
+      "rate_accounting_gate": true
+     },
+     "two_endpoint_accounting": {
+      "over_window_work": [
+       0.001190841336882703,
+       0.0023786805685471293
+      ],
+      "window_work_gate": [
+       true,
+       true
+      ],
+      "over_work_difference": 0.006130198891628619,
+      "work_difference_gate": true
+     },
+     "original_gauss_gates": [
+      false,
+      false
+     ],
+     "original_clock_gates": [
+      false,
+      false
+     ]
+    }
+   },
+   "notes": "Single new-count Gaussian realization; no ensemble, order or convergence claim. All gates use raw fixed windows. Accounting envelopes are not loading/spatial/temporal uncertainty. Original nominal-clock and Gauss failures stay visible; no state projection or phase alignment."
+  }
  }
 }

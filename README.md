@@ -287,11 +287,11 @@ The three quintic steps in the figure retain **412,000 particles**, the same phy
 
 ### Spatial refinement with quintic weights
 
-The strong Figure 2 drive runs through $\omega_pt=1000$ on 2,000 and 4,000 cells, holding the same **412,000 particles**, loading and $\Delta t\omega_p=.0025$. Grid doubling reduces the largest energy/work defect **3.67 times**. Over $800\leq\omega_pt\leq1000$, local electron/ion spread increments change by less than **0.3%**, while transferred work changes **−33.52%** and mean nonzero-mode electric energy **+10.60%**. The late conversion rate therefore remains unresolved despite improved energy/work balance. This tests the published drive parameters; it does not establish agreement or a contradiction with Hook, Huang and Shalaby. [Raw norms, conservation and resolution](docs/kinetic.md#spatial-refinement-with-quintic-weights).
+The strong Figure 2 drive runs through $\omega_pt=1000$ at $\Delta t\omega_p=.0025$: **412,000 particles** on 2,000 or 4,000 cells, plus **1,648,000 particles** on 4,000 cells. Grid doubling at fixed particle count reduces the largest energy/work defect **3.67 times**; the joint mesh/count change reduces it **3.17 times**. Over $800\leq\omega_pt\leq1000$, transferred work changes **−33.52% / −61.41%** and mean nonzero-mode electric energy **+10.60% / −11.89%**, respectively. The joint run's local ion-spread increase above initialization differs by **about 80%**. All eight joint late accuracy bounds fail despite passing energy/work accounting budgets. Increasing particle count changes the thermal noise realization and instability trigger; these runs leave the published late conversion rate unresolved. [Raw observables, conservation and audit failures](docs/kinetic.md#spatial-refinement-with-quintic-weights).
 
-<img src="docs/_static/figures/shape_mesh_controls/figure.png" width="800" alt="Fixed-particle quintic grid refinement: electric energy, local spread, density and energy minus external work">
+<img src="docs/_static/figures/shape_mesh_controls/figure.png" width="800" alt="Quintic mesh and particle-count controls: electric energy, local spread, density and energy minus external work">
 
-[Simulation script](examples/dark_reservoir.py) · `study='paper', cells=2000` or `4000`, `particles=206000, shape_order=5, dt=.0025, horizon=1000, block_horizon=100, local_moments=True`; [comparison and plot](docs/scripts/compare_replays.py) · `variant='mesh', constraints=True` ([full inputs](docs/scripts/make_all.py)).
+[Simulation script](examples/dark_reservoir.py) · `study='paper', cells=2000` or `4000`, `particles=206000, shape_order=5, dt=.0025, horizon=1000, block_horizon=100, local_moments=True`; joint control: `cells=4000, particles=824000` per species. [Comparison and plot](docs/scripts/compare_replays.py) ([full inputs](docs/scripts/make_all.py)).
 
 ### Three-seed late timestep pilot
 
