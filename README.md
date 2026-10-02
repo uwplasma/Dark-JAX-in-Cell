@@ -279,13 +279,13 @@ At fixed quintic weighting, halving $\Delta t\omega_p$ from 0.005 to 0.0025 chan
 
 ### Three timesteps through nonlinear conversion
 
-The three quintic steps in the figure retain **412,000 particles**, the same physical initialization and the strong Figure 2 drive. Over $0\leq\omega_pt\leq100$, adjacent field differences shrink approximately fourfold. Over $800$–$1000$, the last halving changes transferred work by **+21.64%**, mean electric energy by **+5.55%**, and the residual injection rate by **$1.03\times10^{-4}\omega_p$**. These exceed the fixed late accuracy bounds despite a work-ledger defect of only **0.118%** of window transfer. Early refinement therefore does not establish late convergence or a discrepancy with Hook, Huang and Shalaby. [Raw differences, conservation and analytical scope](docs/kinetic.md#three-quintic-timesteps).
+The three quintic steps in the figure retain **412,000 particles**, the same physical initialization and the strong Figure 2 drive. Over $0\leq\omega_pt\leq100$, adjacent field differences shrink approximately fourfold. Over $800\leq\omega_pt\leq1000$, the last halving changes transferred work by **+21.64%**, mean electric energy by **+5.55%**, and the residual injection rate by **$1.03\times10^{-4}\omega_p$**. These exceed the fixed late accuracy bounds despite a work-ledger defect of only **0.118%** of window transfer. Early refinement therefore does not establish late convergence or a discrepancy with Hook, Huang and Shalaby. [Raw differences, conservation and analytical scope](docs/kinetic.md#three-quintic-timesteps).
 
 [Simulation script](examples/dark_reservoir.py) · `study='paper', shape_order=5`, with `dt=.005`, `.0025` or `.00125`; [comparison and plot](docs/scripts/compare_replays.py) ([full inputs](docs/scripts/make_all.py)).
 
 ### Three-seed late timestep pilot
 
-Quintic runs with **412,000 particles** and 2,000 cells repeat the strong Figure 2 drive at $\Delta t\omega_p=.005$ and $.0025$, through $\omega_pt=1000$. Each seed supplies one paired reduction on $800$–$1000$; time samples are not extra realizations.
+Quintic runs with **412,000 particles** and 2,000 cells repeat the strong Figure 2 drive at $\Delta t\omega_p=.005$ and $.0025$, through $\omega_pt=1000$. Each seed supplies one paired reduction on $800\leq\omega_pt\leq1000$; time samples are not extra realizations.
 
 | Gaussian seed | Work, coarse / fine ($10^{-3}nm_ec^2L$) | Fine global energy defect / window work |
 |---|---:|---:|
