@@ -26,6 +26,26 @@ def cosine(amplitude=.02, phase=.3):
     return PrescribedDrive(1., jnp.array([amplitude * FIELD, 0., 0.]), WP, phase)
 
 
+@pytest.fixture
+def quintic_box():
+    """Optional PR65 parent fixture; the released companion retains its quadratic pin."""
+    try:
+        p, state = load_plasma(SimpleNamespace(paper_loading=True, cells=8, particles=32,
+                                               dt=.04, iterations=8, shape_order=5))
+    except ValueError as error:
+        if str(error) == 'shape_order=5 requires explicit PIC with periodic particle and field boundaries':
+            pytest.skip('implicit quintic validation requires experimental JAX-in-Cell PR65')
+        raise
+    o, d = state.ordinary, p.domain
+    theta = 2 * jnp.pi * o.x[:, 0] / d.length
+    w = o.w * (1 + .1 * jnp.cos(theta))
+    x = o.x.at[:, 0].add(jnp.where(p.per_particle[1] < 0,
+                                   .035 * d.dx * (jnp.sin(theta + .3) + .2 * jnp.cos(2 * theta)), 0.))
+    rho = deposit(x[:, 0], p.per_particle[1] * w, d.grid[0], d.dx, d.cells, (0, 0), 5)
+    electric = o.E.at[:, 0].set(E_x_from_rho(rho, d.dx, (0, 0)) + .05 * FIELD)
+    return p, drive_state(p, o.replace(x=x, w=w, rho=rho, E=electric))
+
+
 def assert_state_close(first, second, plasma):
     """Compare separate executions in physical units; GPU sums need not be bitwise equal."""
     length, energy = plasma.domain.length, N * m * c**2 * plasma.domain.length
@@ -368,3 +388,96 @@ def test_grid_phase_rejects_invalid_phase_and_restart_clock():
             translated_initial(p, invalid, .25)
     with pytest.raises(ValueError, match='neutralizing charge'):
         translated_initial(p, state.replace(background=jnp.asarray(e * N)), .25)
+
+
+@pytest.mark.parametrize('phase', [0., .25, .5])
+def test_quintic_accepted_orbits_charge_work_and_impulse_at_fractional_grid_phases(quintic_box, phase):
+    p, initial = quintic_box
+    initial, model = translated_initial(p, initial, phase), cosine()
+    accepted, current = jax.jit(implicit_drive_step)(p, initial, model)
+    before, after, d = initial.ordinary, accepted.ordinary, p.domain
+    force = float(model.eta * model.amplitude[0] / FIELD) * np.cos(
+        float(model.omega) * (float(before.time) + d.dt / 2) + float(model.phase))
+    weights, charge, mass = (np.asarray(before.w) / (N * d.length), np.asarray(p.per_particle[1]) / e,
+                             np.asarray(p.per_particle[0]) / m)
+    reference = midpoint_orbits(np.asarray((before.E[:, 0] + after.E[:, 0]) / (2 * FIELD)),
+                                np.asarray(before.x[:, 0]) * WP / c, np.asarray(before.u[:, 0]) / c,
+                                charge, mass, d.length * WP / c, d.dt * WP,
+                                drive=force, weights=weights, shape_order=5)
+    assert p.solver.shape_order == 5 and reference['converged']
+    for state, key in ((before, 'rho_initial'), (after, 'rho')):
+        np.testing.assert_allclose(state.rho / (e * N), reference[key], rtol=0, atol=2e-13)
+    np.testing.assert_allclose(after.u[:, 0] / c, reference['u'], rtol=0, atol=2e-12)
+    distance = (np.asarray(after.x[:, 0]) * WP / c - reference['x'] + np.pi) % (2 * np.pi) - np.pi
+    np.testing.assert_allclose(distance, 0., rtol=0, atol=2e-12)
+    np.testing.assert_allclose(jnp.mean(current[:, 0]) / (e * N * c), reference['mean_current'],
+                               rtol=0, atol=2e-13)
+    reference_current = -d.dx * WP / c * np.cumsum((reference['rho'] - reference['rho_initial']) / (d.dt * WP))
+    reference_current += reference['mean_current'] - reference_current.mean()
+    np.testing.assert_allclose(current[:, 0] / (e * N * c), reference_current, rtol=0, atol=2e-12)
+    continuity = (after.rho - before.rho) / d.dt + divergence(current, d.dx)
+    assert float(jnp.max(abs(continuity))) / (e * N * WP) < 2e-12
+    assert float(accepted.max_ordinary_gauss) * epsilon_0 / (e * N) < 2e-12
+    energy = N * m * c**2 * d.length
+    assert abs(float(sample(p, accepted)['balance'] - initial.initial_ordinary)) / energy < 2e-12
+    # Compare the summed accepted impulse, not an exact continuum-momentum claim.
+    actual = np.sum(mass * weights * np.asarray(after.u[:, 0] - before.u[:, 0]) / c)
+    expected = d.dt * WP / p.solver.substeps * np.sum(charge * weights * reference['orbit_E'].sum(axis=0))
+    np.testing.assert_allclose(actual, expected, rtol=0, atol=2e-12)
+
+
+def test_quintic_complete_restart_keeps_fields_weights_phase_and_work(quintic_box, tmp_path):
+    p, initial = quintic_box
+    o = initial.ordinary.replace(E=initial.ordinary.E + FIELD * jnp.array([0., .02, -.01]),
+                                 B=initial.ordinary.B + FIELD / c * jnp.array([.01, -.02, .03]))
+    initial, model = drive_state(p, o), cosine()
+    full, _, _ = run_drive(p, initial, model, 8, 2)
+    middle, _, _ = run_drive(p, initial, model, 4, 2)
+    path = tmp_path / 'quintic.npz'
+    archive_model = SimpleNamespace(plasma=p, dark=model)
+    save_compressed_state(path, middle, archive_model)
+    with np.load(path) as archive:
+        assert archive['format'] == 2 and archive['shape_order'] == 5
+    restored = load_state(path, archive_model)
+    jax.tree.map(np.testing.assert_array_equal, middle, restored)
+    final, _, _ = run_drive(p, restored, model, 4, 2)
+    assert_state_close(final, full, p)
+    with pytest.raises(ValueError, match='shape_order'):
+        load_state(path, SimpleNamespace(plasma=p.replace(solver=p.solver.replace(shape_order=2)), dark=model))
+
+
+def test_quintic_cold_objective_ad_matches_independent_cayley_frechet_and_finite_difference(quintic_box):
+    controls, dt, steps = jnp.array([.0002, 1.2, .94, .3]), .04, 4
+    signal = jax.jit(lambda values: objective(values, steps, cells=4, nodes=1, dtau=dt,
+                                              temperature=0., shape_order=5))
+    value, automatic = jax.jit(jax.value_and_grad(signal))(controls)
+
+    def cold(parameters):
+        amplitude, density, frequency, phase = parameters
+        plasma = density * (1 + 1 / 1836.)
+        matrix = np.array([[0., -1.], [plasma, 0.]], dtype=complex)
+        state, identity = np.zeros(2, dtype=complex), np.eye(2)
+        for step in range(steps):
+            forcing = np.array([0., plasma * amplitude * np.cos(frequency * (step + .5) * dt + phase)])
+            state = np.linalg.solve(identity - dt * matrix / 2, (identity + dt * matrix / 2) @ state + dt * forcing)
+        return state[0]**2 / 2
+
+    parameters = np.asarray(controls)
+    frechet = np.array([cold(parameters.astype(complex) + 1e-25j * np.eye(4)[i]).imag / 1e-25 for i in range(4)])
+    np.testing.assert_allclose(value, cold(parameters).real, rtol=2e-8, atol=1e-20)
+    np.testing.assert_allclose(automatic, frechet, rtol=2e-7, atol=1e-19)
+    finite = []
+    for i in range(4):
+        delta = jnp.eye(4)[i] * (1e-5 * max(abs(float(controls[i])), .001))
+        finite.append((float(signal(controls + delta)) - float(signal(controls - delta))) / (2 * float(delta[i])))
+    np.testing.assert_allclose(automatic, finite, rtol=2e-5, atol=1e-18)
+
+
+def test_shape_order_defaults_and_input_validation():
+    default = homogeneous_box(cells=4, nodes=1, temperature=0.)
+    explicit = homogeneous_box(cells=4, nodes=1, temperature=0., shape_order=2)
+    jax.tree.map(np.testing.assert_array_equal, default, explicit)
+    for order in (1, 3, 5.5, True):
+        with pytest.raises(ValueError, match='shape_order'):
+            load_plasma(SimpleNamespace(paper_loading=True, cells=8, particles=32,
+                                        dt=.02, iterations=4, shape_order=order))

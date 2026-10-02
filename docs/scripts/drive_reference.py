@@ -8,6 +8,12 @@ so coherent detuning can be tested without any grid, shot noise or density wave.
 import numpy as np
 from numpy.polynomial.hermite import hermgauss
 from scipy.integrate import solve_ivp
+from scipy.interpolate import BSpline
+
+
+_QUARTIC = BSpline.basis_element(np.arange(6) - 2.5, extrapolate=False)
+_QUINTIC = BSpline.basis_element(np.arange(7) - 3., extrapolate=False)
+_GAUSS_NODES, _GAUSS_WEIGHTS = np.polynomial.legendre.leggauss(3)
 
 
 def forced_cold(times, amplitude, mass_ratio=1836.):
@@ -19,12 +25,21 @@ def forced_cold(times, amplitude, mass_ratio=1836.):
         difference * t / (2 * np.pi)) / (frequency + 1)
 
 
-def orbit_average(electric, x, displacement, length):
-    """Exact periodic linear-face-field average over an unwrapped 1V orbit.
+def _quartic_field(electric, position, length):
+    """Independent Cox-de Boor face spline, with five periodic weights per position."""
+    coordinate = (position + length / 2) * len(electric) / length - 1
+    indices = np.floor(coordinate + .5).astype(int)[..., None] + np.arange(-2, 3)
+    weights = np.nan_to_num(_QUARTIC(coordinate[..., None] - indices))
+    return np.sum(electric[indices % len(electric)] * weights, axis=-1)
+
+
+def orbit_average(electric, x, displacement, length, *, shape_order=2):
+    """Exact periodic face-spline average over an unwrapped 1V orbit.
 
     Face i is at -L/2+(i+1)dx. At most one face may be crossed; zero-length
-    orbits return the local field. Splitting the trapezoid avoids subtracting
-    two nearly equal potentials when a particle hardly moves.
+    orbits return the local field. Quadratic charge gives a linear field;
+    quintic charge gives a quartic field. Knot-split quadrature avoids large
+    potential subtraction and integrates each quartic piece exactly.
     """
     electric, x = np.asarray(electric, dtype=float), np.asarray(x, dtype=float)
     displacement = np.broadcast_to(np.asarray(displacement, dtype=float), x.shape)
@@ -37,6 +52,21 @@ def orbit_average(electric, x, displacement, length):
     last = np.floor((x + displacement + length / 2) / dx)
     if np.any(abs(last - first) > 1):
         raise ValueError('reference orbit crosses more than one face in a substep')
+    if (not isinstance(shape_order, (int, np.integer)) or isinstance(shape_order, (bool, np.bool_))
+            or shape_order not in (2, 5)):
+        raise ValueError('reference shape_order must be 2 or 5')
+    if shape_order == 5:
+        # Quartic knots lie at cell centres. The guard above permits at most
+        # two of them; integrate in orbit fractions, including zero/tiny shifts.
+        knots = -length / 2 + (np.minimum(first, last)[..., None] + np.array([.5, 1.5])) * dx
+        fractions = np.divide(knots - x[..., None], displacement[..., None],
+                              out=np.zeros_like(knots), where=displacement[..., None] != 0)
+        cuts = np.sort(np.concatenate((np.zeros(x.shape + (1,)), np.clip(fractions, 0, 1),
+                                       np.ones(x.shape + (1,))), axis=-1), axis=-1)
+        width = np.diff(cuts)
+        points = x[..., None, None] + displacement[..., None, None] * (
+            (cuts[..., :-1, None] + cuts[..., 1:, None]) / 2 + width[..., None] * _GAUSS_NODES / 2)
+        return np.sum(width * (_quartic_field(electric, points, length) @ _GAUSS_WEIGHTS) / 2, axis=-1)
     edge = -length / 2 + (first + (displacement > 0)) * dx
     crossed = first != last
     fraction = np.divide(edge - x, displacement, out=np.zeros_like(displacement), where=crossed)
@@ -58,14 +88,26 @@ def _quadratic_charge(x, amounts, length, cells):
     return density
 
 
+def _quintic_charge(x, amounts, length, cells):
+    """Independent six-point Cox-de Boor deposit, including overlapping periodic images."""
+    coordinate = (x + length / 2) * cells / length - .5
+    indices = np.floor(coordinate).astype(int)[:, None] + np.arange(-2, 4)
+    shape = np.nan_to_num(_QUINTIC(coordinate[:, None] - indices))
+    density = np.zeros(cells)
+    np.add.at(density, indices % cells, cells * amounts[:, None] * shape)
+    return density
+
+
 def midpoint_orbits(electric, x, u, charge, mass, length, dt, *, drive=0., weights=None,
-                    tolerance=2e-13, iterations=64, substeps=2):
+                    tolerance=2e-13, iterations=64, substeps=2, shape_order=2):
     """Independently solve relativistic 1V substeps in a frozen midpoint field.
 
     Units are x:c/wp, u:c, E:me*c*wp/e, q:e and mass:me. ``drive`` is the
     uniform force already evaluated at the whole field-step midpoint. Optional
     weights w/(nL) give endpoint charge/(en) and mean current/(en*c).
     ``substeps`` is a positive integer; the default is two, as in the parent.
+    ``shape_order`` selects quadratic (2) or quintic (5) endpoint charge and
+    its conjugate linear or quartic orbit field, respectively.
     No magnetic/transverse motion is supported. Residuals describe this frozen
     field reference, not the parent's inaccessible internal Picard residual.
     """
@@ -87,7 +129,7 @@ def midpoint_orbits(electric, x, u, charge, mass, length, dt, *, drive=0., weigh
         old_u, old_x = u.copy(), x.copy()
         shift = h * old_u / np.hypot(1., old_u)
         for count in range(1, iterations + 1):
-            average = orbit_average(electric, old_x, shift, length) + drive
+            average = orbit_average(electric, old_x, shift, length, shape_order=shape_order) + drive
             new_u = old_u + qm * h * average
             new_shift = h * (old_u + new_u) / (np.hypot(1., old_u) + np.hypot(1., new_u))
             if not np.all(np.isfinite(new_u)) or not np.all(np.isfinite(new_shift)):
@@ -96,7 +138,7 @@ def midpoint_orbits(electric, x, u, charge, mass, length, dt, *, drive=0., weigh
             u, shift = new_u, new_shift
             if error <= tolerance:
                 break
-        average = orbit_average(electric, old_x, shift, length) + drive
+        average = orbit_average(electric, old_x, shift, length, shape_order=shape_order) + drive
         equation_u.append(u - old_u - qm * h * average)
         residual_u.append(float(np.max(abs(equation_u[-1]))))
         closed_shift = h * (old_u + u) / (np.hypot(1., old_u) + np.hypot(1., u))
@@ -114,8 +156,9 @@ def midpoint_orbits(electric, x, u, charge, mass, length, dt, *, drive=0., weigh
         if not np.all(np.isfinite(weights)) or np.any(weights < 0):
             raise ValueError('reference marker weights must be finite and nonnegative')
         amounts = charge * weights
-        result.update(rho_initial=_quadratic_charge(initial_x, amounts, length, electric.size),
-                      rho=_quadratic_charge(x, amounts, length, electric.size),
+        deposit = _quadratic_charge if shape_order == 2 else _quintic_charge
+        result.update(rho_initial=deposit(initial_x, amounts, length, electric.size),
+                      rho=deposit(x, amounts, length, electric.size),
                       mean_current=float(np.sum(amounts * total) / dt))
     return result
 

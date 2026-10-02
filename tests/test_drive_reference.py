@@ -2,9 +2,10 @@
 
 import numpy as np
 import pytest
-from scipy.integrate import solve_ivp
+from scipy.integrate import quad, solve_ivp
+from scipy.interpolate import BSpline
 
-from docs.scripts.drive_reference import forced_cold, homogeneous, midpoint_orbits, gaussian_tangent
+from docs.scripts.drive_reference import forced_cold, homogeneous, midpoint_orbits, gaussian_tangent, orbit_average
 
 
 def test_mobile_ion_oracle_and_infinite_mass_limit():
@@ -46,10 +47,12 @@ def test_zero_drive_and_oracle_controls():
 
 
 @pytest.mark.parametrize('substeps', [1, 2, 3, 4, 8])
-def test_constant_force_orbit_is_exact_for_any_positive_substep_count(substeps):
+@pytest.mark.parametrize('shape_order', [2, 5])
+def test_constant_force_orbit_is_exact_for_any_positive_substep_count(substeps, shape_order):
     x, u = np.array([-.9, -.1, .99]), np.array([.05, -.1, .7])
     charge, mass = np.array([-1., 1., -1.]), np.array([1., 1836., 2.])
-    result = midpoint_orbits(np.full(32, .2), x, u, charge, mass, 2., .1, drive=.03, substeps=substeps)
+    result = midpoint_orbits(np.full(32, .2), x, u, charge, mass, 2., .1, drive=.03,
+                             substeps=substeps, shape_order=shape_order)
     exact_u = u + charge / mass * .1 * .23
     # For du/dt=constant, integral(v dt)=(gamma_end-gamma_start)/(du/dt).
     exact_shift = .1 * (u + exact_u) / (np.hypot(1., u) + np.hypot(1., exact_u))
@@ -86,6 +89,52 @@ def test_substep_refinement_resolves_face_crossings_and_rejects_unsupported_coun
     default = midpoint_orbits(np.zeros(4), [0.], [0.], 1., 1., 2., .1)
     explicit = midpoint_orbits(np.zeros(4), [0.], [0.], 1., 1., 2., .1, substeps=2)
     np.testing.assert_array_equal(default['orbit_E'], explicit['orbit_E'])
+
+
+@pytest.mark.parametrize('cells', [2, 8])
+def test_quintic_orbit_field_matches_adaptive_integral_at_zero_tiny_knots_and_wrap(cells):
+    field, length = np.random.default_rng(19).normal(size=cells) + .4, 2.
+    dx = length / cells
+    faces = -length / 2 + dx * np.arange(1, cells + 1)
+    basis = BSpline.basis_element(np.arange(6) - 2.5, extrapolate=False)
+
+    def dense_field(position):
+        # All faces and periodic images are summed independently of the
+        # reference's nearest-five stencil, including overlapping small grids.
+        distance = (position - faces[:, None] + length * np.arange(-3, 4)) / dx
+        return float(np.nan_to_num(basis(distance)).sum(axis=1) @ field)
+
+    x = np.array([-1., 1. - 1e-13, -.3, -.7, -.05, -.7])
+    shift = dx * np.array([0., 1e-12, -1e-14, .7, -.7, 1.4])
+    # The final orbit can cross two quartic knots, but only one integer face.
+    knots = -length / 2 + dx * (np.arange(-2 * cells, 3 * cells) + .5)
+    expected = []
+    for start, displacement in zip(x, shift):
+        fractions = (knots - start) / displacement if displacement else np.array([])
+        cuts = fractions[(fractions > 0) & (fractions < 1)]
+        expected.append(quad(lambda f: dense_field(start + f * displacement), 0., 1., points=cuts,
+                             epsabs=2e-13, epsrel=2e-13)[0])
+    actual = orbit_average(field, x, shift, length, shape_order=5)
+    np.testing.assert_allclose(actual, expected, rtol=0, atol=2e-13)
+
+
+def test_quintic_endpoint_charge_partition_known_weights_and_ballistic_wrap():
+    at_centre = midpoint_orbits(np.zeros(8), [-.875], [0.], 1., 1., 2., .1, weights=[1.], shape_order=5)
+    # Six-fold convolution of a unit box gives M5(0,1,2)=(66,26,1)/120.
+    exact = 8 / 120 * np.array([66., 26., 1., 0., 0., 0., 1., 26.])
+    np.testing.assert_allclose(at_centre['rho'], exact, rtol=0, atol=2e-15)
+    np.testing.assert_array_equal(at_centre['rho'], at_centre['rho_initial'])
+    x, u, weights = np.array([-.99, -.7, .97]), np.array([-.2, .07, .4]), np.array([.2, .3, .5])
+    result = midpoint_orbits(np.zeros(2), x, u, [-1., 1., -1.], 1., 2., .2,
+                             weights=weights, shape_order=5)
+    np.testing.assert_allclose(result['displacement'], .2 * u / np.hypot(1., u), rtol=0, atol=2e-15)
+    for key in ('rho', 'rho_initial'):
+        np.testing.assert_allclose(np.mean(result[key]), -.4, rtol=0, atol=2e-15)
+    np.testing.assert_allclose(result['mean_current'], np.sum(weights * [-1., 1., -1.] * u / np.hypot(1., u)),
+                               rtol=0, atol=2e-15)
+    for order in (1, 3, 5.5, True):
+        with pytest.raises(ValueError, match='shape_order'):
+            midpoint_orbits(np.zeros(2), [0.], [0.], 1., 1., 2., .1, shape_order=order)
 
 
 def test_cold_gaussian_tangent_has_exact_plasma_frequency_phase_and_charge_sign():

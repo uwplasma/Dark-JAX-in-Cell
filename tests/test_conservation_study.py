@@ -9,7 +9,7 @@ from jaxincell import (Domain, Simulation, Solver, Species, elementary_charge as
 
 from darkjaxincell import DarkField, DarkSimulation, PrescribedDrive
 from docs.scripts.conservation import measured_run, snapshot
-from docs.scripts.benchmark_pic_conservation import translated_step
+from docs.scripts.benchmark_pic_conservation import smooth_force_symbols, symbol_audit, translated_step
 
 
 WP = 1e9
@@ -245,3 +245,59 @@ def test_mode_fit_keeps_physical_window_endpoints_with_accumulated_clock_error()
     assert fit["fit_samples"] == 81
     np.testing.assert_allclose(fit["fitted_growth_over_wp"], .34, rtol=1e-13)
     np.testing.assert_allclose(fit["fitted_frequency_over_wp"], .02, rtol=1e-13)
+
+
+def test_smooth_force_symbols_match_the_independent_fundamental_and_restore_mean():
+    """Spline degree suppresses aliases but does not remove the smooth MC/EC difference."""
+    rows, arrays = smooth_force_symbols()
+    expected = {0: 1., 1: .9935868511442058, 3: .9431653207443821, 6: .7842133035765372}
+    for row in rows:
+        if row["quadrature_order"] == 8:
+            np.testing.assert_allclose(complex(*row["ratio"]), expected[row["mode"]], rtol=0, atol=5e-13)
+            shape = np.sinc(row["mode"] / 32)
+            np.testing.assert_allclose(complex(*row["EC"]), shape**row["degree"], rtol=0, atol=5e-13)
+        if row["mode"] == 0:
+            for method in ("MC", "EC"):
+                np.testing.assert_allclose(arrays[row["label"] + "_" + method], 1., rtol=0, atol=1e-13)
+    coarse = max(row["ratio_error"] for row in rows if row["quadrature_order"] == 4)
+    fine = max(row["ratio_error"] for row in rows if row["quadrature_order"] == 8)
+    assert fine < coarse / 100
+    for order in (4, 8):
+        assert arrays[f"q{order}_x"].shape == (64 * order,)
+        np.testing.assert_allclose(np.sum(arrays[f"q{order}_weights"]), 1., rtol=0, atol=2e-15)
+
+
+@pytest.mark.parametrize("cells,modes", [
+    (65, (0, 1)), (4, (0, 1)), (32, (0, 16)), (32, (1, 3)), (32, (0, 1, 1)), (32, (0, .5)),
+])
+def test_smooth_force_symbols_bound_grid_and_quadrature_inputs(cells, modes):
+    with pytest.raises(ValueError):
+        smooth_force_symbols(cells, modes)
+
+
+def test_smooth_force_symbol_evidence_keeps_actual_quadrature_and_white_figure(tmp_path):
+    import hashlib
+    import json
+    import zipfile
+    from matplotlib.image import imread
+
+    symbol_audit(tmp_path)
+    record = json.loads((tmp_path / "run.json").read_text())
+    assert record["example"] == "smooth_force_symbols"
+    assert len(record["results"]["rows"]) == 16
+    assert len(record["settings"]["source_sha256"]) == len(record["settings"]["runtime_sha256"]) == 64
+    runtime = json.dumps(record["settings"]["runtime"], sort_keys=True).encode()
+    assert hashlib.sha256(runtime).hexdigest() == record["settings"]["runtime_sha256"]
+    assert hashlib.sha256((tmp_path / "data.npz").read_bytes()).hexdigest() == record["results"]["arrays_sha256"]
+    with zipfile.ZipFile(tmp_path / "data.npz") as archive:
+        assert archive.testzip() is None
+        assert all(member.compress_type == zipfile.ZIP_DEFLATED for member in archive.infolist())
+    with np.load(tmp_path / "data.npz") as arrays:
+        for row in record["results"]["rows"]:
+            weights, x = arrays[f'q{row["quadrature_order"]}_weights'], arrays[f'q{row["quadrature_order"]}_x']
+            projection = weights * np.exp(-1j * row["theta"] * x)
+            for method in ("MC", "EC"):
+                coefficient = np.sum(projection * arrays[row["label"] + "_" + method])
+                np.testing.assert_allclose(coefficient, complex(*row[method]), rtol=0, atol=2e-15)
+    image = imread(tmp_path / "figure.png")
+    np.testing.assert_array_equal(image[0, 0, :3], [1, 1, 1])

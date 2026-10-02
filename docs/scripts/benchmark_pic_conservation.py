@@ -11,6 +11,7 @@ import platform
 import resource
 import subprocess
 import sys
+from math import comb, factorial
 from pathlib import Path
 from statistics import median
 from time import perf_counter
@@ -46,12 +47,141 @@ compare_overhead = globals().get("compare_overhead", False)
 render_only = globals().get("render_only", False)
 translations = globals().get("translations", False)  # short fractional-cell force audit
 translation_meshes = globals().get("translation_meshes", (16, 32, 64))
+symbols = globals().get("symbols", False)  # independent smooth-mode operator quadrature
+symbol_cells = globals().get("symbol_cells", 32)
+symbol_modes = globals().get("symbol_modes", (0, 1, 3, 6))
 cells = globals().get("cells", 128 if full else 16)
 particles = globals().get("particles", 8192 if full else 64)
 dt = globals().get("dt", .002 if full else .01)
 horizon = globals().get("horizon", 40. if full else 16.)
 samples = globals().get("samples", 1)
-output = Path(globals().get("output", "artifacts/pic_conservation"))
+output = Path(globals().get("output", "artifacts/smooth_force_symbols" if symbols else "artifacts/pic_conservation"))
+
+
+def cardinal_spline(coordinate, degree, derivative=False):
+    """Independent centred cardinal spline, without a production shape kernel."""
+    inside = abs(coordinate) < (degree + 1) / 2
+    shifted = np.where(inside, coordinate + (degree + 1) / 2, 0.)
+    power = degree - int(derivative)
+    value = sum((-1)**j * comb(degree + 1, j) * np.maximum(shifted - j, 0.)**power
+                for j in range(degree + 2)) / factorial(power)
+    return np.where(inside, value, 0.)
+
+
+def smooth_force_symbols(cells=32, modes=(0, 1, 3, 6)):
+    """Fundamental MC/EC force coefficients from continuous particle quadrature.
+
+    MC averages face E to centres and gathers its charge spline. EC differentiates
+    the transpose of the zero-mean continuity current and explicitly restores
+    mean E. Their separated nonzero fundamental ratio is sin(k dx)/(k dx).
+    Aliases remain in the full force arrays; this is not a pointwise identity.
+    """
+    if not isinstance(cells, (int, np.integer)) or not 8 <= cells <= 64:
+        raise ValueError("symbol quadrature requires 8 to 64 cells")
+    modes = tuple(modes)
+    if (not 1 <= len(modes) <= 8
+            or any(not isinstance(k, (int, np.integer)) or not 0 <= k < cells / 2 for k in modes)
+            or len(set(modes)) != len(modes) or 0 not in modes):
+        raise ValueError("symbol modes must include zero and be distinct integers below Nyquist")
+    centre, face = np.arange(cells), np.arange(cells) + .5  # dx=1, L=cells
+    div = np.eye(cells) - np.roll(np.eye(cells), 1, axis=0)
+    current = -np.linalg.pinv(div)
+    arrays, rows = dict(centres=centre, faces=face, divergence=div, continuity=current), []
+    for order in (4, 8):
+        nodes, weights = np.polynomial.legendre.leggauss(order)
+        # Half-cell pieces contain every S2/S5 breakpoint; chunks bound cloud matrices.
+        x = (np.arange(2 * cells)[:, None] / 2 + (nodes[None, :] + 1) / 4).ravel()
+        quadrature = np.tile(weights / (4 * cells), 2 * cells)
+        arrays.update({f"q{order}_x": x, f"q{order}_weights": quadrature})
+        for degree in (2, 5):
+            cloud, slope = [], []
+            for start in range(0, len(x), 256):
+                offset = (x[start:start + 256, None] - centre + cells / 2) % cells - cells / 2
+                cloud.append(cardinal_spline(offset, degree))
+                slope.append(cardinal_spline(offset, degree, True))
+            cloud, slope = np.concatenate(cloud), np.concatenate(slope)
+            prefix = f"q{order}_s{degree}"
+            arrays.update({prefix + "_shape": cloud, prefix + "_shape_derivative": slope})
+            print(f"Smooth force: S{degree}, {cells} cells, Gauss{order}, {len(x)} points", flush=True)
+            for mode in modes:
+                theta = 2 * np.pi * mode / cells
+                electric = np.exp(1j * theta * face)
+                potential = current.T @ electric
+                force_mc = cloud @ ((electric + np.roll(electric, 1)) / 2)
+                force_ec = slope @ potential + np.mean(electric)
+                projection = quadrature * np.exp(-1j * theta * x)
+                mc, ec = np.sum(projection * force_mc), np.sum(projection * force_ec)
+                ratio, shape = mc / ec, np.sinc(theta / (2 * np.pi))**(degree + 1)
+                predicted_mc, predicted_ec = np.cos(theta / 2) * shape, shape / np.sinc(theta / (2 * np.pi))
+                label = prefix + f"_k{mode}"
+                arrays.update({label + "_electric": electric, label + "_potential": potential,
+                               label + "_MC": force_mc, label + "_EC": force_ec,
+                               label + "_coefficients": np.array([mc, ec, ratio])})
+                rows.append(dict(label=label, cells=cells, degree=degree, quadrature_order=order,
+                                 quadrature_points=len(x), mode=mode, theta=theta,
+                                 MC=[float(mc.real), float(mc.imag)], EC=[float(ec.real), float(ec.imag)],
+                                 ratio=[float(ratio.real), float(ratio.imag)],
+                                 predicted_MC=float(predicted_mc), predicted_EC=float(predicted_ec),
+                                 predicted_ratio=float(np.sinc(theta / np.pi)),
+                                 MC_error=float(abs(mc - predicted_mc)), EC_error=float(abs(ec - predicted_ec)),
+                                 ratio_error=float(abs(ratio - np.sinc(theta / np.pi)))))
+    return rows, arrays
+
+
+def symbol_audit(folder, cells=32, modes=(0, 1, 3, 6)):
+    """Save independent measured force arrays, white figure and native provenance."""
+    rows, arrays = smooth_force_symbols(cells, modes)
+    projector = np.eye(cells) - np.ones((cells, cells)) / cells
+    continuity_error = float(np.max(abs(arrays["divergence"] @ arrays["continuity"] + projector)))
+    finest = [row for row in rows if row["quadrature_order"] == 8]
+    ratio_error = max(row["ratio_error"] for row in finest)
+    mean_error = max(float(np.max(abs(arrays[row["label"] + "_" + method] - 1)))
+                     for row in rows if row["mode"] == 0 for method in ("MC", "EC"))
+    if (any(not np.all(np.isfinite(value)) for value in arrays.values())
+            or continuity_error > 1e-13 or ratio_error > 1e-12 or mean_error > 1e-12):
+        raise ValueError("smooth-symbol continuity, fundamental or restored-mean check failed")
+    with midnight():
+        figure, axes = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
+        theta = np.linspace(0, max(row["theta"] for row in rows), 256)
+        arrays["curve_theta"], arrays["curve_ratio"] = theta, np.sinc(theta / np.pi)
+        for degree, colour in ((2, "#6A3D9A"), (5, "#0072B2")):
+            shape = np.sinc(theta / (2 * np.pi))**(degree + 1)
+            for method, marker, line in (("MC", "o", "-"), ("EC", "^", "--")):
+                expected = np.cos(theta / 2) * shape if method == "MC" else shape / np.sinc(theta / (2 * np.pi))
+                arrays[f"curve_s{degree}_{method}"] = expected
+                axes[0].plot(theta, expected, line, color=colour, label=f"S{degree} {method} prediction")
+                selected = [row for row in finest if row["degree"] == degree]
+                axes[0].scatter([row["theta"] for row in selected], [row[method][0] for row in selected],
+                                marker=marker, color=colour, facecolors="white", zorder=3)
+            axes[1].scatter([row["theta"] for row in selected], [row["ratio"][0] for row in selected],
+                            marker="o" if degree == 2 else "s", color=colour, facecolors="white",
+                            s=80 if degree == 2 else 30, label=f"S{degree} Gauss8", zorder=3)
+        axes[1].plot(theta, arrays["curve_ratio"], color="#30343B", label=r"$\sin\theta/\theta$")
+        axes[0].set(title="Fundamental force (points: Gauss8)", ylabel=r"$F_0/E_{\mathrm{face},0}$")
+        axes[1].set(title="MC / EC fundamental ratio", ylabel=r"$F_{\mathrm{MC},0}/F_{\mathrm{EC},0}$")
+        for axis in axes:
+            axis.set_xlabel(r"$\theta=k\Delta x$")
+            axis.grid(alpha=.3)
+            axis.legend(fontsize=8)
+        runtime = dict(python=platform.python_version(), numpy=np.__version__, matplotlib=matplotlib.__version__,
+                       platform=f"{platform.system()} {platform.machine()}", dtype="float64",
+                       numpy_linalg_sha256=hashlib.sha256(Path(
+                           sys.modules["numpy.linalg._umath_linalg"].__file__).read_bytes()).hexdigest())
+        settings = dict(cells=cells, dx=1., modes=list(modes), degrees=[2, 5], quadrature_orders=[4, 8],
+                        scope="Continuous-particle fundamental operators; no PIC dynamics or late-error attribution",
+                        computation="NumPy; JAX version/backend in save_run describe the imported parent runtime",
+                        source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), runtime=runtime,
+                        runtime_sha256=hashlib.sha256(json.dumps(runtime, sort_keys=True).encode()).hexdigest())
+        save_run(folder, "smooth_force_symbols", settings, dict(rows=rows, continuity_error=continuity_error,
+                 gauss8_ratio_error=ratio_error, restored_mean_error=mean_error,
+                 oracle="Independent periodic divergence transpose and continuous cardinal-spline quadrature"),
+                 figure, **arrays)
+        np.savez_compressed(Path(folder) / "data.npz", **arrays)
+        path = Path(folder) / "run.json"
+        record = json.loads(path.read_text())
+        record["results"]["arrays_sha256"] = hashlib.sha256((Path(folder) / "data.npz").read_bytes()).hexdigest()
+        path.write_text(json.dumps(record, indent=1, allow_nan=False) + "\n")
+        plt.close(figure)
 
 
 def fit_mode(t, mode, window=(8., 16.)):
@@ -366,8 +496,11 @@ def validate_inputs():
 
 
 if __name__ == "__main__":  # noqa: C901 — independent numerical studies
-    print("Starting coupled PIC method benchmark", file=sys.stderr, flush=True)
-    if translations:
+    print("Starting smooth-mode operator benchmark" if symbols else "Starting coupled PIC method benchmark",
+          file=sys.stderr, flush=True)
+    if symbols:
+        symbol_audit(output, symbol_cells, symbol_modes)
+    elif translations:
         translation_audit(output, translation_meshes, particles, dt)
     elif render_only:
         reanalyse(output)
@@ -411,4 +544,5 @@ if __name__ == "__main__":  # noqa: C901 — independent numerical studies
                                 parent_revision="83d327118163833f93e2588edcb5029241f6ba2a",
                                 samples_per_case=samples, precision="float64", note="fresh process per row"),
                    rows, histories)
-    print("Finished coupled PIC method benchmark", file=sys.stderr, flush=True)
+    print("Finished smooth-mode operator benchmark" if symbols else "Finished coupled PIC method benchmark",
+          file=sys.stderr, flush=True)

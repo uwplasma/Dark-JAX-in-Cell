@@ -6,6 +6,8 @@ delta U_physical-dt*dx*sum(J.F) is exactly the shifted parent energy defect.
 Its accepted continuity current keeps Gauss at finite Picard count; energy
 additionally needs the orbit/field iteration to converge. This is a prescribed
 external force, with work supplied externally, not implicit Proca evolution.
+Optional quintic weighting requires the experimental JAX-in-Cell PR65 parent;
+the companion's pinned parent supports quadratic implicit PIC.
 """
 
 from functools import partial
@@ -36,7 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from darkjaxincell import PrescribedDrive, load_state, midnight  # noqa: E402
 from darkjaxincell._simulation import DarkState  # noqa: E402
 from darkjaxincell._proca import divergence  # noqa: E402
-from docs.scripts.conservation import elapsed_progress, snapshot  # noqa: E402
+from docs.scripts.conservation import elapsed_progress, parent_revision, snapshot  # noqa: E402
 from docs.scripts.drive_reference import homogeneous  # noqa: E402
 
 
@@ -52,6 +54,7 @@ rings = globals().get("rings", 1)
 dt = globals().get("dt", .04)
 iterations = globals().get("iterations", 8)
 substeps = globals().get("substeps", 2)
+shape_order = globals().get("shape_order", 2)
 horizon = globals().get("horizon", 8.)
 amplitude = globals().get("amplitude", .03 * np.sqrt(.001))
 temperature = globals().get("temperature", .001)
@@ -147,7 +150,7 @@ def run_drive(plasma, initial, drive, steps, stride=1):
 
 
 def homogeneous_box(cells=8, nodes=8, rings=1, dtau=.02, iterations=8, *,
-                    temperature=1e-3, density=1., relativistic=True):
+                    temperature=1e-3, density=1., relativistic=True, shape_order=2):
     """Replicate each weighted velocity quadrature uniformly over the periodic grid.
 
     Gaussian velocity weights use Gauss-Hermite quadrature, as in the independent
@@ -177,10 +180,10 @@ def homogeneous_box(cells=8, nodes=8, rings=1, dtau=.02, iterations=8, *,
         populations.append(Species(name, nodes * markers, charge, ratio * m, density * N, x=positions, v=v))
     plasma = Simulation(Domain(length, cells, time_step=dtau / WP), tuple(populations),
                         Solver(algorithm="implicit", relativistic=relativistic,
-                               picard_iterations=iterations, substeps=2))
+                               picard_iterations=iterations, substeps=2, shape_order=shape_order))
     ordinary, (_, q) = plasma.initial_state(jax.random.PRNGKey(0))
     w = density * N * length / markers * jnp.tile(jnp.repeat(jnp.asarray(weights), markers), 2)
-    rho = deposit(ordinary.x[:, 0], q * w, plasma.domain.grid[0], plasma.domain.dx, cells, (0, 0))
+    rho = deposit(ordinary.x[:, 0], q * w, plasma.domain.grid[0], plasma.domain.dx, cells, (0, 0), shape_order)
     ordinary = ordinary.replace(w=w, rho=rho, E=ordinary.E.at[:, 0].set(E_x_from_rho(rho, plasma.domain.dx, (0, 0))))
     return plasma, drive_state(plasma, ordinary)
 
@@ -222,10 +225,11 @@ def tangent_reference(times, controls, temperature=1e-3, nodes=64, relativistic=
                 energy_gradient=solution.y[0, -1] * solution.y[2:6, -1], nfev=solution.nfev)
 
 
-def objective(controls, steps, *, cells=8, nodes=8, rings=1, dtau=.02, iterations=8, temperature=1e-3):
+def objective(controls, steps, *, cells=8, nodes=8, rings=1, dtau=.02, iterations=8,
+              temperature=1e-3, shape_order=2):
     """Physical final mean-field energy, including density weights and initialization."""
     plasma, state = homogeneous_box(cells, nodes, rings, dtau, iterations,
-                                    temperature=temperature, density=controls[1])
+                                    temperature=temperature, density=controls[1], shape_order=shape_order)
     drive = PrescribedDrive(1., jnp.array([controls[0] * FIELD, 0., 0.]), controls[2] * WP, controls[3])
     step = jax.checkpoint(lambda carry: implicit_drive_step(plasma, carry, drive)[0])
     state = lax.fori_loop(0, steps, lambda _, carry: step(carry), state)
@@ -262,16 +266,21 @@ def crossings(t, nonzero):
 def load_plasma(args):
     """Keep the supplied physical loading, then initialize the native implicit clock."""
     substeps = getattr(args, 'substeps', 2)
+    shape_order = getattr(args, 'shape_order', 2)
     if (not isinstance(substeps, (int, np.integer)) or isinstance(substeps, (bool, np.bool_)) or substeps < 1
             or (not args.paper_loading and substeps != 2)):
         raise ValueError('positive integer substeps are required; changing them requires paper loading')
+    if (not isinstance(shape_order, (int, np.integer)) or isinstance(shape_order, (bool, np.bool_))
+            or shape_order not in (2, 5)):
+        raise ValueError('shape_order must be 2 or 5')
     if not args.paper_loading:
         return homogeneous_box(args.cells, args.nodes, args.rings, args.dt, args.iterations,
-                               temperature=args.temperature, relativistic=not args.newtonian)
+                               temperature=args.temperature, relativistic=not args.newtonian, shape_order=shape_order)
     from examples.dark_reservoir import paper_plasma
-    plasma, _ = paper_plasma(args.cells, args.particles, args.dt, 0)
+    plasma, _ = paper_plasma(args.cells, args.particles, args.dt, 0, shape_order=shape_order)
     plasma = plasma.replace(solver=Solver(algorithm="implicit", relativistic=True,
-                                          picard_iterations=args.iterations, substeps=substeps))
+                                          picard_iterations=args.iterations, substeps=substeps,
+                                          shape_order=shape_order))
     ordinary, _ = plasma.initial_state(jax.random.PRNGKey(0))
     return plasma, drive_state(plasma, ordinary)
 
@@ -298,7 +307,7 @@ def translated_initial(plasma, state, phase):
         raise ValueError('grid translation requires a zero-time, zero-work initial state')
     old, d = state.ordinary, plasma.domain
     x = old.x.at[:, 0].set((old.x[:, 0] + phase * d.dx + d.length / 2) % d.length - d.length / 2)
-    rho = deposit(x[:, 0], plasma.per_particle[1] * old.w, d.grid[0], d.dx, d.cells, (0, 0))
+    rho = deposit(x[:, 0], plasma.per_particle[1] * old.w, d.grid[0], d.dx, d.cells, (0, 0), plasma.solver.shape_order)
     if abs(float(jnp.mean(rho) + state.background)) > 2e-12 * e * N:
         raise ValueError('grid translation changed the shared neutralizing charge')
     electric = old.E.at[:, 0].set(E_x_from_rho(rho, d.dx, (0, 0)) + jnp.mean(old.E[:, 0]))
@@ -323,7 +332,7 @@ def audit_orbits(args):
     reference = midpoint_orbits((np.asarray(before.E[:, 0]) + np.asarray(after.E[:, 0])) / (2 * FIELD),
                                 np.asarray(before.x[:, 0]) * WP / c, np.asarray(before.u[:, 0]) / c,
                                 charge, mass, length, dt, drive=force, weights=weights,
-                                substeps=plasma.solver.substeps)
+                                substeps=plasma.solver.substeps, shape_order=plasma.solver.shape_order)
     reference_current = -length / d.cells * np.cumsum((reference['rho'] - reference['rho_initial']) / dt)
     reference_current += reference['mean_current'] - np.mean(reference_current)
     position_error = (np.asarray(after.x[:, 0]) * WP / c - reference['x'] + length / 2) % length - length / 2
@@ -349,8 +358,9 @@ def audit_orbits(args):
                   scope='Frozen accepted-midpoint 1V orbit/deposit reference; differences include finite iteration '
                         'and native force evaluation roundoff. Not an internal parent Picard residual.')
     settings = dict(dt=args.dt, iterations=args.iterations, particle_substeps=plasma.solver.substeps,
+                    shape_order=plasma.solver.shape_order,
                     particles_per_species=plasma.species[0].n,
-                    cells=args.cells, parent_revision='83d327118163833f93e2588edcb5029241f6ba2a')
+                    cells=args.cells, parent_revision=parent_revision())
     save_run(args.output, 'implicit_orbit_audit', settings, result)
     print(json.dumps(result, indent=2))
 
@@ -368,7 +378,8 @@ def benchmark(args):
     fingerprints = {key: array_fingerprint(np.asarray(getattr(initial.ordinary, key)))
                     for key in ("x", "u", "w", "E", "B", "rho", "time")}
     fingerprints.update(mass=array_fingerprint(plasma.per_particle[0]),
-                        charge=array_fingerprint(plasma.per_particle[1]))
+                        charge=array_fingerprint(plasma.per_particle[1]),
+                        shape_order=array_fingerprint(np.asarray(plasma.solver.shape_order)))
     loading_fingerprints = {species.name: {key: array_fingerprint(getattr(species, key))
                                            for key in ("x", "v")} for species in plasma.species}
     scale = N * m * c**2 * plasma.domain.length
@@ -460,12 +471,14 @@ def benchmark(args):
                                 "spatial PIC dynamics and velocity loading once nonzero modes grow"),
                   max_work_error_over_nmc2L=float(max(abs(history["work"] / scale - reference["work"]))),
                   oracle_nodes=oracle_nodes, particle_substeps=plasma.solver.substeps,
+                  shape_order=plasma.solver.shape_order,
                   claim="uniform prescribed-drive prototype; phase and work checks, no implicit Proca")
     if args.gradient_horizon:
         controls = jnp.array([args.amplitude, 1., 1., 0.])
         gradient_steps = round(args.gradient_horizon / args.dt)
         signal = partial(objective, steps=gradient_steps, cells=args.cells, nodes=args.nodes, rings=args.rings,
-                         dtau=args.dt, iterations=args.iterations, temperature=args.temperature)
+                         dtau=args.dt, iterations=args.iterations, temperature=args.temperature,
+                         shape_order=plasma.solver.shape_order)
         start = perf_counter()
         gradient_executable = jax.jit(jax.value_and_grad(signal)).lower(controls).compile()
         gradient_compile = perf_counter() - start
@@ -509,7 +522,8 @@ def benchmark(args):
         settings = {key: value for key, value in vars(args).items() if key not in ("output", "initial_state")}
         for key in (("nodes", "rings") if args.paper_loading else ("particles",)):
             settings.pop(key)
-        settings.update(parent_revision="83d327118163833f93e2588edcb5029241f6ba2a", precision="float64",
+        settings.update(parent_revision=parent_revision(), precision="float64",
+                        shape_order=plasma.solver.shape_order,
                         initial_state_source=("complete zero-time archive" if args.initial_state
                                               else "native initialization"),
                         loading=("paper_plasma: co-located spatial lattice, Gaussian velocities; "
@@ -547,7 +561,7 @@ def benchmark(args):
 
 if __name__ == "__main__":
     args = SimpleNamespace(**{key: globals()[key] for key in (
-        "cells", "nodes", "rings", "dt", "iterations", "substeps", "horizon", "amplitude", "temperature",
+        "cells", "nodes", "rings", "dt", "iterations", "substeps", "shape_order", "horizon", "amplitude", "temperature",
         "samples", "gradient_horizon", "newtonian", "paper_loading", "particles", "grid_phase", "output")},
         initial_state=Path(initial_state) if initial_state is not None else None,
         audit_state=Path(audit_state) if audit_state is not None else None)
@@ -562,6 +576,9 @@ if __name__ == "__main__":
                          "and no gradient study")
     if not paper_loading and substeps != 2:
         raise ValueError("changing particle substeps requires paper_loading=True")
+    if (not isinstance(shape_order, (int, np.integer)) or isinstance(shape_order, (bool, np.bool_))
+            or shape_order not in (2, 5)):
+        raise ValueError("shape_order must be 2 or 5")
     if not paper_loading and not newtonian and 2 * temperature * max(abs(hermgauss(nodes)[0]))**2 >= 1 - 1e-5:
         raise ValueError("quadrature velocities exceed the parent's relativistic input margin")
     if newtonian and gradient_horizon:
