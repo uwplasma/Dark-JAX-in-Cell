@@ -787,7 +787,7 @@ def _pair_normalize(data, setting, label):
     """Use the producer's declared SI scales, preserving the Fourier face phase."""
     scale, c = setting['normalization'], 299792458.
     energy, field, wp = (scale[key] for key in ('energy_scale_J_m2', 'field_scale_V_m', 'omega0_rad_s'))
-    result = {key: value.copy() for key, value in data.items()}
+    result = {key: value.copy() for key, value in data.items() if not key.startswith('pump_')}
     for key in ('electric', 'magnetic', 'dark', 'dark_coherent', 'kinetic', 'spread', 'balance', 'work',
                 'local_spread'):
         result[key] /= energy
@@ -804,6 +804,73 @@ def _pair_normalize(data, setting, label):
     return result
 
 
+def _pair_cadence(setting):
+    value = setting.get('scalar_dt_omega0', setting['dt_omega0'])
+    if not isinstance(value, (int, float)) or not np.isfinite(value) or value <= 0:
+        raise ValueError('pair scalar cadence must be finite and positive')
+    return value
+
+
+def _pair_pump(data, setting, label, scalar, top, tolerance):
+    """Validate every native push clock separately from expensive scalar samples."""
+    keys = ('t', 'mean', 'mean_D', 'mean_A')
+    names = {key for key in data if key.startswith('pump_')}
+    dt, wp = setting['dt_omega0'], setting['normalization']['omega0_rad_s']
+    stride = round(_pair_cadence(setting) / dt)
+    if names != ({'pump_' + key for key in keys} if label == 'coupled' and stride > 1 else set()):
+        raise ValueError('sparse coupled scalars require exactly four dense pump histories')
+    if label != 'coupled':
+        return {}
+    pump = {key: data[('pump_' if stride > 1 else '') + key].copy() for key in keys}
+    if any(value.dtype != np.float64 for value in pump.values()):
+        raise ValueError('dense pump histories require real float64 SI arrays')
+    pump['t'] *= wp
+    pump['mean'] /= 299792458.
+    pump['mean_D'] /= setting['normalization']['field_scale_V_m']
+    pump['mean_A'] *= wp / setting['normalization']['field_scale_V_m']
+    steps = round(setting['horizon_omega0'] / dt)
+    if (pump['t'].shape != (steps + 1,) or pump['mean'].shape != (steps + 1, 2)
+            or any(pump[key].shape != (steps + 1,) for key in ('mean_D', 'mean_A'))
+            or pump['t'][0] != 0 or abs(pump['t'][-1] - setting['horizon_omega0']) > tolerance
+            or not np.allclose(np.diff(pump['t']), dt, rtol=0, atol=tolerance)
+            or any(not np.allclose(pump[key][::stride], scalar[key], rtol=2e-12, atol=1e-30) for key in keys)):
+        raise ValueError('dense pump clocks, units and sampled scalar means must agree')
+    # Equal-mass pair normalization gives J/(epsilon0*E_star*omega0)=(v_pos-v_ele)/(2c).
+    current = .5 * (pump['mean'][:, 1] - pump['mean'][:, 0])
+    push = pump['mean_D'][:-1] + dt / 2 * (
+        setting['dark_mass_over_omega0']**2 * pump['mean_A'][:-1] - setting['eta'] * current[:-1])
+    knots = np.r_[pump['t'][0], pump['t'][:-1] + dt / 2, pump['t'][-1]]
+    force = np.r_[pump['mean_D'][0], push, pump['mean_D'][-1]]
+    absolute = 64 * np.finfo(float).eps * np.max(abs(force))
+    if (not np.allclose(top['realized_table_t'], knots, rtol=0, atol=tolerance)
+            or not np.allclose(top['homogeneous_table_t'], knots, rtol=0, atol=tolerance)
+            or not np.allclose(top['realized_table_D'], force, rtol=2e-12, atol=absolute)):
+        raise ValueError('realized forcing must retain every native midpoint and its initial mean impulse')
+    return dict(dense_pump_sha256={key: fingerprint(data[('pump_' if stride > 1 else '') + key]) for key in keys},
+                realized_force_sha256=fingerprint(top['realized_table_D']))
+
+
+def _pair_force(folder, setting, label, top, tolerance):
+    """Check the actual archived drive, including phase origin and both endpoints."""
+    source, resolution = label.split('_')
+    knots, values = top[source + '_table_t'], top[source + '_table_D']
+    every = max(1, round(setting['table_dt_omega0'] / setting['dt_omega0'])) if resolution == 'coarse' else 1
+    indices = np.unique(np.r_[0, np.arange(1, len(knots) - 1, every), len(knots) - 1])
+    with np.load(Path(folder) / 'initial_state.npz', allow_pickle=False) as state:
+        times, amplitude = state['dark.times'], state['dark.amplitude']
+        scale = setting['normalization']
+        if (times.dtype != np.float64 or amplitude.dtype != np.float64
+                or times.shape != indices.shape or amplitude.shape != (len(times), 3)
+                or not np.allclose(times * scale['omega0_rad_s'], knots[indices], rtol=0, atol=tolerance)
+                or not np.allclose(amplitude[:, 0] / scale['field_scale_V_m'], values[indices], rtol=2e-12, atol=0)
+                or np.any(amplitude[:, 1:]) or times[0] != 0
+                or times[-1] * scale['omega0_rad_s'] < setting['horizon_omega0'] - tolerance
+                or float(state['dark.omega']) != 0 or float(state['dark.phase']) != 0
+                or float(state['dark.eta']) != setting['eta']):
+            raise ValueError('archived prescribed force must match its native table, phase and physical horizon')
+    return dict(actual_force_sha256=fingerprint(amplitude), actual_force_times_sha256=fingerprint(times))
+
+
 def _pair_branch_contract(native, record, label):
     setting, branch = record['settings'], native['settings']
     for key in PAIR_RUNTIME:
@@ -814,6 +881,9 @@ def _pair_branch_contract(native, record, label):
                 'force_quiver_over_c', 'normalization', 'XLA_FLAGS'):
         if branch[key] != setting[key]:
             raise ValueError(f'pair branch settings differ in {key}')
+    if (_pair_cadence(branch) != _pair_cadence(setting)
+            or branch.get('forcing_native_dt_omega0', branch['dt_omega0']) != setting['dt_omega0']):
+        raise ValueError('pair branch scalar and forcing cadences must match the producer')
     expected_model = 'DarkField' if label == 'coupled' else 'PrescribedDrive'
     if branch['label'] != label or branch['model'] != expected_model or branch['scalar_units'] != 'native SI':
         raise ValueError('pair branch model, label and native units must be explicit')
@@ -830,17 +900,21 @@ def _pair_branch(folder, label, record, top, tolerance):
     ordinary = setting['initial_ordinary_fingerprints']
     normalized = _pair_normalize(data, setting, label)
     positions = _pair_initial(Path(folder) / label, setting, ordinary, normalized)
-    time, dt = normalized['t'], setting['dt_omega0']
-    steps = round(setting['horizon_omega0'] / dt)
-    if (time.shape != (steps + 1,) or time[0] != 0 or np.any(np.diff(time) <= 0)
-            or not np.allclose(np.diff(time), dt, rtol=0, atol=tolerance)
+    time, dt, cadence = normalized['t'], setting['dt_omega0'], _pair_cadence(setting)
+    steps, sampling = round(setting['horizon_omega0'] / dt), round(cadence / dt)
+    if (sampling < 1 or abs(sampling * dt - cadence) > tolerance or steps % sampling
+            or time.shape != (steps // sampling + 1,) or time[0] != 0 or np.any(np.diff(time) <= 0)
+            or not np.allclose(np.diff(time), cadence, rtol=0, atol=tolerance)
             or abs(time[-1] - setting['horizon_omega0']) > tolerance
-            or branch['block_steps'] * dt <= 0 or steps % branch['block_steps']):
+            or branch['block_steps'] * dt <= 0 or steps % branch['block_steps'] or branch['block_steps'] % sampling):
         raise ValueError('pair native clocks/horizon/compiled blocks are incomplete')
-    stride = round(setting['saved_output_dt_omega0'] / dt)
-    if stride < 1 or abs(stride * dt - setting['saved_output_dt_omega0']) > tolerance:
+    hashes.update(_pair_pump(data, setting, label, normalized, top, tolerance))
+    if label != 'coupled':
+        hashes.update(_pair_force(Path(folder) / label, setting, label, top, tolerance))
+    stride = round(setting['saved_output_dt_omega0'] / cadence)
+    if stride < 1 or abs(stride * cadence - setting['saved_output_dt_omega0']) > tolerance:
         raise ValueError('pair saved cadence must select integer native clocks')
-    indices = np.unique(np.r_[np.arange(0, steps + 1, stride), steps])
+    indices = np.unique(np.r_[np.arange(0, len(time), stride), len(time) - 1])
     for key, value in normalized.items():
         if value.shape[0] != len(time) or not np.allclose(
                 top[f'{label}_{key}'], value[indices], rtol=2e-12, atol=1e-30):
@@ -860,6 +934,7 @@ def _pair_load(folder, tolerance=1e-8):
     setting = record['settings']
     if (record['example'] != 'pair_waveform_control' or not setting['local_moments']
             or setting['native_diagnostic_dt_omega0'] != setting['dt_omega0']
+            or setting.get('forcing_native_dt_omega0', setting['dt_omega0']) != setting['dt_omega0']
             or setting['seed_mode'] * 2 >= setting['cells']
             or min(setting['normalization'].values()) <= 0):
         raise ValueError('complete pair controls require resolved modes and native physical-scale moments')
@@ -922,7 +997,8 @@ def _pair_late(source, tolerance=1e-8):
         defect = max(maxima[key] for key in ('energy_work_over_energy_scale', 'dark_sector_work_over_energy_scale',
                                              'ordinary_sector_work_over_energy_scale'))
         ratio = defect / peak_work if peak_work else None
-        conservation[label] = dict(native_all_step_maxima=maxima, maximum_energy_sector_defect_over_peak_transfer=ratio)
+        conservation[label] = dict(native_all_step_maxima=maxima, maximum_energy_sector_defect_over_peak_transfer=ratio,
+                                   peak_transfer_note='Stored scalar peak work is a lower bound on the all-step peak.')
     coupled = branches['coupled'][1]
     selected = (coupled['t'] >= bounds[0] - tolerance) & (coupled['t'] <= bounds[1] + tolerance)
     if supplied['samples'] != int(selected.sum()):
@@ -951,7 +1027,9 @@ def _pair_late(source, tolerance=1e-8):
         tolerance=reference['tolerance_force_error_over_initial'] <= targets['quadrature_force_over_initial'])
     table_gates = {label: row['max_midpoint_force_error_over_initial'] <= targets['table_force_over_initial']
                    for label, row in record['results']['forcing'].items()}
-    return dict(bounds_omega0=bounds, native_reductions=reductions, conservation=conservation,
+    return dict(bounds_omega0=bounds, scalar_dt_omega0=_pair_cadence(setting),
+                QD_mean_note='Original producer means on stored scalar clocks; no reconstructed or interpolated QD.',
+                native_reductions=reductions, conservation=conservation,
                 conservation_gates=gates, reference_gates=reference_gates, table_gates=table_gates)
 
 
@@ -967,16 +1045,16 @@ def _pair_comparison(first, second, variant, tolerance=1e-8):
         position_difference = float(np.max(abs(difference)))
         if not matches['w'] or position_difference > 2e-13 or variant != 'seed' and not matches['u']:
             raise ValueError('fixed-count pair controls must preserve physical positions, weights and thermal momentum')
-    if variant == 'repeat' and not all(matches.values()):
-        raise ValueError('pair repeats require identical complete initial ordinary fingerprints')
+    if variant in ('repeat', 'sampling') and not all(matches.values()):
+        raise ValueError('pair repeat/sampling controls require identical complete initial ordinary fingerprints')
     comparisons = {}
     for label in PAIR_CASES:
         rows = [source[3][label][1] for source in (first, second)]
-        cadence = max(a['dt_omega0'], b['dt_omega0'])
-        strides = [round(cadence / setting['dt_omega0']) for setting in (a, b)]
+        cadence = max(_pair_cadence(a), _pair_cadence(b))
+        strides = [round(cadence / _pair_cadence(setting)) for setting in (a, b)]
         indices = [np.arange(0, len(row['t']), stride) for row, stride in zip(rows, strides)]
         times = [row['t'][index] for row, index in zip(rows, indices)]
-        if (any(abs(stride * setting['dt_omega0'] - cadence) > tolerance
+        if (any(abs(stride * _pair_cadence(setting) - cadence) > tolerance
                 for stride, setting in zip(strides, (a, b))) or times[0].shape != times[1].shape
                 or not np.allclose(*times, rtol=0, atol=tolerance)):
             raise ValueError('pair comparisons require exact shared native clocks at integer cadence ratios')
@@ -996,8 +1074,9 @@ def _pair_comparison(first, second, variant, tolerance=1e-8):
                     'nonzero_mode_density_window_fraction' if key in modes else 'primary_window_fraction']
                     for value in np.asarray(row, dtype=object).ravel()]
                  for key, row in gates.items()}
-        comparisons[label] = dict(late_shared_native_samples=int(selected.sum()), observables=norms,
-                                  refinement_gates=gates if variant != 'seed' else None)
+        comparisons[label] = dict(late_shared_native_samples=int(selected.sum()), shared_scalar_dt_omega0=cadence,
+                                  observables=norms,
+                                  refinement_gates=gates if variant not in ('seed', 'sampling') else None)
     return dict(variant=variant, initial_hash_matches=matches,
                 reconstructed_position_max_difference_over_length=position_difference,
                 position_note='Native half-step positions are reversed at t=0; this is a roundoff-bounded comparison.',
@@ -1039,8 +1118,11 @@ def pair_control_comparison(sources):
                               loading=(a['cells'] * a['particles_per_cell_per_species'],
                                        b['cells'] * b['particles_per_cell_per_species']))
             changed = [key for key, values in parameters.items() if values[0] != values[1]]
+            cadence_changed = _pair_cadence(a) != _pair_cadence(b)
+            sampling_only = not changed and cadence_changed
             if len(changed) <= 1:
-                comparison = _pair_comparison(reference, source, changed[0] if changed else 'repeat')
+                variant = changed[0] if changed else 'sampling' if sampling_only else 'repeat'
+                comparison = _pair_comparison(reference, source, variant)
                 quantities = ('additional_dark_depletion_gain_mean', 'total_dark_fraction_mean',
                               'coherent_dark_fraction_mean', 'nonzero_dark_fraction_mean')
                 means = [late[i]['native_reductions']['coupled'] for i in (previous, index)]
@@ -1050,8 +1132,13 @@ def pair_control_comparison(sources):
                     key: (row['relative_l2_difference'] <= a['accuracy_targets'][
                               'nonzero_mode_density_window_fraction' if key == 'nonzero_dark_fraction_mean'
                               else 'primary_window_fraction']
-                          if row['relative_l2_difference'] is not None and changed != ['seed'] else None)
+                          if row['relative_l2_difference'] is not None and variant != 'seed' and not cadence_changed
+                          else None)
                     for key, row in comparison['raw_window_mean_differences'].items()}
+                comparison['raw_window_scalar_dt_omega0'] = [_pair_cadence(a), _pair_cadence(b)]
+                comparison['raw_window_note'] = ('Different scalar cadences: sampling reduction differences; '
+                                                 'no raw-mean resolution gate.' if cadence_changed else
+                                                 'Original means retain their matched native scalar cadence.')
                 comparisons.append(dict(first=previous, second=index, **comparison))
             if changed == ['seed'] and previous == 0:
                 arrays = [row[1] for row in (reference, source)]
@@ -1091,12 +1178,26 @@ def publish_pair_controls(folders, folder):
                   native_source_sha256=hashes)
     with midnight():
         fig, axes = plt.subplots(2, 2, figsize=(12, 8), layout='constrained')
+        baseline = sources[0][0]['settings']
+        count0 = baseline['cells'] * baseline['particles_per_cell_per_species']
+        fig.suptitle(f"Baseline: {baseline['cells']} cells, {count0 / 1000:g}k/species, "
+                     f"Δτ={baseline['dt_omega0']:g}, δv/c={baseline['velocity_seed_over_c']:g}", fontsize=11)
         for source in sources:
             setting, data = source[0]['settings'], source[1]
             time, reservoir = data['coupled_t'], setting['initial_dark_energy_over_energy_scale']
             count = setting['cells'] * setting['particles_per_cell_per_species']
-            label = f"δv/c={setting['velocity_seed_over_c']:g}, Δτ={setting['dt_omega0']:g}, "
-            label += f"{setting['cells']} cells, {count / 1000:g}k/species"
+            inputs = dict(zip(('δv/c', 'Δτ', 'cells', 'N/N₀'),
+                              (setting['velocity_seed_over_c'], setting['dt_omega0'], setting['cells'],
+                               count / count0)))
+            defaults = (baseline['velocity_seed_over_c'], baseline['dt_omega0'], baseline['cells'],
+                        1.)
+            label = ', '.join(f'{key}={value:g}' for (key, value), default in zip(inputs.items(), defaults)
+                              if value != default)
+            if (_pair_cadence(setting) != _pair_cadence(baseline)
+                    and (_pair_cadence(setting) != setting['dt_omega0']
+                         or _pair_cadence(baseline) != baseline['dt_omega0'])):
+                label += (', ' if label else '') + f'sample Δτ={_pair_cadence(setting):g}'
+            label = label or 'baseline'
             axes[0, 0].plot(time[1:], abs(data['coupled_mode_E'][1:]), label=label)
             axes[0, 1].plot(time, data['additional_dark_depletion_gain'])
             gain = (data['coupled_local_spread'][:, :, 0] - data['coupled_local_spread'][0, :, 0]).sum(axis=1)
@@ -1122,7 +1223,7 @@ def publish_pair_controls(folders, folder):
                       comparison='docs/scripts/compare_replays.py: pair_controls',
                       accuracy_targets=sources[0][0]['settings']['accuracy_targets'],
                       figure_note='Raw saved samples, no smoothing/interpolation/phase alignment. Log plot omits t=0. '
-                                  'Windows use all native scalar samples; QD means retain producer reductions. '
+                                  'Windows use stored scalar samples; QD means retain producer cadence and reductions. '
                                   'Local lab-frame variance energy is not thermodynamic temperature.'),
                  result, fig, **arrays)
         np.savez_compressed(Path(folder) / 'data.npz', **arrays)

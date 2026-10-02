@@ -289,6 +289,21 @@ The archived pair runs repeat 32 waterbag velocities per cell. Their independent
 
 [Companion script](examples/dark_reservoir.py) · `study='pair_waveform'`, `full=True`; [independent loading and reference checks](tests/test_pair_reference.py). Late depletion remains under validation.
 
+### Seed, mesh and particle controls
+
+Global waterbag quantiles resolve distinct velocities across the full loading. Five matched branches separate the evolved reservoir from its realized mean force and an independent homogeneous envelope. Additional dark depletion removes the initial preparation offset:
+
+$$
+G_D(t)=\frac{\Delta U_{D,\mathrm{hom}}(t)-\Delta U_{D,\mathrm{PIC}}(t)}{U_{D,\mathrm{PIC}}(0)},\qquad
+\Delta U(t)=U(t)-U(0).
+$$
+
+<img src="docs/_static/figures/pair_waveform_controls/figure.png" width="900" alt="Seeded pair mode, additional dark depletion, local velocity spread and complete energy under separate seed, timestep, mesh and particle controls">
+
+[Simulation script](examples/dark_reservoir.py) · `study='pair_waveform', pair_loading='global', horizon=40, local_moments=True`; [comparison and plot](docs/scripts/compare_replays.py) · `pair_controls` ([six input sets](docs/scripts/make_all.py)).
+
+The seeded early response is checked against independent relativistic Vlasov–Proca theory. On $20\leq\omega_0t\leq40$, halving the timestep changes mean $G_D$ by **0.345%**; doubling the mesh at the same particle count changes it by **2.18%**. The finest loading uses **2,097,152 particles**, with full field-and-potential energy, both Gauss laws and sector work retained. Its depletion signal still needs the [separate conservation and refinement budgets](docs/kinetic.md#global-loading-controls-through-40) before a physical late-conversion claim.
+
 ## Conservation and long-time clocks
 
 The [source-free Proca comparison](docs/scripts/benchmark_time_integrators.py) evolves longitudinal and transverse fields to $\Omega_Dt=200$ against a matrix exponential. The explicit split bounds field-energy error at **2.37%** for $\Delta t\Omega_D=0.2$ and **0.577%** at half that step. Implicit midpoint preserves this vacuum field energy to roundoff but has **1.53** final relative state error at the larger step; DOP853 reaches **$3.0\times10^{-8}$** state error with tight tolerances. Phase accuracy and total PIC energy require separate checks: exact field-only conservation does not close the particle–field work ledger. [Methods and timings](docs/performance.md#which-clock-to-trust) and the [full record](docs/_static/figures/time_integrators/run.json) give the comparison.

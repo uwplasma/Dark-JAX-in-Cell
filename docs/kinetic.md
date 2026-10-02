@@ -236,6 +236,31 @@ Total, mean-mode and finite-wavelength dark energies are recorded separately, in
 
 [Companion script](../examples/dark_reservoir.py) · `study='pair_waveform', full=True`; named inputs select `cells`, `particles_per_cell`, `pair_loading`, `dt`, `horizon`, `table_dt`, `quadrature` and `output`. The quick preset checks execution and does not establish depletion or late convergence.
 
+### Global-loading controls through 40
+
+The six controls use $L\omega_0/c=70$, velocity half-width $0.05c$, mode 134, $\eta=0.5$, $\Omega_D/\omega_0=1$ and initial effective quiver $0.05c$. Each executes all five branches above through $\omega_0t=40$, with complete native SI scalar histories and restart archives. The halved-step control keeps the physical particle loading fixed. The finer mesh holds the total particle count fixed; the final control doubles particles on that same mesh. Initial half-step positions differ when the timestep changes, while the supplied integer-time positions, velocities and physical weights agree.
+
+![Independent seed, time, mesh and loading controls](_static/figures/pair_waveform_controls/figure.png)
+
+[Simulation script](../examples/dark_reservoir.py) · `study='pair_waveform', pair_loading='global', horizon=40, block_horizon=10, local_moments=True, output_dt=.2`; [comparison and plot](scripts/compare_replays.py) · `pair_controls` ([all numerical inputs](scripts/make_all.py)).
+
+| Control | Cells | Particles per species | $\Delta t\omega_0$ | $\delta v/c$ | Mean $G_D$, 20–40 | Max $|\Delta U|/U_D(0)$ |
+|---|---:|---:|---:|---:|---:|---:|
+| Baseline | 4,096 | 524,288 | 0.00625 | $2\times10^{-4}$ | {{ pair_control_0_depletion_gain }} | {{ pair_control_0_balance_over_UD0 }} |
+| Half seed | 4,096 | 524,288 | 0.00625 | $10^{-4}$ | {{ pair_control_1_depletion_gain }} | {{ pair_control_1_balance_over_UD0 }} |
+| No seed | 4,096 | 524,288 | 0.00625 | 0 | {{ pair_control_2_depletion_gain }} | {{ pair_control_2_balance_over_UD0 }} |
+| Half step | 4,096 | 524,288 | 0.003125 | $2\times10^{-4}$ | {{ pair_control_3_depletion_gain }} | {{ pair_control_3_balance_over_UD0 }} |
+| Twice cells, fixed particles | 8,192 | 524,288 | 0.003125 | $2\times10^{-4}$ | {{ pair_control_4_depletion_gain }} | {{ pair_control_4_balance_over_UD0 }} |
+| Twice particles, fixed fine mesh | 8,192 | 1,048,576 | 0.003125 | $2\times10^{-4}$ | {{ pair_control_5_depletion_gain }} | {{ pair_control_5_balance_over_UD0 }} |
+
+Here $G_D(t)=Q_D(t)-Q_D(0)$, and the window mean uses every native scalar clock, with no interpolation or phase alignment. $U_D(0)$ is the actual initialized reservoir energy, $0.005$ of the declared $2nm_ec^2L$ scale. The spatial dark-mode energy and the homogeneous mean reservoir are counted separately. A decline in mean-mode energy alone includes reversible homogeneous exchange with ordinary fields and bulk motion.
+
+The independent warm homogeneous reference refines 64/128 quadrature nodes and DOP853 tolerances. Its maximum energy defect is below $6\times10^{-13}$ of its initial dark energy. Forcing-table refinement compares the field actually used at each Boris midpoint, including the old mean current and Proca mass kick. The seeded early complex ordinary mode has about 3.47% relative $L^2$ error against the full spatial reference and 2.03% against the prescribed homogeneous reference. The full and spatially suppressed linear systems already differ: their subsequent PIC difference cannot alone identify a new nonlinear mechanism.
+
+On the raw 20–40 window, the mean additional-depletion gain changes **{{ pair_control_dt_additional_dark_depletion_gain_mean_percent }}%** on step halving, **{{ pair_control_mesh_additional_dark_depletion_gain_mean_percent }}%** on mesh doubling and **{{ pair_control_loading_additional_dark_depletion_gain_mean_percent }}%** on particle doubling. The unchanged primary refinement target is 1%. Conservation is measured against the transferred energy and the claimed additional depletion, rather than against the larger initial kinetic energy. The baseline's largest complete/sector defect is **{{ pair_control_0_defect_over_gain }}** of its mean gain; the finest loading gives **{{ pair_control_5_defect_over_gain }}**, versus the declared $10^{-3}$ budget. These controls refine a candidate signal but do not establish late depletion or a result beyond the ordinary pair instability of [Cruz, Grismayer and Silva](https://arxiv.org/abs/2104.04490).
+
+The [comparison record](_static/figures/pair_waveform_controls/run.json) retains each branch's native maxima, raw window reductions, source/data fingerprints, early reference checks and failed refinement/conservation gates; [compressed scalar arrays](_static/figures/pair_waveform_controls/data.npz) retain the plotted samples. Grid-scale density changes with the particle filter and remains distinct from density smoothed at the fixed $0.1c/\omega_0$ and $0.2c/\omega_0$ lengths. Local lab-frame velocity-variance energy is also distinct from relativistic temperature and irreversible heating.
+
 ## Mobile ions and a finite reservoir
 
 The [mobile-ion example](../examples/dark_reservoir.py) uses co-located, exactly charge-neutral electron and proton loadings with $m_i/m_e$ at its physical value, $T_e=T_i=10^{-3}m_ec^2$, and a fixed seeded velocity mode. It compares zero drive, a prescribed longitudinal $F\cos\omega_pt$, and two dynamical Proca fields whose **initial** effective force $\eta E_D$ is the same $F=0.03m_e\omega_pv_{\rm th,e}/e$. Both Proca rest frequencies equal $\omega_p$. The small and large reservoirs set $\eta=0.2$ and $0.02$, giving initial dark energy **{{ mobile_small_energy_ratio }}** and **{{ mobile_large_energy_ratio }}** times the particles' initial longitudinal kinetic energy. Changing $\eta$ changes the reservoir size and backreaction while holding the initial force fixed.

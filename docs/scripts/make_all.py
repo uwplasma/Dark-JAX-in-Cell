@@ -234,6 +234,35 @@ dark_pair = EVIDENCE.parent / "oscillating_dark_pair"
 run_example('examples/dark_reservoir.py', study='pair_dark', full=True, output=dark_pair)
 dark_pair_record = json.loads((dark_pair / "run.json").read_text())
 dark_pair_result = dark_pair_record["results"]
+pair_controls = EVIDENCE.parent / 'pair_waveform_controls'
+pair_runs = []
+for name, cells, ppc, dt, seed in (
+        ('pilot_seeded', 4096, 128, .00625, 2e-4), ('pilot_half_seed', 4096, 128, .00625, 1e-4),
+        ('pilot_unseeded', 4096, 128, .00625, 0.), ('pilot_fine_dt', 4096, 128, .003125, 2e-4),
+        ('pilot_fine_mesh', 8192, 64, .003125, 2e-4), ('pilot_fine_loading', 8192, 128, .003125, 2e-4)):
+    folder = ROOT / 'artifacts' / 'pair_waveform_controls' / name
+    pair_runs.append(folder)
+    run_example('examples/dark_reservoir.py', study='pair_waveform', cells=cells, particles_per_cell=ppc,
+                dt=dt, velocity_seed=seed, horizon=40., block_horizon=10., local_moments=True,
+                pair_loading='global', eta=.5, dark_mass=1., force=.05, quadrature=64,
+                output_dt=.2, table_dt=2 * dt, linear_end=20., output=folder)
+run_example('docs/scripts/compare_replays.py', pair_controls=pair_runs, destination=pair_controls)
+pair_control_record = json.loads((pair_controls / 'run.json').read_text())
+for row in pair_control_record['results']['controlled_pairs']:
+    if row['variant'] in ('dt', 'mesh', 'loading'):
+        for key in ('additional_dark_depletion_gain_mean', 'total_dark_fraction_mean'):
+            value = row['raw_window_mean_differences'][key]['relative_l2_difference']
+            measured[f"pair_control_{row['variant']}_{key}_percent"] = f'{100 * value:.3f}'
+for index, row in enumerate(pair_control_record['results']['late']):
+    coupled = row['conservation']['coupled']
+    maximum = coupled['native_all_step_maxima']['energy_work_over_energy_scale']
+    native = pair_control_record['results']['native_runs'][index]['settings']
+    reservoir = native['initial_dark_energy_over_energy_scale']
+    measured[f'pair_control_{index}_balance_over_UD0'] = f'{maximum / reservoir:.3e}'
+    gain = row['native_reductions']['coupled']['additional_dark_depletion_gain_mean']
+    measured[f'pair_control_{index}_depletion_gain'] = f'{gain:.6g}'
+    measured[f'pair_control_{index}_defect_over_gain'] = (
+        f"{coupled['maximum_energy_sector_defect_over_depletion_gain']:.3f}")
 dark_pair_gauss = max(dark_pair_result["max_ordinary_gauss_over_scale"],
                       dark_pair_result["max_dark_gauss_over_scale"])
 dark_pair_refinements = {
@@ -322,6 +351,7 @@ measured["_provenance"] = {"cold_exchange": provenance(cold_record, "cold_exchan
                            "mobile_ions": provenance(mobile_record, "mobile_ions"),
                            "oscillating_pair": provenance(pair_record, "oscillating_pair"),
                            "oscillating_dark_pair": provenance(dark_pair_record, "oscillating_dark_pair"),
+                           "pair_waveform_controls": provenance(pair_control_record, "pair_waveform_controls"),
                            "profile_design": provenance(design_record, "profile_design")}
 benchmark = EVIDENCE.parent / "recurrence_benchmark.json"
 if benchmark.exists():

@@ -515,6 +515,25 @@ def pair_records(tmp_path):
                                    'dark.relativistic': True})
         depletion = .001 * time[indices]
         fraction = top['coupled_dark'] / .005
+        knots = np.r_[time[0], time[:-1] + dt / 2, time[-1]]
+        coupled_mean = top['coupled_mean'][0]
+        with np.load(path / 'coupled' / 'data.npz') as stored:
+            dark_mean = stored['mean_D'] / scale['field_scale_V_m']
+        push = dark_mean[:-1] - dt / 2 * setting['eta'] * .5 * (coupled_mean[1] - coupled_mean[0])
+        force = np.r_[dark_mean[0], push, dark_mean[-1]]
+        top.update(realized_table_t=knots, realized_table_D=force,
+                   homogeneous_table_t=knots, homogeneous_table_D=force.copy())
+        for label in PAIR_CASES[1:]:
+            every = 2 if label.endswith('coarse') else 1
+            selected = np.unique(np.r_[0, np.arange(1, len(knots) - 1, every), len(knots) - 1])
+            amplitude = np.zeros((len(selected), 3))
+            amplitude[:, 0] = force[selected] * scale['field_scale_V_m']
+            archive_path = path / label / 'initial_state.npz'
+            with np.load(archive_path) as archive:
+                initial = dict(archive)
+            np.savez_compressed(archive_path, **initial,
+                                **{'dark.times': knots[selected] / wp, 'dark.amplitude': amplitude,
+                                   'dark.phase': 0., 'dark.omega': 0., 'dark.eta': setting['eta']})
         top.update(coupled_total_dark_fraction=fraction, coupled_coherent_dark_fraction=fraction,
                    coupled_nonzero_dark_fraction=np.zeros(len(indices)), homogeneous_dark_fraction=fraction + depletion,
                    additional_dark_depletion_fraction=depletion, additional_dark_depletion_gain=depletion,
@@ -612,3 +631,94 @@ def test_pair_publisher_preserves_native_records_and_effect_relative_failures(pa
     with np.load(folder / 'data.npz') as stored, np.load(pair_records[0] / 'data.npz') as native:
         np.testing.assert_array_equal(stored['0_linear_coupled_mode_E'], native['linear_coupled_mode_E'])
         assert not any(key.endswith('_x') or '_table_' in key for key in stored.files)
+
+
+def sparse_pair(path):
+    """Thin only stored scalars; retain native pump inputs and conservation maxima."""
+    from docs.scripts.compare_replays import PAIR_CASES, window_summary
+
+    record = json.loads((path / 'run.json').read_text())
+    record['settings']['scalar_dt_omega0'] = .2
+    for label in PAIR_CASES:
+        folder = path / label
+        with np.load(folder / 'data.npz') as stored:
+            data = dict(stored)
+        reduced = {key: value[::2] for key, value in data.items()}
+        if label == 'coupled':
+            reduced.update({'pump_' + key: data[key] for key in ('t', 'mean', 'mean_D', 'mean_A')})
+        np.savez_compressed(folder / 'data.npz', **reduced)
+        branch = json.loads((folder / 'run.json').read_text())
+        branch['settings']['scalar_dt_omega0'] = .2
+        branch['settings']['forcing_native_dt_omega0'] = .1
+        (folder / 'run.json').write_text(json.dumps(branch))
+        from docs.scripts.compare_replays import _pair_normalize
+        values = _pair_normalize(reduced, record['settings'], label)
+        summary = window_summary(values, np.ones(len(values['t']), dtype=bool), label == 'coupled')
+        record['results']['windows']['late']['reductions'][label].update(summary)
+    record['results']['windows']['late']['samples'] = 3
+    (path / 'run.json').write_text(json.dumps(record))
+
+
+def test_pair_sparse_pump_preserves_actual_force_and_labels_sampling(pair_records):
+    from docs.scripts.compare_replays import _pair_load, pair_control_comparison, publish_pair_controls
+    dense = pair_records[-1]
+    sparse = dense.parent / 'sparse'
+    copytree(dense, sparse)
+    sparse_pair(sparse)
+    sources = [_pair_load(path) for path in (dense, sparse)]
+    result = pair_control_comparison(sources)
+    row = result['controlled_pairs'][0]
+    assert row['variant'] == 'sampling' and row['branches']['coupled']['refinement_gates'] is None
+    assert all(value is None for value in row['raw_window_mean_gates'].values())
+    assert row['raw_window_scalar_dt_omega0'] == [.1, .2]
+    assert row['branches']['coupled']['late_shared_native_samples'] == 3
+    assert result['late'][1]['native_reductions']['coupled']['samples'] == 3
+    assert result['late'][0]['native_reductions']['coupled']['samples'] == 5
+    assert sources[0][3]['coupled'][2]['realized_force_sha256'] == sources[1][3]['coupled'][2]['realized_force_sha256']
+    assert sources[0][3]['coupled'][2]['dense_pump_sha256'] == sources[1][3]['coupled'][2]['dense_pump_sha256']
+    hashes = [source[3]['realized_fine'][2]['actual_force_sha256'] for source in sources]
+    assert hashes[0] == hashes[1]
+    assert all(row['relative_l2_difference'] == 0 for row in result['saved_early_linear_errors'][1].values())
+    folder = dense.parent / 'sampling_evidence'
+    publish_pair_controls((dense, sparse), folder)
+    published = json.loads((folder / 'run.json').read_text())['results']
+    assert published['controlled_pairs'][0]['variant'] == 'sampling'
+    assert published['native_source_sha256'][1]['branches']['coupled']['dense_pump_sha256']
+    with np.load(folder / 'data.npz') as stored:
+        assert stored['0_coupled_t'].shape == stored['1_coupled_t'].shape == (3,)
+    sources[1][0]['settings']['initial_ordinary_fingerprints']['rho'] = '0' * 64
+    with pytest.raises(ValueError, match='repeat/sampling'):
+        pair_control_comparison(sources)
+
+
+@pytest.mark.parametrize('corrupt', ['missing_pump', 'pump_clock', 'pump_units', 'midpoint', 'force', 'phase'])
+def test_pair_sparse_force_or_pump_mismatch_is_rejected(pair_records, corrupt):
+    from docs.scripts.compare_replays import _pair_load
+    path = pair_records[-1]
+    sparse_pair(path)
+    if corrupt in ('missing_pump', 'pump_clock', 'pump_units'):
+        filename = path / 'coupled' / 'data.npz'
+        with np.load(filename) as stored:
+            data = dict(stored)
+        if corrupt == 'missing_pump':
+            del data['pump_mean_A']
+        elif corrupt == 'pump_clock':
+            data['pump_t'][1] += .01e-9
+        else:
+            data['pump_mean_D'] *= 2
+    elif corrupt == 'midpoint':
+        filename = path / 'data.npz'
+        with np.load(filename) as stored:
+            data = dict(stored)
+        data['realized_table_t'][1] += .01
+    else:
+        filename = path / 'realized_fine' / 'initial_state.npz'
+        with np.load(filename) as stored:
+            data = dict(stored)
+        if corrupt == 'phase':
+            data['dark.phase'] = np.asarray(.01)
+        else:
+            data['dark.amplitude'][1, 0] *= 1.01
+    np.savez_compressed(filename, **data)
+    with pytest.raises(ValueError):
+        _pair_load(path)
