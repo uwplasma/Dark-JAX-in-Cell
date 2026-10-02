@@ -377,6 +377,8 @@ On an RTX A4000 with JAX/CUDA packages 0.6.2, three calls to one compiled deposi
 | [JAX-in-Cell](https://github.com/uwplasma/JAX-in-Cell/tree/83d327118163833f93e2588edcb5029241f6ba2a) | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ |
 | [SHARP + Hook drive](https://arxiv.org/pdf/2510.13956v1) | — | ✅ | ✅ | ❌ | — | — | ❌ |
 | [Corelli *et al.* cold fluid](https://arxiv.org/abs/2410.16357) | — | ❌ | ✅ | ✅ | — | — | ❌ |
+| [Xin–Most dark GRMHD](https://doi.org/10.1103/PhysRevD.111.063050) | —² | ❌ | ✅² | ✅² | — | — | ✅ |
+| [Siemonsen *et al.* resistive electrodynamics](https://arxiv.org/abs/2212.09772) | — | ❌ | ✅ | ❌ | — | — | ✅ |
 | [Caputo *et al.* notebooks](https://github.com/smsharma/dark-photons-perturbations) | ✅ | ❌ | ✅ | ❌ | — | — | ❌ |
 | [OSIRIS public](https://github.com/osiris-code/osiris) | ✅ | ✅ | ❌ | ❌ | — | — | ✅ |
 | [Smilei](https://github.com/SmileiPIC/Smilei) | ✅ | ✅ | ❌ | ❌ | — | ✅ | ✅ |
@@ -390,7 +392,9 @@ On an RTX A4000 with JAX/CUDA packages 0.6.2, three calls to one compiled deposi
 | [ADEPT](https://github.com/ergodicio/adept) | ✅ | ✅¹ | ❌ | ❌ | ✅ | ✅ | ✅ |
 | [SPECTRAX](https://github.com/uwplasma/SPECTRAX) | ✅ | ❌ | ❌ | ❌ | — | ✅ | ✅ |
 
-✅ documents the feature; ❌ excludes it from the reviewed model; — leaves it unverified. Review: **30 September 2026** (Project3 and π-PIC: **1 October**), pinned parent above, Smilei 5.1, WarpX 26.09, PIConGPU 0.9.0-dev and GEMPICX 0.5.648; [source snapshots and conservation methods](docs/validation.md#other-numerical-approaches) give the qualifications. ¹ ADEPT's PIC module is electrostatic; its multidimensional kinetic solvers evolve distributions. SPECTRAX uses Hermite–Fourier moments. Unstaggered_PIC Project3 provides relativistic 3D potential PIC on CPU, with optional OpenMP; GPU support is unverified. π-PIC supplies CPU/OpenMP spectral solvers; its GPU and AD support are unverified. OSIRIS's general CUDA documentation does not establish GPU support in its public snapshot. Particle/field restart is supported here and by several large PIC codes; it does not imply the same dark-field archive format.
+✅ documents the feature; ❌ excludes it from the reviewed model; — leaves it unverified. Review: **30 September 2026** (Project3, π-PIC and dark GRMHD: **1 October**), pinned parent above, Smilei 5.1, WarpX 26.09, PIConGPU 0.9.0-dev and GEMPICX 0.5.648; [source snapshots and conservation methods](docs/validation.md#other-numerical-approaches) give the qualifications. ¹ ADEPT's PIC module is electrostatic; its multidimensional kinetic solvers evolve distributions. SPECTRAX uses Hermite–Fourier moments. Unstaggered_PIC Project3 provides relativistic 3D potential PIC on CPU, with optional OpenMP; GPU support is unverified. π-PIC supplies CPU/OpenMP spectral solvers; its GPU and AD support are unverified. OSIRIS's general CUDA documentation does not establish GPU support in its public snapshot. Particle/field restart is supported here and by several large PIC codes; it does not imply the same dark-field archive format.
+
+² Xin–Most document reciprocal Proca–GRMHD coupling and dark-to-visible energy transfer, with negligible plasma feedback on cloud evolution in their regime. The base [Canuda Proca solver](https://bitbucket.org/canuda/proca) is public; the specific coupling release is unverified. Siemonsen *et al.* prescribe the cloud and neglect plasma feedback. Neither study validates the resonant kinetic depletion measured here.
 
 The pair benchmark confirms a known kinetic instability; the current finite-reservoir runs extend the model but have unresolved late loading dependence. They neither contradict Hook *et al.* nor confirm that paper's nonlinear conversion curve. Differentiable kinetic optimization already exists in ADEPT and the parent. The tested contribution here is the coupled Maxwell–Proca trajectory and its complete energy/work and gradient diagnostics; a new physical mechanism still requires converged controls.
 
