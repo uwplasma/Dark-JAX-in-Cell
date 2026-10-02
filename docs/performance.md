@@ -52,6 +52,15 @@ The [pair-waveform example](../examples/dark_reservoir.py) accepts `scalar_dt` i
 
 [Sampling benchmark](scripts/benchmark_field_cost.py) · `waveform_sampling=True, cells=4096, particles_per_cell=128, dt=.003125, steps=512, stride=64`. It compares three synchronized calls to each compiled diagnostic mode, including compile time and compiler memory, full final states, dense forcing and all-step maxima. A short sampling/cost check does not establish late conversion accuracy.
 
+The matched float64 fixture has **1,048,576 total particles** and two local smoothing lengths. On one RTX A4000 with JAX/CUDA packages 0.6.2, the [native record](_static/figures/pair_waveform_controls/sampling_cost.json) gives:
+
+| Recording | Compilation (s) | Median warm block (s) | Compiler temporaries (MiB) |
+|---|---:|---:|---:|
+| Every-step local moments | {{ pair_sampling_dense_compile_s }} | {{ pair_sampling_dense_warm_median_s }} | {{ pair_sampling_dense_compiler_temporary_MiB }} |
+| Local moments every 64 steps; dense mean forcing | {{ pair_sampling_sparse_moments_compile_s }} | {{ pair_sampling_sparse_moments_warm_median_s }} | {{ pair_sampling_sparse_moments_compiler_temporary_MiB }} |
+
+Full-state and scalar comparisons pass the declared $10^{-10}$ normalized tolerance; the largest state discrepancy is $1.05\times10^{-14}$ in normalized charge density. Mean-force error is $1.03\times10^{-14}$ of the initial bare field. All-step conservation maxima and final ledgers also pass. Within each mode, repeated calls vary at roundoff and are not bitwise equal. Process peak is 1,419.6 MiB with both executables present. Warm blocks exclude host copies/fingerprints; these short-run timings characterize this fixture, while physical and diagnostic-cadence refinement remain separate checks.
+
 ## Which clock to trust
 
 The source-free [time-step experiment](scripts/benchmark_time_integrators.py) uses the same staggered 1D Proca difference operators as the package, in normalized units $c=\Omega_D=\epsilon_0=1$. Its initial field contains longitudinal and both transverse components, with $\phi_D=-D E_{D,x}$, $B_D=\operatorname{curl} A_D=0$. The matrix exponential of the **same spatially discrete generator** is the temporal oracle. The 16-cell run lasts $\Omega_Dt=200$; these are vacuum field tests, without particles or current deposition.

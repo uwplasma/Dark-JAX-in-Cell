@@ -1177,6 +1177,8 @@ def publish_pair_controls(folders, folder):
                   native_branches=[{label: branch[0] for label, branch in source[3].items()} for source in sources],
                   native_source_sha256=hashes)
     with midnight():
+        plt.rcParams['axes.prop_cycle'] = plt.cycler(
+            color=plt.rcParams['axes.prop_cycle'].by_key()['color'] + ['#626262'])
         fig, axes = plt.subplots(2, 2, figsize=(12, 8), layout='constrained')
         baseline = sources[0][0]['settings']
         count0 = baseline['cells'] * baseline['particles_per_cell_per_species']

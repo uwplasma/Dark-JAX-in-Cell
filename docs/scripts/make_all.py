@@ -263,6 +263,10 @@ for index, row in enumerate(pair_control_record['results']['late']):
     measured[f'pair_control_{index}_depletion_gain'] = f'{gain:.6g}'
     measured[f'pair_control_{index}_defect_over_gain'] = (
         f"{coupled['maximum_energy_sector_defect_over_depletion_gain']:.3f}")
+sampling_record = json.loads((pair_controls / 'sampling_cost.json').read_text())
+for label, timing in sampling_record['results']['timing'].items():
+    for key in ('compile_s', 'warm_median_s', 'compiler_temporary_MiB'):
+        measured[f'pair_sampling_{label}_{key}'] = f'{timing[key]:.3f}'
 dark_pair_gauss = max(dark_pair_result["max_ordinary_gauss_over_scale"],
                       dark_pair_result["max_dark_gauss_over_scale"])
 dark_pair_refinements = {
@@ -352,6 +356,8 @@ measured["_provenance"] = {"cold_exchange": provenance(cold_record, "cold_exchan
                            "oscillating_pair": provenance(pair_record, "oscillating_pair"),
                            "oscillating_dark_pair": provenance(dark_pair_record, "oscillating_dark_pair"),
                            "pair_waveform_controls": provenance(pair_control_record, "pair_waveform_controls"),
+                           "pair_sampling_cost": provenance(sampling_record,
+                                                            "pair_waveform_controls/sampling_cost.json"),
                            "profile_design": provenance(design_record, "profile_design")}
 benchmark = EVIDENCE.parent / "recurrence_benchmark.json"
 if benchmark.exists():

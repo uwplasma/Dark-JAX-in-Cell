@@ -302,7 +302,7 @@ $$
 
 [Simulation script](examples/dark_reservoir.py) · `study='pair_waveform', pair_loading='global', horizon=40, local_moments=True`; [comparison and plot](docs/scripts/compare_replays.py) · `pair_controls` ([six input sets](docs/scripts/make_all.py)).
 
-The seeded early response is checked against independent relativistic Vlasov–Proca theory. On $20\leq\omega_0t\leq40$, halving the timestep changes mean $G_D$ by **0.345%**; doubling the mesh at the same particle count changes it by **2.18%**. The finest loading uses **2,097,152 particles**, with full field-and-potential energy, both Gauss laws and sector work retained. Its depletion signal still needs the [separate conservation and refinement budgets](docs/kinetic.md#global-loading-controls-through-40) before a physical late-conversion claim.
+The seeded early response is checked against independent relativistic Vlasov–Proca theory. On $20\leq\omega_0t\leq40$, halving the timestep changes mean $G_D$ by **0.345%**; doubling the mesh at the same particle count changes it by **2.18%**, and doubling particles changes it by **5.68%**. The finest loading uses **2,097,152 particles**, with full field-and-potential energy, both Gauss laws and sector work retained. Its conservation error is **5.29% of the additional-depletion gain**: the [separate conservation and refinement budgets](docs/kinetic.md#global-loading-controls-through-40) remain unmet.
 
 ## Conservation and long-time clocks
 
