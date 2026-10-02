@@ -319,6 +319,38 @@ gain = half_comparison['raw_window_mean_differences']['additional_dark_depletion
 measured['pair_half_gain_change_percent'] = f"{100 * (gain['comparison_mean'] / gain['reference_mean'] - 1):+.5f}"
 measured['pair_half_defect_over_gain_percent'] = (
     f"{100 * half_late['conservation']['coupled']['maximum_energy_sector_defect_over_depletion_gain']:.4f}")
+pair_table_native = ROOT / 'artifacts' / 'pair_table_replay' / 'late_realized_intermediate'
+pair_table_file = pair_long / 'table_resolution.json'
+run_example('examples/dark_reservoir.py', study='pair_table', table_every=2, samples=1,
+            initial_state=pair_long_half / 'realized_fine' / 'initial_state.npz', output=pair_table_native)
+run_example('docs/scripts/compare_replays.py',
+            pair_tables=(pair_long_half / 'realized_coarse', pair_table_native, pair_long_half / 'realized_fine'),
+            output=pair_table_file)
+pair_table_record = json.loads(pair_table_file.read_text())
+for label, row in zip(('coarse', 'intermediate', 'fine'), pair_table_record['forcing']['tables']):
+    measured[f'pair_table_{label}_knots'] = str(row['knots'])
+    measured[f'pair_table_{label}_force_error'] = f"{row['max_midpoint_force_error_over_initial']:.3e}"
+for label, comparison in zip(('coarse_intermediate', 'intermediate_fine', 'coarse_fine'),
+                             pair_table_record['comparisons']):
+    row = comparison['windows'][-1]
+    for key, suffix in (('mode_E', 'mode'), ('nonzero_electric', 'nonzero')):
+        error = row['observables'][key]['relative_l2_difference']
+        measured[f'pair_table_{label}_{suffix}_percent'] = f'{100 * error:.2f}'
+    measured[f'pair_table_{label}_phase_rad'] = (
+        f"{row['mode_phase']['reference_amplitude_squared_weighted_rms_rad']:.4f}")
+    work = [summary['work_increment'] for summary in row['reductions']]
+    measured[f'pair_table_{label}_work_percent'] = f'{100 * (work[1] - work[0]) / abs(work[0]):+.3f}'
+    measured[f'pair_table_{label}_difference_budget'] = (
+        f"{row['accounting']['global_defect_sum_over_abs_work_difference']:.4f}")
+late_budgets = [comparison['windows'][-1]['accounting'] for comparison in pair_table_record['comparisons']]
+measured['pair_table_max_global_defect'] = (
+    f"{max(max(row['global_energy_sector_defects']) for row in late_budgets):.3e}")
+for key, label in (('global_defect_over_abs_window_work', 'transfer'),
+                   ('two_endpoint_bound_over_abs_window_work', 'two_endpoint_transfer')):
+    measured[f'pair_table_max_{label}_percent'] = f"{100 * max(max(row[key]) for row in late_budgets):.4f}"
+pair_table_provenance = dict(
+    run='pair_waveform_long/table_resolution.json', validation_source=pair_table_record['validation_source'],
+    native_git=sorted({row['git'] for row in pair_table_record['native_runs']}))
 pair_repeat_native = ROOT / 'artifacts' / 'pair_execution_repeat' / 'late_realized_fine'
 pair_repeat_file = pair_long / 'execution_repeat.json'
 run_example('examples/dark_reservoir.py', study='pair_repeat', samples=2, observe_executable=True,
@@ -429,6 +461,7 @@ measured["_provenance"] = {"cold_exchange": provenance(cold_record, "cold_exchan
                            "oscillating_pair": provenance(pair_record, "oscillating_pair"),
                            "oscillating_dark_pair": provenance(dark_pair_record, "oscillating_dark_pair"),
                            "pair_waveform_controls": provenance(pair_control_record, "pair_waveform_controls"),
+                           "pair_table_resolution": pair_table_provenance,
                            "pair_execution_repeat": pair_repeat_provenance,
                            "pair_sampling_cost": provenance(sampling_record,
                                                             "pair_waveform_controls/sampling_cost.json"),

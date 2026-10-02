@@ -213,6 +213,20 @@
       "git": "609217ad4c21e86be26d35da58c6d6623d16b55c",
       "run": "pair_waveform_controls/run.json"
     },
+    "pair_table_resolution": {
+      "run": "pair_waveform_long/table_resolution.json",
+      "validation_source": {
+        "git": "c3ab9e7f4b3ac6b220be76a94eb0056381a279e5",
+        "script": "docs/scripts/compare_replays.py",
+        "script_sha256": "c1d50d99a6a18f855de5b71d34bacc57f34e71786bb1dc4c2fa7777393166cfb",
+        "numpy": "2.2.2",
+        "tracked_source_dirty": false
+      },
+      "native_git": [
+        "472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad",
+        "d05c11a5f0d40899b65572d65f35dd5dd33e75e2"
+      ]
+    },
     "pair_execution_repeat": {
       "run": "pair_waveform_long/execution_repeat.json",
       "validation_source": {
@@ -701,6 +715,30 @@
   "pair_half_nonzero_dark_fraction_mean_percent": "3.307",
   "pair_half_gain_change_percent": "-0.00528",
   "pair_half_defect_over_gain_percent": "0.0351",
+  "pair_table_coarse_knots": "27202",
+  "pair_table_coarse_force_error": "6.102e-06",
+  "pair_table_intermediate_knots": "54402",
+  "pair_table_intermediate_force_error": "1.525e-06",
+  "pair_table_fine_knots": "108802",
+  "pair_table_fine_force_error": "0.000e+00",
+  "pair_table_coarse_intermediate_mode_percent": "26.93",
+  "pair_table_coarse_intermediate_nonzero_percent": "0.91",
+  "pair_table_coarse_intermediate_phase_rad": "0.1965",
+  "pair_table_coarse_intermediate_work_percent": "+0.232",
+  "pair_table_coarse_intermediate_difference_budget": "0.3262",
+  "pair_table_intermediate_fine_mode_percent": "13.84",
+  "pair_table_intermediate_fine_nonzero_percent": "0.69",
+  "pair_table_intermediate_fine_phase_rad": "0.1040",
+  "pair_table_intermediate_fine_work_percent": "+0.488",
+  "pair_table_intermediate_fine_difference_budget": "0.1545",
+  "pair_table_coarse_fine_mode_percent": "32.71",
+  "pair_table_coarse_fine_nonzero_percent": "1.22",
+  "pair_table_coarse_fine_phase_rad": "0.2179",
+  "pair_table_coarse_fine_work_percent": "+0.721",
+  "pair_table_coarse_fine_difference_budget": "0.1048",
+  "pair_table_max_global_defect": "3.528e-07",
+  "pair_table_max_transfer_percent": "0.0378",
+  "pair_table_max_two_endpoint_transfer_percent": "0.0756",
   "pair_repeat_full_mode_E": "2.701e-09",
   "pair_repeat_full_nonzero_electric": "1.268e-09",
   "pair_repeat_full_phase_rad": "2.201e-09",

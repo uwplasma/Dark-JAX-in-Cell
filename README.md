@@ -358,6 +358,21 @@ Halving $\Delta t\omega_0$ to **0.0015625** keeps the particle count, mesh, phys
 
 All three exceed the 5% trajectory gate. Each timestep has one execution, so these differences include execution variation. The dark-sector work error decreases about fourfold, while the ordinary-sector error changes little. The ledger bounds also exceed the budget for resolving the small work differences. These controls establish neither a converged nonlinear result nor a contradiction of published conversion results. [All five branches, conservation and qualifications](docs/kinetic.md#half-step-nonlinear-conversion).
 
+### Driving-waveform resolution
+
+Three nested tables replay the closed reservoir's realized mean force from the same **2,097,152-particle** state, with fixed $\Delta t\omega_0=0.0015625$. Halving the table spacing reduces the accepted-force error from **$6.10\times10^{-6}$** to **$1.53\times10^{-6}$** of the initial force. The every-step table reproduces the donor's accepted force exactly.
+
+| Table spacing $\omega_0\Delta t_{\rm table}$ | Late complex-mode $L^2$ difference |
+|---|---:|
+| $0.00625\to0.003125$ | 26.93% |
+| $0.003125\to0.0015625$ | 13.84% |
+
+[Simulation script](examples/dark_reservoir.py) · `study='pair_table', table_every=2, initial_state=donor/'initial_state.npz'`; [reduction script](docs/scripts/compare_replays.py) · `pair_tables=(coarse, intermediate, fine)` ([full inputs](docs/scripts/make_all.py)); [native measurements](docs/_static/figures/pair_waveform_long/table_resolution.json).
+
+Reducing the historical archives requires `pair_table_transition=(donor_git, replay_git)`, using the full SHA values in the measurement record. Fresh regeneration uses one source revision.
+
+Both comparisons exceed the 5% trajectory target on $150\leq\omega_0t\leq170$. Bulk observables pass their trajectory gates; ledger bounds resolve transferred work but exceed the budget for its smaller differences between runs. Each table has one execution, so the differences include execution variation and establish neither late convergence nor irreversible conversion. [Raw phase, work and conservation checks](docs/kinetic.md#driving-waveform-resolution).
+
 ### Exact forcing and execution repeats
 
 Two runs restore the same **2,097,152-particle** state and every-step force table through $\omega_0t=170$. Their observed loaded executable is identical, while their trajectories differ slightly:

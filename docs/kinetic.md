@@ -321,6 +321,36 @@ Here $\delta_i=\max(\delta H_i,\delta W_{O,i},\delta W_{D,i})$ is the original g
 
 Independent archive CRC, endpoint charge/energy/momentum, accepted-force reconstruction and 64/128-node homogeneous quadrature checks pass. All original $2\times10^{-13}$ Gauss failures remain in both five-branch histories; nominal-clock $10^{-9}$ bounds pass. These finite-reservoir controls establish neither a nonlinear reproduction nor a contradiction of [Hook, Huang and Shalaby](https://arxiv.org/pdf/2510.13956v1), whose target uses a prescribed source. No late asymptotic order, continuum limit or new depletion mechanism is inferred.
 
+#### Driving-waveform resolution
+
+Three prescribed replays share every ordinary initial restart leaf and the complete native PIC protocol: 8,192 cells, 1,048,576 particles per species, $\Delta t\omega_0=.0015625$, $10/\omega_0$ blocks and $0.2/\omega_0$ output cadence through 170. Only the archived force table changes. The original coarse and fine branches use [472ebfe](https://github.com/uwplasma/Dark-JAX-in-Cell/tree/472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad); the intermediate replay uses [d05c11a](https://github.com/uwplasma/Dark-JAX-in-Cell/tree/d05c11a5f0d40899b65572d65f35dd5dd33e75e2). Parent `2d693cb`, JAX/CUDA 0.6.2 and float64 match. No initial particles, weights, fields, clocks or ledgers are regenerated.
+
+The fine table records the coupled donor's actual accepted midpoint force and both endpoints. The intermediate table retains the initial endpoint, first midpoint, every second midpoint and terminal endpoint. The actual coarse table is also an exact decimation of the fine archive; nesting is checked on bytes rather than inferred from nominal spacings.
+
+| Table | Nominal spacing $\omega_0\Delta t_{\rm table}$ | Knots | Maximum accepted-force error / initial force |
+|---|---:|---:|---:|
+| Coarse | 0.00625 | {{ pair_table_coarse_knots }} | {{ pair_table_coarse_force_error }} |
+| Intermediate | 0.003125 | {{ pair_table_intermediate_knots }} | {{ pair_table_intermediate_force_error }} |
+| Every-step | 0.0015625 | {{ pair_table_fine_knots }} | {{ pair_table_fine_force_error }} |
+
+All three meet the original $10^{-4}$ force-error target. The coarse/intermediate error ratio is approximately four, but this interpolation check does not establish a nonlinear convergence order.
+
+| Comparison, 150–170 | Raw complex-mode $L^2$ difference | Weighted phase RMS (rad) | Nonzero-electric-energy $L^2$ difference | Work-increment change |
+|---|---:|---:|---:|---:|
+| Coarse → intermediate | {{ pair_table_coarse_intermediate_mode_percent }}% | {{ pair_table_coarse_intermediate_phase_rad }} | {{ pair_table_coarse_intermediate_nonzero_percent }}% | {{ pair_table_coarse_intermediate_work_percent }}% |
+| Intermediate → every-step | {{ pair_table_intermediate_fine_mode_percent }}% | {{ pair_table_intermediate_fine_phase_rad }} | {{ pair_table_intermediate_fine_nonzero_percent }}% | {{ pair_table_intermediate_fine_work_percent }}% |
+| Coarse → every-step | {{ pair_table_coarse_fine_mode_percent }}% | {{ pair_table_coarse_fine_phase_rad }} | {{ pair_table_coarse_fine_nonzero_percent }}% | {{ pair_table_coarse_fine_work_percent }}% |
+
+[Companion simulation](../examples/dark_reservoir.py) · `study='pair_table', table_every=2, initial_state=donor/'initial_state.npz'`; [JSON reduction](scripts/compare_replays.py) · `pair_tables=(coarse, intermediate, fine)`; [complete regeneration recipe](scripts/make_all.py).
+
+The published historical archives require `pair_table_transition=('472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad', 'd05c11a5f0d40899b65572d65f35dd5dd33e75e2')`. This records the reviewed producer transition. Fresh full regeneration uses one producer revision and omits that transition.
+
+All 101 late samples retain their native complex coefficients and shared accepted clocks, without phase alignment, smoothing or rescaling. The phase RMS uses the reference mode's amplitude squared as its weight. Each table has one execution; differences include execution variation. All three raw complex-mode comparisons exceed 5%; the other original trajectory gates pass. Correlated frames are not independent realizations, and decreasing adjacent differences do not certify an asymptotic order or continuum limit.
+
+The global ledger maximum is at most **{{ pair_table_max_global_defect }} $U_\star$**. Its largest ratio to absolute late transferred work is **{{ pair_table_max_transfer_percent }}%**, or **{{ pair_table_max_two_endpoint_transfer_percent }}%** when bounding both endpoints; both pass the fixed 0.1% transfer budget. The corresponding ratios to the work differences are **{{ pair_table_coarse_intermediate_difference_budget }}**, **{{ pair_table_intermediate_fine_difference_budget }}** and **{{ pair_table_coarse_fine_difference_budget }}**, all above $10^{-3}$; two-endpoint bounds double them. Thus these small work changes are not resolved against the accounting budget.
+
+The [measurement record](_static/figures/pair_waveform_long/table_resolution.json) preserves all nine original maxima, native source and archive hashes, endpoint checks, full and late reductions, and the 14 scalar histories needed to reproduce them. CRC and independent charge/energy/momentum/redeposition checks pass. Original ordinary-Gauss $2\times10^{-13}$ failures remain in every source; dark-Gauss and nominal-clock $10^{-9}$ bounds pass. This finite-reservoir forcing study is distinct from the prescribed-source late target in [Hook, Huang and Shalaby](https://arxiv.org/pdf/2510.13956v1) and establishes no new irreversible-depletion mechanism.
+
 #### Exact forcing and execution repeats
 
 Two executions restore one complete prescribed `realized_fine` restart, including every particle weight, integer-time clock, potential/work metadata and native SI force table. Both use 8,192 cells, 1,048,576 particles per species, $\Delta t\omega_0=.003125$, $10/\omega_0$ blocks and $0.2/\omega_0$ scalar cadence through 170. The actual producer is [527f2dc](https://github.com/uwplasma/Dark-JAX-in-Cell/tree/527f2dcdc1b7d2f60f7a2c4ec8b78dc62e245265), parent `2d693cb`, JAX/CUDA 0.6.2 and float64. No forcing, positions or velocities are reconstructed. Complete archive CRC, actual native leaves, species charges/masses, endpoint relativistic moments and all nine native SI maxima are checked by the JSON reducer.
