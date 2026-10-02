@@ -727,6 +727,18 @@ def test_pair_native_cadence_loading_and_raw_window_contract(pair_records):
     assert result['saved_early_linear_errors'][0]['coupled']['l2_difference'] == pytest.approx(0)
 
 
+def test_one_complete_pair_control_retains_budget_gates_without_a_refinement_claim(pair_records):
+    from docs.scripts.compare_replays import _pair_load, pair_control_comparison
+    result = pair_control_comparison([_pair_load(pair_records[0])])
+    assert result['controlled_pairs'] == [] and result['early_seed_controls'] == []
+    assert len(result['late'][0]['conservation']) == 5
+    assert result['late'][0]['conservation_gates']['coupled'][
+        'maximum_energy_sector_defect_over_depletion_gain']
+    assert 'no late-convergence' in result['claim']
+    with pytest.raises(ValueError, match='at least one complete'):
+        pair_control_comparison([])
+
+
 @pytest.mark.parametrize(
     'corrupt', ['source', 'x64', 'parent', 'branch_runtime', 'clock', 'top_clock',
                 'field_scale', 'archive', 'raw_mean', 'blocks'])

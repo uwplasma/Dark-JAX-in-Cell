@@ -52,6 +52,8 @@ The [pair-waveform example](../examples/dark_reservoir.py) accepts `scalar_dt` i
 
 [Sampling benchmark](scripts/benchmark_field_cost.py) · `waveform_sampling=True, cells=4096, particles_per_cell=128, dt=.003125, steps=512, stride=64`. It compares three synchronized calls to each compiled diagnostic mode, including compile time and compiler memory, full final states, dense forcing and all-step maxima. A short sampling/cost check does not establish late conversion accuracy.
 
+The producer also accepts `initial_state='artifacts/pair_waveform/coupled/initial_state.npz'` to restore the complete zero-time coupled preparation and diagnostic ledger. It checks loading, model, timestep and requested mean dark force, and records the archive hash without its path. Keep the other named inputs fixed for an execution repeat. A prescribed-force repeat must additionally retain its exact archived table; restarting the coupled preparation alone does not freeze the force history derived from that trajectory.
+
 The matched float64 fixture has **1,048,576 total particles** and two local smoothing lengths. On one RTX A4000 with JAX/CUDA packages 0.6.2, the [native record](_static/figures/pair_waveform_controls/sampling_cost.json) gives:
 
 | Recording | Compilation (s) | Median warm block (s) | Compiler temporaries (MiB) |

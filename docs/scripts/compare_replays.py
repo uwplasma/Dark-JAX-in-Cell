@@ -1202,8 +1202,8 @@ def _pair_comparison(first, second, variant, tolerance=1e-8):
 
 
 def _pair_controls(sources):
-    if len(sources) < 2:
-        raise ValueError('pair comparisons require at least two complete controls')
+    if not sources:
+        raise ValueError('pair evidence requires at least one complete five-branch control')
     baseline = sources[0][0]
     if baseline['settings']['velocity_seed_over_c'] != 2e-4:
         raise ValueError('pair comparisons require the declared 2e-4 seed baseline first')
@@ -1274,7 +1274,7 @@ def pair_control_comparison(sources):
               for label in ('coupled', 'homogeneous_fine')} for source in sources]
     return dict(controlled_pairs=comparisons, early_seed_controls=seed_scaling, late=late,
                 saved_early_linear_errors=early,
-                claim='Bounded seed and numerical controls; no late-convergence, uncertainty or nonlinear-cause claim')
+                claim='Native waveform evidence; no late-convergence, uncertainty or nonlinear-cause claim')
 
 
 def publish_pair_controls(folders, folder):

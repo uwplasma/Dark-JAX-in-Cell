@@ -627,10 +627,23 @@ def waveform_scalar_dt(dtau, scalar_dt, output_dt, early_end):
     return round(scalar_dt / dtau) * dtau
 
 
+def pair_waveform_initial(sim, initial_state, field_scale):
+    """Restore the exact zero-clock preparation, including its diagnostic ledger."""
+    if initial_state is None:
+        return sim.initial_state(random.PRNGKey(0))[0], dict(initial_state_source='native initialization')
+    start, _ = paper_initial(sim, 0, initial_state)
+    if not np.allclose(np.mean(np.asarray(start.E), axis=0), np.mean(np.asarray(sim.dark.initial_E), axis=0),
+                       rtol=2e-12, atol=2e-14 * field_scale):
+        raise ValueError('waveform initial archive has a different homogeneous dark force')
+    return start, dict(initial_state_source='complete zero-time archive',
+                       initial_state_archive_sha256=hashlib.sha256(Path(initial_state).read_bytes()).hexdigest())
+
+
 def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
                           seed=2e-4, eta=.5, mass=1., force=.05, quadrature=64,
                           table_dt=None, output_dt=.2, block_horizon=None,
-                          local_moments=False, shape_order=2, pair_loading='global', linear_end=20., scalar_dt=None):
+                          local_moments=False, shape_order=2, pair_loading='global', linear_end=20., scalar_dt=None,
+                          initial_state=None):
     """Separate finite-k dark feedback from the realized homogeneous envelope.
 
     The coupled-mean replay removes spatial dark forces as an intervention.
@@ -660,7 +673,7 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
     model = DarkField(mass * wp, eta, initial_E=jnp.tile(
         jnp.array([force * field_scale / eta, 0., 0.]), (cells, 1)))
     coupled = DarkSimulation(plasma, model)
-    start, _ = coupled.initial_state(random.PRNGKey(0))
+    start, initial_source = pair_waveform_initial(coupled, initial_state, field_scale)
     reservoir = float(snapshot(coupled, start)['dark']) / energy_scale
     phase = np.exp(-1j * k * float(plasma.domain.faces[0]))
     flags = ' '.join(token if '/' not in token and '\\' not in token
@@ -704,7 +717,7 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
                              block_steps=blocks, scalar_units='native SI', XLA_FLAGS=flags,
                              initial_dark_energy_over_energy_scale=reservoir,
                              normalization=dict(omega0_rad_s=wp, field_scale_V_m=field_scale,
-                                                energy_scale_J_m2=energy_scale))
+                                                energy_scale_J_m2=energy_scale), **initial_source)
         save_run(Path(folder) / label, 'pair_waveform_branch', case_settings, records[label], **values)
         np.savez_compressed(Path(folder) / label / 'data.npz', **values)
         return final, values
@@ -807,7 +820,8 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
                                           table_force_over_initial=1e-4, primary_window_fraction=.01,
                                           nonzero_mode_density_window_fraction=.05,
                                           conservation_over_transfer_and_target_difference=1e-3),
-                    normalization=dict(omega0_rad_s=wp, field_scale_V_m=field_scale, energy_scale_J_m2=energy_scale))
+                    normalization=dict(omega0_rad_s=wp, field_scale_V_m=field_scale, energy_scale_J_m2=energy_scale),
+                    **initial_source)
     results = dict(reference=reference_checks, forcing=forcing_checks, cases=records, windows=comparisons,
                    claim='finite-time intervention; late claims require loading/grid/time and table convergence')
     output_stride = max(1, round(output_dt / scalar_dt))
@@ -1383,7 +1397,8 @@ if __name__ == "__main__":  # noqa: C901
     elif study == 'pair_waveform':
         pair_waveform_control(output, cells, particles_per_cell, dt, horizon, velocity_seed,
                               eta, dark_mass, force, quadrature, table_dt, output_dt,
-                              block_horizon, local_moments, shape_order, pair_loading, linear_end, scalar_dt)
+                              block_horizon, local_moments, shape_order, pair_loading, linear_end, scalar_dt,
+                              initial_state)
     elif study == 'paper_pilot':
         paper_geometry_pilot(output)
     elif study != 'mobile_ions':

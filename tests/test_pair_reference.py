@@ -184,17 +184,106 @@ def test_global_loading_refines_seeded_ballistic_charge_not_just_velocity_kernel
     assert errors[2] < .1  # Per unit velocity seed; this does not certify nonlinear PIC accuracy.
 
 
+@pytest.fixture
+def waveform_initial_archive(tmp_path):
+    import jax.numpy as jnp
+    from jax import random
+    from darkjaxincell import DarkField, DarkSimulation
+    from examples.dark_reservoir import pair_plasma, save_compressed_state
+    from jaxincell import elementary_charge as e, mass_electron, speed_of_light as c
+
+    plasma, _, _, wp = pair_plasma(512, 2, .025, 2e-4, True, pair_loading='global')
+    model = DarkField(wp, .5, initial_E=jnp.tile(
+        jnp.array([.1 * mass_electron * c * wp / e, 0., 0.]), (512, 1)))
+    sim = DarkSimulation(plasma, model)
+    state, _ = sim.initial_state(random.PRNGKey(0))
+    # One field ULP and a ledger value distinguish restoration from regeneration.
+    ordinary = state.ordinary.replace(E=state.ordinary.E.at[0, 0].set(
+        np.nextafter(float(state.ordinary.E[0, 0]), np.inf)))
+    state = state.replace(ordinary=ordinary, max_balance_error=jnp.asarray(1e-20))
+    path = tmp_path / 'initial.npz'
+    save_compressed_state(path, state, sim)
+    return path, state, sim
+
+
+def test_waveform_restores_complete_initial_archive_before_advancing(tmp_path, monkeypatch, waveform_initial_archive):
+    from contextlib import nullcontext
+    from examples import dark_reservoir as example
+
+    path, _, _ = waveform_initial_archive
+
+    class AcceptedArchive(Exception):
+        pass
+
+    def inspect(sim, initial, *args, **kwargs):
+        saved = tmp_path / 'restored.npz'
+        example.save_compressed_state(saved, initial, sim)
+        with np.load(path) as original, np.load(saved) as restored:
+            assert original.files == restored.files
+            for key in original.files:
+                np.testing.assert_array_equal(restored[key], original[key])
+        raise AcceptedArchive
+
+    monkeypatch.setattr(example, 'paper_run', inspect)
+    monkeypatch.setattr(example, 'elapsed_progress', lambda *args: nullcontext())
+    with pytest.raises(AcceptedArchive):
+        example.pair_waveform_control(tmp_path, 512, 2, .025, .05, quadrature=4, initial_state=path)
+
+
+@pytest.mark.parametrize('change', ['time', 'work', 'dt', 'eta', 'force', 'loading', 'shape'])
+def test_waveform_initial_archive_rejects_changed_experiment(tmp_path, waveform_initial_archive, change):
+    from examples.dark_reservoir import pair_waveform_control, save_compressed_state
+
+    path, state, sim = waveform_initial_archive
+    settings = dict(quadrature=4, initial_state=path)
+    dtau = .025
+    if change in ('time', 'work'):
+        state = (state.replace(ordinary=state.ordinary.replace(time=sim.plasma.domain.dt)) if change == 'time'
+                 else state.replace(work=1.))
+        save_compressed_state(path, state, sim)
+    elif change == 'dt':
+        dtau = .0125
+    else:
+        settings.update({{'eta': 'eta', 'force': 'force', 'loading': 'seed', 'shape': 'shape_order'}[change]:
+                         {'eta': .4, 'force': .04, 'loading': 0., 'shape': 5}[change]})
+    with pytest.raises((ValueError, AssertionError)):
+        pair_waveform_control(tmp_path, 512, 2, dtau, .05, **settings)
+
+
+def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path):
+    import ast
+    from pathlib import Path
+    from examples import dark_reservoir as example
+
+    calls = []
+    namespace = {**vars(example), '__name__': '__main__', 'study': 'pair_waveform',
+                 'initial_state': tmp_path / 'initial.npz',
+                 'pair_waveform_control': lambda *args, **kwargs: calls.append((args, kwargs))}
+    # Execute the actual dispatch block with a producer stub, avoiding five runs.
+    dispatch = ast.parse(Path(example.__file__).read_text()).body[-1]
+    exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
+    assert len(calls) == 1 and calls[0][0][-1] == namespace['initial_state']
+
+
 @pytest.mark.parametrize('scalar_dt', [None, .05])
-def test_waveform_producer_keeps_shared_loading_and_native_restart_ledgers(tmp_path, scalar_dt):
+def test_waveform_producer_keeps_shared_loading_and_native_restart_ledgers(
+        tmp_path, scalar_dt, waveform_initial_archive):
     """Two native steps exercise tables, phase serialization and signed sector work."""
     import json
     from examples.dark_reservoir import pair_waveform_control
 
+    initial = waveform_initial_archive[0] if scalar_dt else None
     curves, settings, results = pair_waveform_control(
-        tmp_path, 512, 2, .025, .05, quadrature=4, table_dt=.025, block_horizon=.05, scalar_dt=scalar_dt)
+        tmp_path, 512, 2, .025, .05, quadrature=4, table_dt=.025, block_horizon=.05, scalar_dt=scalar_dt,
+        initial_state=initial)
     assert len(curves) == 5
     record = json.loads((tmp_path / 'run.json').read_text())
     assert record['settings']['pair_loading'] == 'global'
+    assert settings['initial_state_source'] == ('complete zero-time archive' if initial else 'native initialization')
+    if initial:
+        import hashlib
+        assert settings['initial_state_archive_sha256'] == hashlib.sha256(initial.read_bytes()).hexdigest()
+        assert str(initial) not in json.dumps(record)
     assert all(r['table_refinement'] == 'identical cadence; no refinement' for r in results['forcing'].values())
     assert results['linear_reference']['interbranch_absolute_l2_difference'] > 0
     assert 'linear dynamics' in results['linear_reference']['qualification']
