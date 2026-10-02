@@ -250,7 +250,7 @@ def test_waveform_initial_archive_rejects_changed_experiment(tmp_path, waveform_
         pair_waveform_control(tmp_path, 512, 2, dtau, .05, **settings)
 
 
-@pytest.mark.parametrize('study', ['pair_waveform', 'pair_repeat'])
+@pytest.mark.parametrize('study', ['pair_waveform', 'pair_repeat', 'pair_table'])
 def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path, study):
     import ast
     from pathlib import Path
@@ -261,15 +261,16 @@ def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path, study)
     def stub(*args, **kwargs):
         calls.append((args, kwargs))
 
-    namespace = {**vars(example), '__name__': '__main__', 'study': study, 'samples': 2,
+    namespace = {**vars(example), '__name__': '__main__', 'study': study, 'samples': 2, 'table_every': 2,
                  'initial_state': tmp_path / 'initial.npz', 'pair_waveform_control': stub, 'pair_repeat': stub}
     # Execute the actual dispatch block with a producer stub, avoiding five runs.
     dispatch = ast.parse(Path(example.__file__).read_text()).body[-1]
     exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
     assert len(calls) == 1
     assert calls[0][0][-1 if study == 'pair_waveform' else 1] == namespace['initial_state']
-    if study == 'pair_repeat':
+    if study in ('pair_repeat', 'pair_table'):
         assert calls[0][0][2:] == (2, False)
+        assert calls[0][1] == (dict(table_every=2) if study == 'pair_table' else {})
 
 
 @pytest.fixture
@@ -349,6 +350,7 @@ def test_archived_pair_repeat_preserves_table_midpoint_force_complete_restart_an
         np.testing.assert_allclose(final.ordinary.u / example.c, resumed.ordinary.u / example.c, atol=2e-14)
         np.testing.assert_allclose(final.work, resumed.work, rtol=2e-13)
         values, settings, results = [run[key] for key in ('history', 'settings', 'results')]
+        assert 'table_replay' not in settings
         assert values['t'].shape == (3,) and values['local_spread'].shape == (3, 2, 2)
         np.testing.assert_equal(values['work'][0], float(initial.work))
         np.testing.assert_equal(values['work'][-1], float(final.work))
@@ -356,6 +358,72 @@ def test_archived_pair_repeat_preserves_table_midpoint_force_complete_restart_an
         assert settings['initial_state_archive_sha256'] == hashlib.sha256(path.read_bytes()).hexdigest()
         record = json.loads((folder / 'run.json').read_text())
         assert record['example'] == 'pair_waveform_repeat' and str(path) not in json.dumps(record)
+
+
+def test_archived_pair_table_changes_only_force_knots_and_retains_complete_restart(
+        tmp_path, prescribed_pair_archive, monkeypatch):
+    import json
+    from darkjaxincell import DarkSimulation, PrescribedDrive, load_state
+    from docs.scripts import compare_replays as comparator
+    from examples import dark_reservoir as example
+
+    path, donor, initial = prescribed_pair_archive
+    folder = tmp_path / 'table'
+    run = example.pair_repeat(folder, path, table_every=2)[0]
+    indices = [0, 1, 3]  # Initial endpoint, first midpoint, terminal endpoint.
+    times, amplitude = np.asarray(donor.dark.times)[indices], np.asarray(donor.dark.amplitude)[indices]
+    replay = DarkSimulation(donor.plasma, PrescribedDrive(.5, amplitude, 0., times=times))
+    start = load_state(folder / 'initial_state.npz', replay)
+    final = load_state(folder / 'final_state.npz', replay)
+    with np.load(path) as original, np.load(folder / 'initial_state.npz') as restored:
+        assert original.files == restored.files
+        for key in original.files:
+            np.testing.assert_array_equal(restored[key], {'dark.times': times, 'dark.amplitude': amplitude}.get(
+                key, original[key]))
+    np.testing.assert_array_equal(replay.dark.at(donor.plasma.domain.dt / 2), donor.dark.amplitude[1])
+    expected_second = donor.dark.amplitude[1] + 2 / 3 * (donor.dark.amplitude[-1] - donor.dark.amplitude[1])
+    np.testing.assert_allclose(replay.dark.at(1.5 * donor.plasma.domain.dt), expected_second, rtol=2e-15)
+    known = replay._step(replay._step(start, replay.plasma.per_particle)[0], replay.plasma.per_particle)[0]
+    np.testing.assert_allclose(final.ordinary.u / example.c, known.ordinary.u / example.c, atol=2e-14)
+    np.testing.assert_allclose(final.work, known.work, rtol=2e-13)
+    assert run['history']['t'].shape == (3,) and float(start.work) == float(initial.work)
+    info = run['settings']['table_replay']
+    assert info['table_every'] == 2 and (info['original_knots'], info['retained_knots']) == (4, 3)
+    np.testing.assert_allclose(info['maximum_gap_omega0'], .0375, rtol=2e-15)
+    for key, value in dict(original_times=donor.dark.times, original_amplitude=donor.dark.amplitude,
+                           times=times, amplitude=amplitude).items():
+        assert info[key + '_sha256'] == example.array_fingerprint(value)
+    record = json.loads((folder / 'run.json').read_text())
+    assert record['example'] == 'pair_waveform_table_replay' and str(path) not in json.dumps(record)
+    assert 'not an exact-force repeat' in run['results']['claim']
+    # Isolate the example-type guard from source validation of the dirty test checkout.
+    monkeypatch.setattr(comparator, '_pair_source', lambda _: (record, run['history'], {}))
+    with pytest.raises(ValueError, match='complete quadratic realized-force branches'):
+        comparator.pair_repeat_comparison((folder, folder))
+
+
+@pytest.mark.parametrize('change', ['zero', 'boolean', 'fraction', 'samples', 'coarse', 'midpoint'])
+def test_archived_pair_table_rejects_invalid_stride_or_nonfine_native_force(
+        tmp_path, prescribed_pair_archive, change):
+    import json
+    from examples import dark_reservoir as example
+
+    path, _, _ = prescribed_pair_archive
+    every = {'zero': 0, 'boolean': True, 'fraction': 1.5}.get(change, 2)
+    if change == 'coarse':
+        for record_path in (path.parent / 'run.json', path.parent.parent / 'run.json'):
+            record = json.loads(record_path.read_text())
+            record['settings']['label'] = 'realized_coarse'
+            if 'cases' in record['results']:
+                record['results']['cases']['realized_coarse'] = record['results']['cases'].pop('realized_fine')
+            record_path.write_text(json.dumps(record))
+    elif change == 'midpoint':
+        with np.load(path) as archive:
+            arrays = dict(archive)
+        arrays['dark.times'][2] *= 1.05  # Still increasing/covered, but not a native fine force clock.
+        np.savez_compressed(path, **arrays)
+    with pytest.raises(ValueError):
+        example.pair_repeat(tmp_path / 'table', path, samples=2 if change == 'samples' else 1, table_every=every)
 
 
 @pytest.mark.parametrize('change', ['time', 'steps', 'work', 'fingerprint', 'runtime', 'coverage',

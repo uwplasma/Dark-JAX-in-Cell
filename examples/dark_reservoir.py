@@ -44,7 +44,7 @@ from drive_reference import forced_cold, gaussian_tangent, homogeneous  # noqa: 
 
 
 # Inputs: the default is a small mobile-ion comparison.
-study = globals().get('study', 'mobile_ions')  # paper, paper_continue, pair, pair_dark, pair_waveform, pair_repeat
+study = globals().get('study', 'mobile_ions')  # pair_table varies one archived prescribed branch.
 full = globals().get('full', False)
 output = Path(globals().get('output', 'artifacts/dark_reservoir'))
 # Paper controls use omega_p time units and markers per species.
@@ -60,6 +60,7 @@ local_moments = globals().get('local_moments', full and study == 'pair_waveform'
 initial_state = globals().get('initial_state', None)
 initial_state = None if initial_state is None else Path(initial_state)
 samples = globals().get('samples', 1)  # pair_repeat executions reuse one exact archived state/table.
+table_every = globals().get('table_every', 1)  # pair_table retains every nth archived midpoint.
 observe_executable = globals().get('observe_executable', False)  # Host-only repeat compilation evidence.
 momentum_seed = globals().get('momentum_seed', 0.)  # Electron δu / initial σe; zero keeps the paper loading.
 seed_mode = globals().get('seed_mode', 16)
@@ -716,10 +717,40 @@ def pair_repeat_initial(initial_state):
     return sim, start, setting
 
 
-def pair_repeat(folder, initial_state, samples=1, observe_executable=False):
-    """Repeat exact archived forcing, preserving every native clock and ledger."""
-    if type(samples) is not int or samples < 1:
-        raise ValueError('pair_repeat samples must be a positive integer')
+def pair_decimated_drive(sim, setting, every, steps):
+    """Vary only the archived piecewise-linear force, retaining its first impulse."""
+    if every == 1:
+        return sim
+    if not setting['label'].endswith('_fine'):
+        raise ValueError('table decimation requires a fine prescribed donor')
+    times, amplitude = np.asarray(sim.dark.times), np.asarray(sim.dark.amplitude)
+    expected, clock, dt = np.empty(steps + 2), 0., float(sim.plasma.domain.dt)
+    expected[0] = 0.
+    for index in range(steps):
+        expected[index + 1] = clock + dt / 2
+        clock += dt
+    expected[-1] = clock
+    if not np.array_equal(times, expected):
+        raise ValueError('fine donor must retain every accepted native force midpoint and endpoint')
+    selected = np.unique(np.r_[0, np.arange(1, len(times) - 1, every), len(times) - 1])
+    kept_t, kept_a = times[selected], amplitude[selected]
+    model = PrescribedDrive(sim.dark.eta, jnp.asarray(kept_a), sim.dark.omega,
+                            sim.dark.phase, times=jnp.asarray(kept_t))
+    setting['table_replay'] = dict(
+        table_every=every, original_knots=len(times), retained_knots=len(kept_t),
+        maximum_gap_omega0=float(np.max(np.diff(kept_t))) * setting['normalization']['omega0_rad_s'],
+        original_times_sha256=array_fingerprint(times), original_amplitude_sha256=array_fingerprint(amplitude),
+        times_sha256=array_fingerprint(kept_t), amplitude_sha256=array_fingerprint(kept_a),
+        selection='initial endpoint, first midpoint, every nth midpoint, terminal endpoint',
+        intervention='Same PIC state/timestep; piecewise-linear prescribed force changed.')
+    return DarkSimulation(sim.plasma, model)
+
+
+def pair_repeat(folder, initial_state, samples=1, observe_executable=False, table_every=1):
+    """Replay the archived force, optionally varying its knots at unchanged PIC clocks."""
+    if (type(samples) is not int or samples < 1 or type(table_every) is not int or table_every < 1
+            or table_every > 1 and samples != 1):
+        raise ValueError('samples/table_every must be positive integers; varied-table replays use one execution')
     if type(observe_executable) is not bool:
         raise ValueError('observe_executable must be a boolean')
     sim, start, setting = pair_repeat_initial(initial_state)
@@ -738,6 +769,7 @@ def pair_repeat(folder, initial_state, samples=1, observe_executable=False):
         accepted_time += dt
     if sim.dark.times[0] != 0 or np.nextafter(float(sim.dark.times[-1]), np.inf) < accepted_time:
         raise ValueError('pair_repeat forcing table must cover the accepted native endpoint')
+    sim = pair_decimated_drive(sim, setting, table_every, steps)
     histories, loaded = [], []
     observer = dict(source=provenance()['git'],
                     producer_script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
@@ -760,7 +792,8 @@ def pair_repeat(folder, initial_state, samples=1, observe_executable=False):
 
     for index in range(samples):
         destination = Path(folder) / f'execution_{index + 1}' if samples > 1 else Path(folder)
-        with elapsed_progress(f"{setting['label']} archived repeat {index + 1}/{samples}"):
+        action = 'table replay' if table_every > 1 else 'archived repeat'
+        with elapsed_progress(f"{setting['label']} {action} {index + 1}/{samples}"):
             final, values, maximum, _, compile_s, warm_s, memory = paper_run(
                 sim, start, steps, stride, blocks * dtau, wp, jnp.asarray(scales) if setting['local_moments'] else None,
                 destination, setting['seed_mode'], compilation_observer=observe if observe_executable else None)
@@ -774,11 +807,14 @@ def pair_repeat(folder, initial_state, samples=1, observe_executable=False):
                        local_spread_initial=(np.asarray(coarse_spread(sim, start, scales)) / energy_scale).tolist(),
                        local_spread_final=(np.asarray(coarse_spread(sim, final, scales)) / energy_scale).tolist(),
                        execution_index=index + 1, samples=samples,
-                       claim='Exact archived force/state; donor and producer sources are recorded separately.',
+                       claim=('Archived state/timestep; prescribed table changed, not an exact-force repeat.'
+                              if table_every > 1 else
+                              'Exact archived force/state; donor and producer sources are recorded separately.'),
                        timing_note=('One postcompile execution per call; local executable observations are separate.'
                                     if observe_executable else
                                     'One postcompile execution per call; executable identity is not asserted.'))
-        save_run(destination, 'pair_waveform_repeat', setting, results, **values)
+        save_run(destination, 'pair_waveform_table_replay' if table_every > 1 else 'pair_waveform_repeat',
+                 setting, results, **values)
         np.savez_compressed(destination / 'data.npz', **values)
         histories.append(dict(history=values, settings=setting, results=results))
     if observe_executable:
@@ -1732,11 +1768,13 @@ if __name__ == "__main__":  # noqa: C901
                               initial_state)
     elif study == 'pair_repeat':
         pair_repeat(output, initial_state, samples, observe_executable)
+    elif study == 'pair_table':
+        pair_repeat(output, initial_state, samples, observe_executable, table_every=table_every)
     elif study == 'paper_pilot':
         paper_geometry_pilot(output)
     elif study != 'mobile_ions':
         raise ValueError('study must be mobile_ions, paper, paper_continue, pair, pair_dark, pair_waveform, '
-                         'pair_repeat or paper_pilot')
+                         'pair_repeat, pair_table or paper_pilot')
     else:
         presets = ((64, 4000, 0.04, 40), (128, 8000, 0.02, 40)) if full else (
             (32, 1000, 0.08, 20),)
