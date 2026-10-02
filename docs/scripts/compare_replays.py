@@ -17,6 +17,7 @@ pair_controls = globals().get('pair_controls', ())  # Complete five-branch pair-
 constraints = globals().get('constraints', False)
 legacy = globals().get('legacy', False)
 refined = globals().get('refined', None)
+refined_against = globals().get('refined_against', 'first')
 finer_mesh = globals().get('finer_mesh', None)
 refined_variant = globals().get('refined_variant', 'dt')
 loading_refined = globals().get('loading_refined', None)
@@ -302,7 +303,7 @@ def _replay_label(settings, variant, index):
         label = f"Δtωₚ={settings['dt_omega_p']:g}"
         return label + f', execution {index + 1}' if variant == 'repeat' and index < 2 else label
     if variant == 'shape':
-        return f"degree {settings.get('shape_order', 2)} weighting"
+        return f"degree {settings.get('shape_order', 2)} weighting, Δtωₚ={settings['dt_omega_p']:g}"
     return f"{settings['cells']} cells, {settings['particles_per_species'] // 1000}k/species, seed {settings['seed']}"
 
 
@@ -318,9 +319,16 @@ def _loading_repeat(folder, reference):
             {f'loading_repeat_{key}': value for key, value in repeated[1].items()})
 
 
+def _refined_source(first, second, against):
+    if against not in ('first', 'second'):
+        raise ValueError('refined_against must be first or second')
+    return first if against == 'first' else second
+
+
 def publish(first, second, folder, comparison, refined=None, refined_variant='dt', loading_refined=None,
-            loading_repeat=None):
+            loading_repeat=None, refined_against='first'):
     """Render saved scalars through the parent figure/provenance path; no dynamics."""
+    anchor = _refined_source(first, second, refined_against)
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -330,7 +338,7 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
     sources = [_load(path, 1e-5) for path in (first, second)]
     refinement = None
     if refined is not None:
-        refinement = compare_replays(first, refined, variant=refined_variant,
+        refinement = compare_replays(anchor, refined, variant=refined_variant,
                                      constraints='endpoint_constraints' in comparison)
         sources.append(_load(refined, 1e-5))
     loading = None
@@ -388,6 +396,7 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
         result = dict(comparison=comparison, native_runs=[source[0] for source in sources],
                       claim='Controlled numerical sensitivity study; no convergence or statistical uncertainty claim')
         if refinement is not None:
+            result['refined_against'] = refined_against
             result['refinement_comparison'] = refinement
         if loading is not None:
             result['loading_comparison'] = loading
@@ -1270,7 +1279,8 @@ if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
     else:
         result = compare_replays(first, second, variant, legacy=legacy, constraints=constraints)
         if destination is not None:
-            publish(first, second, destination, result, refined, refined_variant, loading_refined, loading_repeat)
+            publish(first, second, destination, result, refined, refined_variant, loading_refined, loading_repeat,
+                    refined_against=refined_against)
         else:
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(json.dumps(result, indent=2))

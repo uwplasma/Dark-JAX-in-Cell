@@ -506,12 +506,16 @@ shape_runs = [ROOT / 'artifacts' / 'shape_controls' / f'late_s{order}' for order
 for order, folder in zip((2, 5), shape_runs):
     run_example('examples/dark_reservoir.py', study='paper', cells=2000, particles=206000,
                 dt=.005, horizon=1000., block_horizon=100., local_moments=True, shape_order=order, output=folder)
+shape_dt = ROOT / 'artifacts' / 'shape_controls' / 'late_s5_dt0025'
+run_example('examples/dark_reservoir.py', study='paper', cells=2000, particles=206000,
+            dt=.0025, horizon=1000., block_horizon=100., local_moments=True, shape_order=5, output=shape_dt)
 run_example('docs/scripts/compare_replays.py', first=shape_runs[0], second=shape_runs[1],
-            variant='shape', constraints=True, destination=shape_folder)
+            variant='shape', constraints=True, refined=shape_dt, refined_against='second', destination=shape_folder)
 shape_record = json.loads((shape_folder / 'run.json').read_text())
-replay_measurements(shape_record, (("shape", "comparison", ".4f"),))
+replay_measurements(shape_record, (("shape", "comparison", ".4f"), ("shape_dt", "refinement_comparison", ".4f")))
 for label, record, key in (("late_repeat", late_record, "comparison"),
-                           ("late_dt", late_record, "refinement_comparison"), ("shape", shape_record, "comparison")):
+                           ("late_dt", late_record, "refinement_comparison"), ("shape", shape_record, "comparison"),
+                           ("shape_dt", shape_record, "refinement_comparison")):
     a, b = record['results'][key]['windows'][-1]['realization_summaries']
     for observable in ('electric_mean', 'work'):
         field = 'work_increment' if observable == 'work' else observable
@@ -539,6 +543,9 @@ for order, name, native in zip((2, 5), ('quadratic', 'quintic'), shape_record['r
                         ('momentum', 'max_momentum_defect_over_nmecL'), ('gauss', 'max_ordinary_gauss_over_en_eps0')):
         measured[f'{prefix}_{suffix}'] = f'{native["results"][key]:.3e}'
     measured['_provenance'][f'shape_cost_{order}'] = provenance(cost, f'{shape_folder.name}/{saved.name}')
+for suffix, key in (('balance', 'max_ordinary_work_defect_over_nmc2L'),
+                    ('momentum', 'max_momentum_defect_over_nmecL'), ('gauss', 'max_ordinary_gauss_over_en_eps0')):
+    measured[f'shape_dt_{suffix}'] = f'{shape_record["results"]["native_runs"][2]["results"][key]:.3e}'
 resolution = EVIDENCE.parent / "replay_resolution"
 mesh, seed, loading = [ROOT / "artifacts" / name for name in
                        ("paper_fixed_mesh", "paper_fixed_seed", "paper_fixed_particles")]

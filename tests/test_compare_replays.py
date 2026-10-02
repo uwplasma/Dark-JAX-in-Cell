@@ -102,6 +102,38 @@ def test_particle_loading_repeat_keeps_raw_arrays_and_incomplete_endpoint_scope(
     assert not result['loading_repeat_endpoint']['available']
 
 
+def test_refined_shape_run_requires_its_matching_anchor(records, monkeypatch):
+    import hashlib
+    from docs.scripts import compare_replays as renderer
+    change_settings(records[1], shape='quintic', shape_order=5)
+    refined = records[0].parent / 'refined'
+    copytree(records[1], refined)
+    change_settings(refined, dt_omega_p=.005, block_steps=100)
+    original = renderer.compare_replays
+    monkeypatch.setattr(renderer, 'compare_replays',
+                        lambda *args, **kwargs: original(*args, **kwargs, windows=((0, 1),)))
+    comparison = original(*records, variant='shape', windows=((0, 1),))
+    folder = records[0].parent / 'publication'
+    with pytest.raises(ValueError, match='share shape'):
+        renderer.publish(*records, folder, comparison, refined=refined)
+    with pytest.raises(ValueError, match='first or second'):
+        renderer.publish(*records, folder, comparison, refined=refined, refined_against='third')
+    assert not folder.exists()
+    renderer.publish(*records, folder, comparison, refined=refined, refined_against='second')
+    result = json.loads((folder / 'run.json').read_text())['results']
+    assert result['refined_against'] == 'second'
+    refinement = result['refinement_comparison']
+    assert refinement['variant'] == 'dt' and refinement['initial_fingerprints']['verified']
+    for source, path in zip(refinement['sources'], (records[1], refined)):
+        assert source['run_sha256'] == hashlib.sha256((path / 'run.json').read_bytes()).hexdigest()
+        assert source['data_sha256'] == hashlib.sha256((path / 'data.npz').read_bytes()).hexdigest()
+    with np.load(folder / 'data.npz') as data, np.load(refined / 'data.npz') as native:
+        np.testing.assert_array_equal(data['refined_electric'], native['electric'])
+    labels = [renderer._replay_label(json.loads((path / 'run.json').read_text())['settings'], 'shape', 0)
+              for path in (records[1], refined)]
+    assert labels[0] != labels[1] and all('degree 5' in label for label in labels)
+
+
 @pytest.mark.parametrize('quantity', ['clock', 'units', 'fingerprints', 'scales', 'blocks'])
 def test_corrupted_native_comparison_is_rejected(records, quantity):
     path = records[1]
