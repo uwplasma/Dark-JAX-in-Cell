@@ -14,6 +14,8 @@ picard = globals().get('picard', False)
 method_controls = globals().get('method_controls', False)
 phase_controls = globals().get('phase_controls', ())  # Native implicit folders, grouped by mesh and phase.
 pair_controls = globals().get('pair_controls', ())  # Complete five-branch pair-waveform producer folders.
+ensemble = globals().get('ensemble', ())  # Ordered (coarse, half-step) native folders for seeds 0/1/2 or 0–4.
+ensemble_window = globals().get('ensemble_window', (800, 1000))
 constraints = globals().get('constraints', False)
 legacy = globals().get('legacy', False)
 refined = globals().get('refined', None)
@@ -33,6 +35,9 @@ PARAMETERS = ('cells', 'particles_per_species', 'seed', 'dt_omega_p', 'output_dt
               'length_c_over_omega_p', 'mass_ratio', 'T_each_over_mec2', 'coupling',
               'drive_quiver_over_sigma', 'force_quiver_over_c', 'loading', 'pusher', 'shape', 'parent_revision')
 VARIANTS = dict(repeat=None, dt='dt_omega_p', seed='seed', mesh='cells', loading='particles_per_species', shape='shape')
+ENSEMBLE_OBSERVABLES = ('work', 'electron_local_2D', 'electron_local_4D', 'ion_local_2D', 'ion_local_4D',
+                        'electric', 'nonzero_electric', 'injection_rate')
+ENSEMBLE_BOUNDS = (.02, .02, .02, .02, .02, .05, .05, 1e-5)
 PAIR_CASES = ('coupled', 'realized_coarse', 'realized_fine', 'homogeneous_coarse', 'homogeneous_fine')
 PAIR_PHYSICS = ('parent_revision', 'shape_order', 'seed_mode', 'eta', 'dark_mass_over_omega0',
                 'force_quiver_over_c', 'pair_loading', 'length_c_over_omega0', 'waterbag_full_width_over_c',
@@ -152,6 +157,8 @@ def window_summary(data, selected, coupled=False):
         raise ValueError('window injection rates require two native samples')
     work = (-1 if coupled else 1) * (data['work'][selected][-1] - data['work'][selected][0])
     plasma_energy = float(np.mean((data['electric'] + data['magnetic'] + data['kinetic'].sum(axis=1))[selected]))
+    if not np.isfinite(plasma_energy) or plasma_energy <= 0:
+        raise ValueError('window injection rates require positive finite plasma energy')
     result = dict(work_increment=float(work),
                   injection_rate_over_wp=float(work / ((time[-1] - time[0]) * plasma_energy)),
                   plasma_mean_energy=plasma_energy,
@@ -295,6 +302,108 @@ def compare_replays(first, second, variant='repeat', windows=WINDOWS, legacy=Fal
         result['endpoint_constraints'] = [constraint_audit(folder, record)
                                           for folder, record in zip((first, second), records)]
     return result
+
+
+def _fieller(first, second, critical):
+    """Paired ratio-of-means interval; an unresolved denominator stays unavailable."""
+    scale = max(np.max(abs(first)), np.max(abs(second)))
+    if not np.isfinite(scale) or scale == 0:
+        return None
+    first, second = first / scale, second / scale
+    mean = np.mean(first)
+    A = mean**2 - critical**2 * np.var(first, ddof=1) / len(first)
+    if mean <= 0 or A <= 0:
+        return None
+    ratio = np.mean(second) / mean
+    residual = second - ratio * first
+    B = -critical**2 * np.cov(first, residual, ddof=1)[0, 1] / len(first)
+    C = critical**2 * np.var(residual, ddof=1) / len(first)
+    return (ratio - 1 + (B + np.array([-1., 1.]) * np.sqrt(B**2 + A * C)) / A).tolist()
+
+
+def _ensemble_intervals(coarse, fine, simultaneous):
+    """Seeds are the independent units; confidence bounds retain all eight gates."""
+    from scipy.stats import t
+    count = len(coarse)
+    critical = float(t.ppf(1 - .05 / (2 * len(ENSEMBLE_BOUNDS) if simultaneous else 2), count - 1))
+    rows = {}
+    for index, (name, bound) in enumerate(zip(ENSEMBLE_OBSERVABLES, ENSEMBLE_BOUNDS)):
+        a, b = coarse[:, index], fine[:, index]
+        delta = b - a
+        half = critical * delta.std(ddof=1) / np.sqrt(count)
+        additive = [float(delta.mean() - half), float(delta.mean() + half)]
+        ratio = _fieller(a, b, critical) if name != 'injection_rate' else None
+        interval = additive if name == 'injection_rate' else ratio
+        rows[name] = dict(coarse_mean=float(a.mean()), fine_mean=float(b.mean()),
+                          coarse_seed_sd=float(a.std(ddof=1)), fine_seed_sd=float(b.std(ddof=1)),
+                          paired_difference=float(delta.mean()), paired_sd=float(delta.std(ddof=1)),
+                          paired_covariance=float(np.cov(a, b, ddof=1)[0, 1]), additive_interval=additive,
+                          relative_mean_change=float(b.mean() / a.mean() - 1) if a.mean() > 0 else None,
+                          fieller_relative_interval=ratio, bound=bound,
+                          equivalent=bool(interval is not None and interval[0] > -bound and interval[1] < bound))
+    return dict(confidence=.95, simultaneous=simultaneous, critical_t=critical, observables=rows,
+                all_equivalent=all(row['equivalent'] for row in rows.values()))
+
+
+def _ensemble_sources(pairs, tolerance):
+    if len(pairs) not in (3, 5) or any(len(pair) != 2 for pair in pairs):
+        raise ValueError('ensemble requires ordered pairs for all seeds 0/1/2 or 0–4')
+    sources = [[_load(path, tolerance) for path in pair] for pair in pairs]
+    for seed, pair in enumerate(sources):
+        for level, (record, data, _, _) in enumerate(pair):
+            setting = record['settings']
+            scales = np.asarray(setting.get('local_spread_lengths_c_over_wp', []))
+            if type(setting.get('seed')) is not int or setting['seed'] != seed:
+                raise ValueError('ensemble pairs must contain the ordered preselected seeds')
+            revisions = (record['git'], setting['parent_revision'])
+            if (record['jax_enable_x64'] is not True or setting['coupling'] is not None or 'local_spread' not in data
+                    or scales.shape != (2,) or not np.allclose(
+                        scales, np.array([2., 4.]) * np.sqrt(setting['T_each_over_mec2']), rtol=2e-12, atol=0)
+                    or any(not isinstance(v, str) or len(v) != 40 or set(v) - set('0123456789abcdef')
+                           for v in revisions)):
+                raise ValueError('ensemble needs clean sources, x64, prescribed drive and ordered 2/4 Debye lengths')
+            anchor = sources[0][level]
+            if any(record.get(key) is None or record[key] != sources[0][0][0].get(key)
+                   for key in ('python', 'platform')):
+                raise ValueError('ensemble runtime differs across seeds')
+            settings = _controls([anchor[0], record], [anchor[1], data], 'seed', tolerance)
+            _initial(*settings, 'seed', False)
+        if not np.isclose(pair[1][0]['settings']['dt_omega_p'] * 2, pair[0][0]['settings']['dt_omega_p'],
+                          rtol=2e-12, atol=0):
+            raise ValueError('ensemble pairs require a halved timestep')
+    if len({pair[0][0]['settings']['initial_fingerprints']['loading']['v'] for pair in sources}) != len(pairs):
+        raise ValueError('different seeds must retain different physical velocity fingerprints')
+    return sources
+
+
+def ensemble_comparison(pairs, window=(800, 1000), tolerance=1e-5):
+    """Reduce each fixed native window before seed statistics; no trajectory alignment."""
+    pairs = list(pairs)
+    sources = _ensemble_sources(pairs, tolerance)
+    comparisons = [compare_replays(*pair, variant='dt', windows=(window,), tolerance=tolerance) for pair in pairs]
+    raw = [row['windows'][0]['realization_summaries'] for row in comparisons]
+    vectors = np.asarray([[np.r_[row['work_increment'], np.ravel(row['local_spread_increment_mean']),
+                                 row['electric_mean'], row['nonzero_electric_mean'], row['injection_rate_over_wp']]
+                           for row in pair] for pair in raw])
+    return dict(seeds=list(range(len(pairs))), window_omega_p=list(window), independent_units='seed pairs',
+                frames_are_replicates=False, status='exploratory pilot' if len(pairs) == 3 else 'five-seed reduction',
+                raw_per_seed=[dict(seed=i, reductions=rows, native_comparison=comparisons[i])
+                              for i, rows in enumerate(raw)],
+                marginal=_ensemble_intervals(vectors[:, 0], vectors[:, 1], False),
+                simultaneous=_ensemble_intervals(vectors[:, 0], vectors[:, 1], True),
+                native_runs=[[source[0] for source in pair] for pair in sources],
+                additional_gates=dict(rate_error_over_interpreted_change=1 / 3,
+                                      conservation_over_window_transfer=.01,
+                                      conservation_over_interpreted_energy_difference=.1),
+                notes='Eight fixed gates; simultaneous intervals use Bonferroni95% bounds. Student/Fieller bounds '
+                      'assume independent approximately normal seed reductions; three/five seeds cannot verify tails. '
+                      'Seed scatter includes loading+execution; paired sensitivity includes timestep+execution. '
+                      'Exact-state repeats are needed to isolate execution variance. No pure timestep bias, order, '
+                      'continuum or late-reproduction claim. Seeds3/4 are prospective held-outs only while the pilot '
+                      'recipe remains frozen; the combined five-seed analysis is not independently held out. '
+                      'Unbounded/undefined relative intervals fail equivalence; additive rate bounds remain available. '
+                      'Reduce within runs before averaging seeds; no profile averaging, phase shifts or interpolation. '
+                      'Native conservation budgets remain separate necessary gates.')
 
 
 def _replay_label(settings, variant, index):
@@ -1244,7 +1353,7 @@ def publish_pair_controls(folders, folder):
 
 if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
     print('Comparing native records', flush=True)
-    if sum((implicit, picard, method_controls, bool(phase_controls), bool(pair_controls))) > 1:
+    if sum((implicit, picard, method_controls, bool(phase_controls), bool(pair_controls), bool(ensemble))) > 1:
         raise ValueError('select one comparison mode')
     if (refined or loading_refined or loading_repeat) and destination is None:
         raise ValueError('refinements require a publish folder')
@@ -1252,7 +1361,12 @@ if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
         raise ValueError('a loading repeat requires its first record')
     if finer_mesh and not method_controls or orbit_audits and not (picard or phase_controls):
         raise ValueError('finer_mesh requires method_controls; orbit_audits requires picard or phase_controls')
-    if pair_controls:
+    if ensemble:
+        if destination is not None:
+            raise ValueError('ensemble reduction writes scalar JSON only')
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(ensemble_comparison(ensemble, ensemble_window), indent=2, allow_nan=False))
+    elif pair_controls:
         if destination is None:
             raise ValueError('pair controls require a publish folder')
         publish_pair_controls(pair_controls, destination)

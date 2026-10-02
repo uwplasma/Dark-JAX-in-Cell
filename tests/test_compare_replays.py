@@ -33,7 +33,7 @@ def records(tmp_path):
                 local_density_rms=np.tile(time[:, None, None] / 30, (1, 2, 2)))
     paths = [tmp_path / name for name in ('first', 'second')]
     record = dict(settings=settings, results={}, git='4' * 40, jax='0.6.2', jaxincell='pinned',
-                  numpy='2.2.4', jax_enable_x64=True, backend='gpu')
+                  numpy='2.2.4', python='3.10.12', platform='Linux x86_64', jax_enable_x64=True, backend='gpu')
     for path in paths:
         path.mkdir()
         (path / 'run.json').write_text(json.dumps(record))
@@ -132,6 +132,133 @@ def test_refined_shape_run_requires_its_matching_anchor(records, monkeypatch):
     labels = [renderer._replay_label(json.loads((path / 'run.json').read_text())['settings'], 'shape', 0)
               for path in (records[1], refined)]
     assert labels[0] != labels[1] and all('degree 5' in label for label in labels)
+
+
+@pytest.fixture
+def seed_pairs(records):
+    pairs = []
+    for seed in range(5):
+        pair = [records[0].parent / f'seed{seed}_{level}' for level in ('coarse', 'fine')]
+        for index, path in enumerate(pair):
+            copytree(records[0], path)
+            change_settings(path, seed=seed, dt_omega_p=.005 if index else .01, block_steps=100 if index else 50)
+            record = json.loads((path / 'run.json').read_text())
+            record['settings']['initial_fingerprints']['loading']['v'] = f'{seed + 5:x}' * 64
+            (path / 'run.json').write_text(json.dumps(record))
+        pairs.append(pair)
+    return pairs
+
+
+def test_ensemble_reduces_runs_before_seeds_and_retains_native_sources(seed_pairs):
+    import runpy
+    from docs.scripts.compare_replays import ensemble_comparison
+    pilot = ensemble_comparison(seed_pairs[:3], window=(0, 1))
+    assert pilot['status'] == 'exploratory pilot' and pilot['independent_units'] == 'seed pairs'
+    assert pilot['seeds'] == [0, 1, 2] and not pilot['frames_are_replicates']
+    assert len(pilot['raw_per_seed']) == 3
+    row = pilot['raw_per_seed'][0]
+    assert row['native_comparison']['windows'][0]['samples'] == 3
+    assert row['reductions'][0]['work_increment'] == pytest.approx(.000201)
+    assert row['native_comparison']['sources'][0]['git'] == '4' * 40
+    assert pilot['marginal']['critical_t'] == pytest.approx(4.302652729696142)
+    assert pilot['marginal']['observables']['electric']['coarse_seed_sd'] == 0
+    assert not pilot['marginal']['observables']['electron_local_2D']['equivalent']
+    assert pilot['marginal']['observables']['injection_rate']['equivalent']
+    assert str(seed_pairs[0][0]) not in json.dumps(pilot, allow_nan=False)
+    final = ensemble_comparison(seed_pairs, window=(0, 1))
+    assert final['status'] == 'five-seed reduction' and 'not independently held out' in final['notes']
+    assert final['simultaneous']['critical_t'] > final['marginal']['critical_t']
+    output = seed_pairs[0][0].parent / 'ensemble.json'
+    runpy.run_path('docs/scripts/compare_replays.py', run_name='__main__',
+                   init_globals=dict(ensemble=seed_pairs[:3], ensemble_window=(0, 1), output=output))
+    assert json.loads(output.read_text()) == pilot
+
+
+def test_fieller_matches_independent_quadratic_and_zero_uncertainty():
+    from scipy.stats import t
+    from docs.scripts.compare_replays import _ensemble_intervals, _fieller
+    x = np.array([1., 1.2, .9, 1.1, .8])
+    y = np.array([1.02, 1.18, .94, 1.09, .81])
+    critical = t.ppf(.975, len(x) - 1)
+    variance = np.cov(x, y, ddof=1) / len(x)
+    A = x.mean()**2 - critical**2 * variance[0, 0]
+    B = x.mean() * y.mean() - critical**2 * variance[0, 1]
+    C = y.mean()**2 - critical**2 * variance[1, 1]
+    expected = (B + np.array([-1, 1]) * np.sqrt(B**2 - A * C)) / A - 1
+    np.testing.assert_allclose(_fieller(x, y, critical), expected, rtol=2e-12, atol=1e-14)
+    varying = _ensemble_intervals(np.tile(x[:, None], (1, 8)), np.tile(y[:, None], (1, 8)), False)
+    delta = y - x
+    half = critical * delta.std(ddof=1) / np.sqrt(len(x))
+    np.testing.assert_allclose(varying['observables']['injection_rate']['additive_interval'],
+                               [delta.mean() - half, delta.mean() + half])
+    a = np.ones((3, 8))
+    b = a.copy()
+    b[:, :-1] *= 1.005
+    b[:, -1] += 2e-6
+    report = _ensemble_intervals(a, b, True)
+    assert report['all_equivalent']
+    np.testing.assert_allclose(report['observables']['work']['fieller_relative_interval'], [.005, .005], atol=1e-14)
+    np.testing.assert_allclose(report['observables']['injection_rate']['additive_interval'], [2e-6, 2e-6])
+    for reference in (np.zeros(3), np.array([.1, .2, -.1])):
+        assert _fieller(reference, np.ones(3), t.ppf(.975, 2)) is None
+
+
+@pytest.mark.parametrize('scale', [1e-100, 1., 1e100])
+def test_fieller_is_scale_invariant_and_does_not_hide_uncertainty(scale):
+    from scipy.stats import t
+    from docs.scripts.compare_replays import _ensemble_intervals, _fieller
+    a = np.ones(5)
+    b = a + np.array([-.1, -.05, 0, .05, .1])
+    critical = t.ppf(.975, 4)
+    expected = critical * np.std(b - a, ddof=1) / np.sqrt(5)
+    np.testing.assert_allclose(_fieller(a * scale, b * scale, critical), [-expected, expected], rtol=1e-14)
+    rows = _ensemble_intervals(np.tile(a[:, None], (1, 8)) * scale,
+                               np.tile(b[:, None], (1, 8)) * scale, False)
+    assert not rows['observables']['work']['equivalent']
+
+
+@pytest.mark.parametrize('energy', [0., -1.])
+def test_window_rate_requires_positive_plasma_energy(energy):
+    from docs.scripts.compare_replays import window_summary
+    data = dict(t=np.array([0., 1.]), work=np.array([0., 1.]), electric=np.zeros(2),
+                magnetic=np.zeros(2), kinetic=np.full((2, 2), energy))
+    with pytest.raises(ValueError, match='positive finite plasma energy'):
+        window_summary(data, np.array([True, True]))
+
+
+@pytest.mark.parametrize('change', [
+    'missing_seed', 'wrong_seed', 'duplicate_loading', 'source', 'runtime', 'cadence', 'physics', 'window',
+    'moment_lengths', 'reversed_lengths'])
+def test_ensemble_rejects_confounded_or_incomplete_inputs(seed_pairs, change):  # noqa: C901 — distinct record guards
+    from docs.scripts.compare_replays import ensemble_comparison
+    pairs = seed_pairs[:3]
+    window = (0, 1)
+    if change == 'missing_seed':
+        pairs = pairs[:2]
+    elif change == 'wrong_seed':
+        change_settings(pairs[2][1], seed=4)
+    elif change == 'duplicate_loading':
+        for path in pairs[1]:
+            record = json.loads((path / 'run.json').read_text())
+            record['settings']['initial_fingerprints']['loading']['v'] = '5' * 64
+            (path / 'run.json').write_text(json.dumps(record))
+    elif change in ('source', 'runtime'):
+        record = json.loads((pairs[2][1] / 'run.json').read_text())
+        record['git' if change == 'source' else 'python'] = '9' * 40 if change == 'source' else '3.11.1'
+        (pairs[2][1] / 'run.json').write_text(json.dumps(record))
+    elif change == 'cadence':
+        change_settings(pairs[2][1], output_dt_omega_p=.25)
+    elif change == 'physics':
+        change_settings(pairs[2][1], force_quiver_over_c=.002)
+    elif change in ('moment_lengths', 'reversed_lengths'):
+        lengths = [.1, .2] if change == 'moment_lengths' else [4 * np.sqrt(.001), 2 * np.sqrt(.001)]
+        for pair in pairs:
+            for path in pair:
+                change_settings(path, local_spread_lengths_c_over_wp=lengths)
+    else:
+        window = (0, 2)
+    with pytest.raises(ValueError):
+        ensemble_comparison(pairs, window=window)
 
 
 @pytest.mark.parametrize('quantity', ['clock', 'units', 'fingerprints', 'scales', 'blocks'])
