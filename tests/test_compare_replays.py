@@ -1,5 +1,7 @@
 """Native-record guards reject mismatched clocks, units and controlled loading."""
+import hashlib
 import json
+from pathlib import Path
 from shutil import copytree
 
 import numpy as np
@@ -1071,7 +1073,11 @@ def test_pair_repeat_raw_phase_budget_and_optional_source_observer(pair_repeat_r
                    init_globals=dict(pair_repeats=paths, pair_repeat_observer=observer,
                                      pair_repeat_donor=donor, pair_repeat_transition=('4' * 40, '5' * 40),
                                      output=output))
-    assert json.loads(output.read_text()) == result
+    published = json.loads(output.read_text())
+    validation = published.pop('validation_source')
+    assert len(validation['git']) == 40 and validation['numpy'] == np.__version__
+    assert validation['script_sha256'] == hashlib.sha256(Path(validation['script']).read_bytes()).hexdigest()
+    assert published == result
 
 
 @pytest.mark.parametrize('corrupt', [
