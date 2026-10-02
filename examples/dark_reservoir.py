@@ -10,6 +10,7 @@ study preset; the paper preset uses 103,000 markers per species through 5,000.
 """
 
 import hashlib
+import json
 import os
 from pathlib import Path
 import resource
@@ -30,7 +31,7 @@ import sys
 
 from jaxincell import (Domain, Simulation, Solver, Species, elementary_charge as e,
                        epsilon_0, mass_electron, mass_proton, quiet_start,
-                       save_run, speed_of_light as c)
+                       provenance, save_run, speed_of_light as c)
 from jaxincell._simulation import _van_der_corput
 from darkjaxincell import DarkField, DarkSimulation, PrescribedDrive, load_state, midnight, save_state
 from darkjaxincell._proca import energy as dark_energy
@@ -43,7 +44,7 @@ from drive_reference import forced_cold, gaussian_tangent, homogeneous  # noqa: 
 
 
 # Inputs: the default is a small mobile-ion comparison.
-study = globals().get('study', 'mobile_ions')  # paper, pair, pair_dark, pair_waveform or paper_pilot
+study = globals().get('study', 'mobile_ions')  # paper, pair, pair_dark, pair_waveform, pair_repeat or paper_pilot
 full = globals().get('full', False)
 output = Path(globals().get('output', 'artifacts/dark_reservoir'))
 # Paper controls use omega_p time units and markers per species.
@@ -58,6 +59,7 @@ block_horizon = globals().get('block_horizon', min(10 if study == 'pair_waveform
 local_moments = globals().get('local_moments', full and study == 'pair_waveform')
 initial_state = globals().get('initial_state', None)
 initial_state = None if initial_state is None else Path(initial_state)
+samples = globals().get('samples', 1)  # pair_repeat executions reuse one exact archived state/table.
 momentum_seed = globals().get('momentum_seed', 0.)  # Electron δu / initial σe; zero keeps the paper loading.
 seed_mode = globals().get('seed_mode', 16)
 seed_phase = globals().get('seed_phase', 0.)
@@ -639,6 +641,125 @@ def pair_waveform_initial(sim, initial_state, field_scale):
                        initial_state_archive_sha256=hashlib.sha256(Path(initial_state).read_bytes()).hexdigest())
 
 
+def pair_all_step_maxima(maximum, plasma, wp, energy_scale):
+    """The same nine physical conservation scales for each waveform branch."""
+    density = sum(float(s.density) for s in plasma.species)
+    return dict(
+        energy_work_over_energy_scale=float(maximum[0] / energy_scale),
+        momentum_over_energy_scale_over_c=float(maximum[1] / (energy_scale / c)),
+        charge_over_enL=float(maximum[2] / (e * density * plasma.domain.length)),
+        continuity_over_enomega0=float(maximum[3] / (e * density * wp)),
+        ordinary_gauss_over_en_eps0=float(maximum[4] * epsilon_0 / (e * density)),
+        dark_gauss_over_en_eps0=float(maximum[5] * epsilon_0 / (e * density)),
+        grid_charge_over_enL=float(maximum[6] / (e * density * plasma.domain.length)),
+        dark_sector_work_over_energy_scale=float(maximum[7] / energy_scale),
+        ordinary_sector_work_over_energy_scale=float(maximum[8] / energy_scale))
+
+
+def pair_xla_flags():
+    """Record compiler flags without exporting configuration paths."""
+    return ' '.join(token if '/' not in token and '\\' not in token
+                    else token.split('=')[0] + '=<path omitted>'
+                    for token in shlex.split(os.environ.get('XLA_FLAGS', '')))
+
+
+def pair_repeat_initial(initial_state):
+    """Validate a donor branch and restore its complete state and unscaled force."""
+    from compare_replays import PAIR_RUNTIME, _pair_branch_contract
+
+    if initial_state is None:
+        raise ValueError('pair_repeat requires an initial_state archive from a prescribed waveform branch')
+    path = Path(initial_state)
+    record = json.loads((path.parent / 'run.json').read_text())
+    donor = json.loads((path.parent.parent / 'run.json').read_text())
+    setting = dict(record['settings'])
+    label = setting['label']
+    if (record['example'] != 'pair_waveform_branch' or donor['example'] != 'pair_waveform_control'
+            or label not in ('realized_coarse', 'realized_fine', 'homogeneous_coarse', 'homogeneous_fine')):
+        raise ValueError('pair_repeat requires an archived prescribed waveform branch')
+    _pair_branch_contract(record, donor, label)
+    runtime = provenance()
+    if (any(runtime[key] != record[key] for key in PAIR_RUNTIME if key != 'git')
+            or pair_xla_flags() != setting['XLA_FLAGS']
+            or parent_revision() != setting['parent_revision']):
+        raise ValueError('pair_repeat requires the donor runtime and imported parent revision')
+    setting.update(local_moments=donor['settings']['local_moments'],
+                   local_spread_lengths_c_over_omega0=donor['settings']['local_spread_lengths_c_over_omega0'])
+    plasma, _, k, wp = pair_plasma(
+        setting['cells'], setting['particles_per_cell_per_species'], setting['dt_omega0'],
+        setting['velocity_seed_over_c'], True, setting['shape_order'], setting['pair_loading'])
+    scale = setting['normalization']
+    expected = [wp, mass_electron * c * wp / e, epsilon_0 * plasma.domain.length * (mass_electron * c * wp / e)**2]
+    if (not np.allclose([scale[key] for key in ('omega0_rad_s', 'field_scale_V_m', 'energy_scale_J_m2')],
+                        expected, rtol=2e-12, atol=0)
+            or setting['seed_mode'] != round(k * plasma.domain.length / (2 * np.pi))):
+        raise ValueError('pair_repeat donor normalization or selected mode differs from the physical loading')
+    with np.load(path, allow_pickle=False) as archive:
+        if str(archive['dark.mode']) != 'drive' or 'dark.times' not in archive or archive['dark.eta'] != setting['eta']:
+            raise ValueError('pair_repeat needs the declared tabulated prescribed drive')
+        drive = PrescribedDrive(float(archive['dark.eta']), jnp.asarray(archive['dark.amplitude']),
+                                float(archive['dark.omega']), float(archive['dark.phase']),
+                                times=jnp.asarray(archive['dark.times']))
+    sim = DarkSimulation(plasma, drive)
+    start = load_state(path, sim)
+    if float(start.ordinary.time) != 0 or float(start.ordinary.steps) != 0 or float(start.work) != 0:
+        raise ValueError('pair_repeat requires a zero-time, zero-step, zero-work archive')
+    hashes = {key: array_fingerprint(getattr(start.ordinary, key)) for key in ('x', 'u', 'w', 'E', 'B', 'rho')}
+    if hashes != record['results']['initial_ordinary_fingerprints']:
+        raise ValueError('pair_repeat initial ordinary arrays differ from the donor fingerprints')
+    setting.update(initial_state_source='complete archived prescribed branch', donor_git=record['git'],
+                   **{key: hashlib.sha256(file.read_bytes()).hexdigest() for key, file in (
+                       ('initial_state_archive_sha256', path), ('donor_record_sha256', path.parent / 'run.json'),
+                       ('donor_control_record_sha256', path.parent.parent / 'run.json'),
+                       ('producer_script_sha256', Path(__file__)))})
+    return sim, start, setting
+
+
+def pair_repeat(folder, initial_state, samples=1):
+    """Repeat exact archived forcing, preserving every native clock and ledger."""
+    if type(samples) is not int or samples < 1:
+        raise ValueError('pair_repeat samples must be a positive integer')
+    sim, start, setting = pair_repeat_initial(initial_state)
+    wp, energy_scale = [setting['normalization'][key] for key in ('omega0_rad_s', 'energy_scale_J_m2')]
+    dtau, horizon, cadence = [setting[key] for key in ('dt_omega0', 'horizon_omega0', 'scalar_dt_omega0')]
+    scales = np.asarray(setting['local_spread_lengths_c_over_omega0']) * c / wp
+    if not np.isfinite([dtau, horizon, cadence]).all() or min(dtau, horizon, cadence) <= 0:
+        raise ValueError('pair_repeat clocks must be finite and positive')
+    steps, stride, blocks = round(horizon / dtau), round(cadence / dtau), setting['block_steps']
+    if (steps < 2 or stride < 1 or type(blocks) is not int or blocks < 1 or steps % blocks or blocks % stride
+            or not np.allclose([steps * dtau, stride * dtau], [horizon, cadence], rtol=0, atol=1e-10)
+            or scales.ndim != 1 or not np.isfinite(scales).all() or np.any(scales <= 0)):
+        raise ValueError('pair_repeat requires complete native blocks, scalar clocks and forcing coverage')
+    accepted_time, dt = 0., float(sim.plasma.domain.dt)
+    for _ in range(steps):  # Match the native floating-point clock without allocating a time history.
+        accepted_time += dt
+    if sim.dark.times[0] != 0 or np.nextafter(float(sim.dark.times[-1]), np.inf) < accepted_time:
+        raise ValueError('pair_repeat forcing table must cover the accepted native endpoint')
+    histories = []
+    for index in range(samples):
+        destination = Path(folder) / f'execution_{index + 1}' if samples > 1 else Path(folder)
+        with elapsed_progress(f"{setting['label']} archived repeat {index + 1}/{samples}"):
+            final, values, maximum, _, compile_s, warm_s, memory = paper_run(
+                sim, start, steps, stride, blocks * dtau, wp, jnp.asarray(scales) if setting['local_moments'] else None,
+                destination, setting['seed_mode'])
+        save_compressed_state(destination / 'final_state.npz', final, sim)
+        results = dict(compile_s=compile_s, warm_primal_s=warm_s,
+                       compiler_temporary_MiB=memory.temp_size_in_bytes / 2**20 if memory else None,
+                       all_step_maxima=pair_all_step_maxima(maximum, sim.plasma, wp, energy_scale),
+                       all_step_maxima_SI=np.asarray(maximum).tolist(),
+                       initial_ordinary_fingerprints={key: array_fingerprint(getattr(start.ordinary, key))
+                                                      for key in ('x', 'u', 'w', 'E', 'B', 'rho')},
+                       local_spread_initial=(np.asarray(coarse_spread(sim, start, scales)) / energy_scale).tolist(),
+                       local_spread_final=(np.asarray(coarse_spread(sim, final, scales)) / energy_scale).tolist(),
+                       execution_index=index + 1, samples=samples,
+                       claim='Exact archived force/state; donor and producer sources are recorded separately.',
+                       timing_note='One postcompile execution per call; executable identity is not asserted.')
+        save_run(destination, 'pair_waveform_repeat', setting, results, **values)
+        np.savez_compressed(destination / 'data.npz', **values)
+        histories.append(dict(history=values, settings=setting, results=results))
+    return histories
+
+
 def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
                           seed=2e-4, eta=.5, mass=1., force=.05, quadrature=64,
                           table_dt=None, output_dt=.2, block_horizon=None,
@@ -676,9 +797,7 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
     start, initial_source = pair_waveform_initial(coupled, initial_state, field_scale)
     reservoir = float(snapshot(coupled, start)['dark']) / energy_scale
     phase = np.exp(-1j * k * float(plasma.domain.faces[0]))
-    flags = ' '.join(token if '/' not in token and '\\' not in token
-                     else token.split('=')[0] + '=<path omitted>'
-                     for token in shlex.split(os.environ.get('XLA_FLAGS', '')))
+    flags = pair_xla_flags()
     initial_hashes = {key: array_fingerprint(getattr(start.ordinary, key))
                       for key in ('x', 'u', 'w', 'E', 'B', 'rho')}
     curves, records, maxima = {}, {}, {}
@@ -698,17 +817,7 @@ def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
                               initial_ordinary_fingerprints={key: array_fingerprint(
                                   getattr(initial.ordinary, key)) for key in initial_hashes})
         maxima[label] = np.asarray(maximum)
-        density = sum(float(s.density) for s in plasma.species)
-        records[label]['all_step_maxima'] = dict(
-            energy_work_over_energy_scale=float(maximum[0] / energy_scale),
-            momentum_over_energy_scale_over_c=float(maximum[1] / (energy_scale / c)),
-            charge_over_enL=float(maximum[2] / (e * density * plasma.domain.length)),
-            continuity_over_enomega0=float(maximum[3] / (e * density * wp)),
-            ordinary_gauss_over_en_eps0=float(maximum[4] * epsilon_0 / (e * density)),
-            dark_gauss_over_en_eps0=float(maximum[5] * epsilon_0 / (e * density)),
-            grid_charge_over_enL=float(maximum[6] / (e * density * plasma.domain.length)),
-            dark_sector_work_over_energy_scale=float(maximum[7] / energy_scale),
-            ordinary_sector_work_over_energy_scale=float(maximum[8] / energy_scale))
+        records[label]['all_step_maxima'] = pair_all_step_maxima(maximum, plasma, wp, energy_scale)
         case_settings = dict(label=label, model=type(sim.dark).__name__, parent_revision=parent_revision(),
                              cells=cells, particles_per_cell_per_species=particles_per_cell, pair_loading=pair_loading,
                              dt_omega0=dtau, horizon_omega0=horizon, shape_order=shape_order, seed_mode=mode,
@@ -1399,10 +1508,12 @@ if __name__ == "__main__":  # noqa: C901
                               eta, dark_mass, force, quadrature, table_dt, output_dt,
                               block_horizon, local_moments, shape_order, pair_loading, linear_end, scalar_dt,
                               initial_state)
+    elif study == 'pair_repeat':
+        pair_repeat(output, initial_state, samples)
     elif study == 'paper_pilot':
         paper_geometry_pilot(output)
     elif study != 'mobile_ions':
-        raise ValueError('study must be mobile_ions, paper, pair, pair_dark, pair_waveform or paper_pilot')
+        raise ValueError('study must be mobile_ions, paper, pair, pair_dark, pair_waveform, pair_repeat or paper_pilot')
     else:
         presets = ((64, 4000, 0.04, 40), (128, 8000, 0.02, 40)) if full else (
             (32, 1000, 0.08, 20),)

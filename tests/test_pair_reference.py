@@ -250,19 +250,140 @@ def test_waveform_initial_archive_rejects_changed_experiment(tmp_path, waveform_
         pair_waveform_control(tmp_path, 512, 2, dtau, .05, **settings)
 
 
-def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path):
+@pytest.mark.parametrize('study', ['pair_waveform', 'pair_repeat'])
+def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path, study):
     import ast
     from pathlib import Path
     from examples import dark_reservoir as example
 
     calls = []
-    namespace = {**vars(example), '__name__': '__main__', 'study': 'pair_waveform',
-                 'initial_state': tmp_path / 'initial.npz',
-                 'pair_waveform_control': lambda *args, **kwargs: calls.append((args, kwargs))}
+
+    def stub(*args, **kwargs):
+        calls.append((args, kwargs))
+
+    namespace = {**vars(example), '__name__': '__main__', 'study': study, 'samples': 2,
+                 'initial_state': tmp_path / 'initial.npz', 'pair_waveform_control': stub, 'pair_repeat': stub}
     # Execute the actual dispatch block with a producer stub, avoiding five runs.
     dispatch = ast.parse(Path(example.__file__).read_text()).body[-1]
     exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
-    assert len(calls) == 1 and calls[0][0][-1] == namespace['initial_state']
+    assert len(calls) == 1
+    assert calls[0][0][-1 if study == 'pair_waveform' else 1] == namespace['initial_state']
+    if study == 'pair_repeat':
+        assert calls[0][0][-1] == 2
+
+
+@pytest.fixture
+def prescribed_pair_archive(tmp_path, waveform_initial_archive):
+    import json
+    import jax.numpy as jnp
+    from darkjaxincell import DarkSimulation, PrescribedDrive
+    from examples import dark_reservoir as example
+
+    _, state, coupled = waveform_initial_archive
+    plasma = coupled.plasma
+    wp, field = 1e9, example.mass_electron * example.c * 1e9 / example.e
+    energy = example.epsilon_0 * plasma.domain.length * field**2
+    times = jnp.array([0., .5, 1.5, 2.]) * plasma.domain.dt
+    amplitude = jnp.stack((jnp.array([.1, .12, .08, .09]) * field, jnp.zeros(4), jnp.zeros(4)), axis=1)
+    sim = DarkSimulation(plasma, PrescribedDrive(.5, amplitude, 0., times=times))
+    start = sim.continue_with_parameters(state.replace(
+        E=None, B=None, A=None, phi=None, initial_projection_norm=jnp.zeros(())))
+    start = start.replace(max_balance_error=jnp.asarray(1e-20))
+    path = tmp_path / 'donor' / 'realized_fine' / 'initial_state.npz'
+    example.save_compressed_state(path, start, sim)
+    settings = dict(label='realized_fine', model='PrescribedDrive', parent_revision=example.parent_revision(),
+                    cells=512, particles_per_cell_per_species=2, pair_loading='global', dt_omega0=.025,
+                    horizon_omega0=.05, shape_order=2, seed_mode=134, scalar_dt_omega0=.025,
+                    forcing_native_dt_omega0=.025, velocity_seed_over_c=2e-4, eta=.5,
+                    dark_mass_over_omega0=1., force_quiver_over_c=.05, block_steps=2,
+                    scalar_units='native SI', XLA_FLAGS=example.pair_xla_flags(),
+                    normalization=dict(omega0_rad_s=wp, field_scale_V_m=field, energy_scale_J_m2=energy))
+    hashes = {key: example.array_fingerprint(getattr(start.ordinary, key)) for key in ('x', 'u', 'w', 'E', 'B', 'rho')}
+    results = dict(initial_ordinary_fingerprints=hashes,
+                   all_step_maxima=example.pair_all_step_maxima(jnp.zeros(9), plasma, wp, energy))
+    native = example.provenance(example='pair_waveform_branch', settings=settings, results=results)
+    top = example.provenance(
+        example='pair_waveform_control',
+        settings={**settings, 'local_moments': True, 'local_spread_lengths_c_over_omega0': [.1, .2],
+                  'initial_ordinary_fingerprints': hashes}, results=dict(cases={'realized_fine': results}))
+    (path.parent / 'run.json').write_text(json.dumps(native))
+    (path.parent.parent / 'run.json').write_text(json.dumps(top))
+    return path, sim, start
+
+
+def test_archived_pair_repeat_preserves_table_midpoint_force_complete_restart_and_work(
+        tmp_path, prescribed_pair_archive):
+    import hashlib
+    import json
+    from darkjaxincell import DarkSimulation, PrescribedDrive, load_state
+    from examples import dark_reservoir as example
+
+    path, donor, initial = prescribed_pair_archive
+    sim, start, _ = example.pair_repeat_initial(path)
+    np.testing.assert_array_equal(sim.dark.amplitude, donor.dark.amplitude)
+    np.testing.assert_array_equal(sim.dark.times, donor.dark.times)
+    expected = donor.dark.amplitude[1]  # The first exact knot is the first accepted midpoint.
+    np.testing.assert_array_equal(sim.dark.at(sim.plasma.domain.dt / 2), expected)
+    accepted = sim._step(start, sim.plasma.per_particle)[0]
+    constant = DarkSimulation(sim.plasma, PrescribedDrive(sim.dark.eta, expected, 0.))
+    known = constant._step(start, sim.plasma.per_particle)[0]
+    np.testing.assert_allclose(accepted.ordinary.u / example.c, known.ordinary.u / example.c, atol=2e-14)
+    np.testing.assert_allclose(accepted.work, known.work, rtol=2e-13)
+    midpoint = tmp_path / 'midpoint.npz'
+    example.save_compressed_state(midpoint, accepted, sim)
+    resumed = sim._step(load_state(midpoint, sim), sim.plasma.per_particle)[0]
+    runs = example.pair_repeat(tmp_path / 'repeat', path, samples=2)
+    for index, run in enumerate(runs, 1):
+        folder = tmp_path / 'repeat' / f'execution_{index}'
+        with np.load(path) as original, np.load(folder / 'initial_state.npz') as restored:
+            assert original.files == restored.files
+            for key in original.files:
+                np.testing.assert_array_equal(original[key], restored[key])
+        final = load_state(folder / 'final_state.npz', sim)
+        np.testing.assert_allclose(final.ordinary.u / example.c, resumed.ordinary.u / example.c, atol=2e-14)
+        np.testing.assert_allclose(final.work, resumed.work, rtol=2e-13)
+        values, settings, results = [run[key] for key in ('history', 'settings', 'results')]
+        assert values['t'].shape == (3,) and values['local_spread'].shape == (3, 2, 2)
+        np.testing.assert_equal(values['work'][0], float(initial.work))
+        np.testing.assert_equal(values['work'][-1], float(final.work))
+        assert len(results['all_step_maxima_SI']) == len(results['all_step_maxima']) == 9
+        assert settings['initial_state_archive_sha256'] == hashlib.sha256(path.read_bytes()).hexdigest()
+        record = json.loads((folder / 'run.json').read_text())
+        assert record['example'] == 'pair_waveform_repeat' and str(path) not in json.dumps(record)
+
+
+@pytest.mark.parametrize('change', ['time', 'steps', 'work', 'fingerprint', 'runtime', 'coverage',
+                                    'clock', 'blocks', 'boolean_blocks', 'samples'])
+def test_archived_pair_repeat_rejects_incompatible_inputs(tmp_path, prescribed_pair_archive, change):
+    import json
+    from examples import dark_reservoir as example
+
+    path, sim, start = prescribed_pair_archive
+    if change in ('time', 'steps', 'work', 'coverage', 'fingerprint'):
+        with np.load(path) as data:
+            arrays = dict(data)
+        if change == 'time':
+            arrays['time'] = np.asarray(sim.plasma.domain.dt)
+        elif change == 'steps':
+            arrays['steps'] = np.asarray(.5)
+        elif change == 'work':
+            arrays['dark.work'] = np.asarray(1.)
+        elif change == 'coverage':
+            arrays['dark.times'][-1] -= sim.plasma.domain.dt / 4
+        else:
+            arrays['E'][0, 0] = np.nextafter(arrays['E'][0, 0], np.inf)
+        np.savez_compressed(path, **arrays)
+    else:
+        record = json.loads((path.parent / 'run.json').read_text())
+        if change == 'runtime':
+            record['jax'] = 'unsupported'
+        elif change == 'clock':
+            record['settings']['scalar_dt_omega0'] = .03
+        elif change in ('blocks', 'boolean_blocks'):
+            record['settings']['block_steps'] = 2. if change == 'blocks' else True
+        (path.parent / 'run.json').write_text(json.dumps(record))
+    with pytest.raises(ValueError):
+        example.pair_repeat(tmp_path / 'repeat', path, samples=0 if change == 'samples' else 1)
 
 
 @pytest.mark.parametrize('scalar_dt', [None, .05])
