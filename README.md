@@ -306,6 +306,16 @@ $$
 
 The seeded early response is checked against independent relativistic Vlasov–Proca theory. On $20\leq\omega_0t\leq40$, halving the timestep changes mean $G_D$ by **0.345%**; doubling the mesh at the same particle count changes it by **2.18%**, and doubling particles changes it by **5.68%**. The finest loading uses **2,097,152 particles**, with full field-and-potential energy, both Gauss laws and sector work retained. Its conservation error is **5.29% of the additional-depletion gain**: the [separate conservation and refinement budgets](docs/kinetic.md#global-loading-controls-through-40) remain unmet.
 
+### Long globally loaded reservoir
+
+This **2,097,152-particle** run follows the closed dark reservoir through $\omega_0t=170$, with 8,192 cells, $\Delta t\omega_0=0.003125$, $\eta=0.5$ and $\Omega_D=\omega_0$. Four prescribed-force companions separate its realized mean force from an independent warm homogeneous envelope and refine each force table. The early seeded complex mode agrees with independent Vlasov–Proca theory within **0.879%** in relative $L^2$ over $0\leq\omega_0t\leq20$.
+
+<img src="docs/_static/figures/pair_waveform_long/figure.png" width="900" alt="Long globally loaded pair plasma: spatial mode, additional dark depletion, local velocity spread and complete energy balance">
+
+[Simulation script](examples/dark_reservoir.py) · `study='pair_waveform'`, `horizon=170`, `scalar_dt=.2`; [comparison and plot](docs/scripts/compare_replays.py) · `pair_controls=(folder,)` ([full inputs](docs/scripts/make_all.py)).
+
+On $150\leq\omega_0t\leq170$, total dark energy averages **27.755%** of its initial value; additional depletion relative to the warm envelope averages **24.456%**. The energy/sector-work defect is **0.0358%** of that gain. Late force-table controls agree on mean field energies but differ **30.520%** in the complex selected-mode trajectory, exceeding its 5% gate. The gain oscillates strongly; these measurements establish neither permanent depletion nor late convergence. [Raw reductions, conservation and interpretation](docs/kinetic.md#long-global-loading-through-170).
+
 ## Conservation and long-time clocks
 
 The [source-free Proca comparison](docs/scripts/benchmark_time_integrators.py) evolves longitudinal and transverse fields to $\Omega_Dt=200$ against a matrix exponential. The explicit split bounds field-energy error at **2.37%** for $\Delta t\Omega_D=0.2$ and **0.577%** at half that step. Implicit midpoint preserves this vacuum field energy to roundoff but has **1.53** final relative state error at the larger step; DOP853 reaches **$3.0\times10^{-8}$** state error with tight tolerances. Phase accuracy and total PIC energy require separate checks: exact field-only conservation does not close the particle–field work ledger. [Methods and timings](docs/performance.md#which-clock-to-trust) and the [full record](docs/_static/figures/time_integrators/run.json) give the comparison.

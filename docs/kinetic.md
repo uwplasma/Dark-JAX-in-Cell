@@ -261,6 +261,46 @@ On the raw 20–40 window, the mean additional-depletion gain changes **{{ pair_
 
 The [comparison record](_static/figures/pair_waveform_controls/run.json) retains each branch's native maxima, raw window reductions, source/data fingerprints, early reference checks and failed refinement/conservation gates; [compressed scalar arrays](_static/figures/pair_waveform_controls/data.npz) retain the plotted samples. Grid-scale density changes with the particle filter and remains distinct from density smoothed at the fixed $0.1c/\omega_0$ and $0.2c/\omega_0$ lengths. Local lab-frame velocity-variance energy is also distinct from relativistic temperature and irreversible heating.
 
+### Long global loading through 170
+
+The long baseline uses 8,192 cells and 1,048,576 particles per species through $\omega_0t=170$, with $\Delta t\omega_0=0.003125$, $10/\omega_0$ compiled blocks and $0.2/\omega_0$ scalar cadence. It retains the physical box, velocity distribution, seed, coupling and mass defined above. The global quantile loading avoids repeating a small velocity ring in every cell.
+
+![Long globally loaded dark reservoir and independent warm-envelope comparison](_static/figures/pair_waveform_long/figure.png)
+
+[Simulation script](../examples/dark_reservoir.py) · `study='pair_waveform', cells=8192, particles_per_cell=128, dt=.003125, horizon=170, block_horizon=10, local_moments=True, pair_loading='global', scalar_dt=.2, output_dt=.2, table_dt=.00625`; [comparison and plot](scripts/compare_replays.py) · `pair_controls=(folder,)` ([complete inputs](scripts/make_all.py)).
+
+The early complex ordinary mode agrees with independent Vlasov–Proca theory within **{{ pair_long_coupled_linear_percent }}%** in relative $L^2$ on $0\leq\omega_0t\leq20$. The homogeneous-force companion agrees with its separate spatial theory within **{{ pair_long_homogeneous_fine_linear_percent }}%**. These compare seeded linear responses, rather than reproducing a published nonlinear dark-reservoir curve; [Cruz *et al.*](https://arxiv.org/pdf/2104.04490v1) establish the underlying ordinary pair instability.
+
+The inclusive $150\leq\omega_0t\leq170$ window has 101 native samples. Total dark retention is **{{ pair_long_total_dark_fraction_mean_percent }}%** of actual $U_D(0)$; its homogeneous component is **{{ pair_long_coherent_dark_fraction_mean_percent }}%** and finite-wavelength component **{{ pair_long_nonzero_dark_fraction_mean_percent }}%**. Mean additional depletion $G_D$ relative to the independent warm envelope is **{{ pair_long_additional_dark_depletion_gain_mean_percent }}%**. The preparation offset is retained before subtraction. Independent 64/128-node quadrature, tolerance refinement and native-window reductions reproduce these quantities. Local lab-frame variance excludes resolved flow; it is not a relativistic temperature or proof of irreversible heating.
+
+| Branch | Work into ordinary plasma, 150–170 / $U_\star$ | Mean nonzero ordinary electric energy / $U_\star$ |
+|---|---:|---:|
+| Closed coupled reservoir | {{ pair_long_coupled_work_increment }} | {{ pair_long_coupled_nonzero_electric_mean }} |
+| Realized mean, coarse table | {{ pair_long_realized_coarse_work_increment }} | {{ pair_long_realized_coarse_nonzero_electric_mean }} |
+| Realized mean, every-step table | {{ pair_long_realized_fine_work_increment }} | {{ pair_long_realized_fine_nonzero_electric_mean }} |
+| Warm envelope, coarse table | {{ pair_long_homogeneous_coarse_work_increment }} | {{ pair_long_homogeneous_coarse_nonzero_electric_mean }} |
+| Warm envelope, every-step table | {{ pair_long_homogeneous_fine_work_increment }} | {{ pair_long_homogeneous_fine_nonzero_electric_mean }} |
+
+Here $U_\star=n_{\rm tot}m_ec^2L$, with $n_{\rm tot}$ the sum of both species' number densities, and $U_D(0)=0.005U_\star$. Prescribed companions have external-work budgets; their injected work can exceed the initial finite reservoir. A coupled-versus-prescribed difference includes the changed spatial force and reservoir response, and is not by itself a new nonlinear mechanism.
+
+| Coupled all-step maximum | Normalized value |
+|---|---:|
+| Total energy/work defect / $U_\star$ | {{ pair_long_energy_work_over_energy_scale }} |
+| Dark-sector work defect / $U_\star$ | {{ pair_long_dark_sector_work_over_energy_scale }} |
+| Ordinary-sector work defect / $U_\star$ | {{ pair_long_ordinary_sector_work_over_energy_scale }} |
+| Momentum change / $(U_\star/c)$ | {{ pair_long_momentum_over_energy_scale_over_c }} |
+| Particle charge change / $(en_{\rm tot}L)$ | {{ pair_long_charge_over_enL }} |
+| Grid charge change / $(en_{\rm tot}L)$ | {{ pair_long_grid_charge_over_enL }} |
+| Continuity residual / $(en_{\rm tot}\omega_0)$ | {{ pair_long_continuity_over_enomega0 }} |
+| Ordinary Gauss residual / $(en_{\rm tot}/\epsilon_0)$ | {{ pair_long_ordinary_gauss_over_en_eps0 }} |
+| Dark Gauss residual / $(en_{\rm tot}/\epsilon_0)$ | {{ pair_long_dark_gauss_over_en_eps0 }} |
+
+The largest energy/sector-work defect is **{{ pair_long_defect_over_gain_percent }}%** of the measured mean depletion gain, within its 0.1% budget. Independent serial endpoint charge, particle/field energy, full momentum and force-table reconstruction agree with native outputs. Complete current histories are not archived, so these independent checks do not reconstruct every particle-work or continuity sample. The separate short-audit $2\times10^{-13}$ endpoint-Gauss bound is retained as a failure in every long branch; residuals accumulate near floating-point roundoff.
+
+Late force-table response remains unresolved. Coarse→every-step complex selected-mode $L^2$ differences are **{{ pair_long_realized_mode_E_table_l2_percent }}%** for realized forcing and **{{ pair_long_homogeneous_mode_E_table_l2_percent }}%** for the warm envelope, above the 5% gate. Corresponding nonzero-energy trajectory differences are **{{ pair_long_realized_nonzero_electric_table_l2_percent }}% / {{ pair_long_homogeneous_nonzero_electric_table_l2_percent }}%**. Small bulk means do not certify the phase-sensitive mode or resolve the smaller plasma-energy differences against the ledger budget. Every-step tables reproduce the exact native accepted force; execution repeats are needed before assigning the remaining differences to interpolation.
+
+The [record](_static/figures/pair_waveform_long/run.json) retains all five native sources, raw reductions and nine conservation maxima; [compressed scalar arrays](_static/figures/pair_waveform_long/data.npz) retain plotted histories. The strongly oscillating gain requires longer horizons and separate timestep, mesh, loading and execution controls before a persistent-depletion claim. A single baseline supplies no continuum-convergence or novelty claim.
+
 ## Mobile ions and a finite reservoir
 
 The [mobile-ion example](../examples/dark_reservoir.py) uses co-located, exactly charge-neutral electron and proton loadings with $m_i/m_e$ at its physical value, $T_e=T_i=10^{-3}m_ec^2$, and a fixed seeded velocity mode. It compares zero drive, a prescribed longitudinal $F\cos\omega_pt$, and two dynamical Proca fields whose **initial** effective force $\eta E_D$ is the same $F=0.03m_e\omega_pv_{\rm th,e}/e$. Both Proca rest frequencies equal $\omega_p$. The small and large reservoirs set $\eta=0.2$ and $0.02$, giving initial dark energy **{{ mobile_small_energy_ratio }}** and **{{ mobile_large_energy_ratio }}** times the particles' initial longitudinal kinetic energy. Changing $\eta$ changes the reservoir size and backreaction while holding the initial force fixed.

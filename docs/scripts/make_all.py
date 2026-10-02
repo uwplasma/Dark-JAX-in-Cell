@@ -267,6 +267,35 @@ sampling_record = json.loads((pair_controls / 'sampling_cost.json').read_text())
 for label, timing in sampling_record['results']['timing'].items():
     for key in ('compile_s', 'warm_median_s', 'compiler_temporary_MiB'):
         measured[f'pair_sampling_{label}_{key}'] = f'{timing[key]:.3f}'
+pair_long = EVIDENCE.parent / 'pair_waveform_long'
+pair_long_native = ROOT / 'artifacts' / 'pair_waveform_controls' / 'late_global_8192_128'
+run_example('examples/dark_reservoir.py', study='pair_waveform', cells=8192, particles_per_cell=128,
+            dt=.003125, horizon=170., block_horizon=10., local_moments=True, pair_loading='global',
+            eta=.5, dark_mass=1., force=.05, velocity_seed=2e-4, quadrature=64, table_dt=.00625,
+            scalar_dt=.2, output_dt=.2, linear_end=20., output=pair_long_native)
+run_example('docs/scripts/compare_replays.py', pair_controls=(pair_long_native,), destination=pair_long)
+long_result = json.loads((pair_long / 'run.json').read_text())['results']
+long_late = long_result['late'][0]
+for key in ('additional_dark_depletion_gain_mean', 'total_dark_fraction_mean', 'coherent_dark_fraction_mean',
+            'nonzero_dark_fraction_mean'):
+    measured[f'pair_long_{key}_percent'] = f"{100 * long_late['native_reductions']['coupled'][key]:.3f}"
+long_balance = long_late['conservation']['coupled']
+for key, value in long_balance['native_all_step_maxima'].items():
+    measured[f'pair_long_{key}'] = f'{value:.3e}'
+for label, summary in long_late['native_reductions'].items():
+    for key in ('work_increment', 'nonzero_electric_mean'):
+        measured[f'pair_long_{label}_{key}'] = f'{summary[key]:.6e}'
+measured['pair_long_defect_over_gain_percent'] = (
+    f"{100 * long_balance['maximum_energy_sector_defect_over_depletion_gain']:.4f}")
+for label in ('coupled', 'homogeneous_fine'):
+    error = long_result['saved_early_linear_errors'][0][label]['relative_l2_difference']
+    measured[f'pair_long_{label}_linear_percent'] = f'{100 * error:.3f}'
+long_windows = long_result['native_runs'][0]['results']['windows'].values()
+long_window = next(row for row in long_windows if row['bounds_omega0'] == [150., 170.])
+for kind in ('realized', 'homogeneous'):
+    comparison = long_window['comparisons'][f'{kind}_coarse_vs_{kind}_fine']
+    for key in ('mode_E', 'electric', 'nonzero_electric'):
+        measured[f'pair_long_{kind}_{key}_table_l2_percent'] = f"{100 * comparison[key]['relative_l2_difference']:.3f}"
 dark_pair_gauss = max(dark_pair_result["max_ordinary_gauss_over_scale"],
                       dark_pair_result["max_dark_gauss_over_scale"])
 dark_pair_refinements = {
