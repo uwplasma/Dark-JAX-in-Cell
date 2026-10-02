@@ -1423,3 +1423,179 @@ def test_pair_sparse_force_or_pump_mismatch_is_rejected(pair_records, corrupt):
     np.savez_compressed(filename, **data)
     with pytest.raises(ValueError):
         _pair_load(path)
+
+
+@pytest.fixture
+def pair_table_records(pair_repeat_records):
+    """Nested force tables and complete prescribed archives, with no simulated dynamics."""
+    from docs.scripts.compare_replays import _accepted_ticks
+    paths, fine, _ = pair_repeat_records
+    coarse, middle = fine.parent / 'realized_coarse', paths[0]
+    copytree(paths[1], coarse, dirs_exist_ok=True)
+    control = json.loads((fine.parent / 'run.json').read_text())
+    record = json.loads((fine / 'run.json').read_text())
+    s = record['settings']
+    s['table_dt_omega0'] = control['settings']['table_dt_omega0'] = .8
+    wp, field, _ = s['normalization'].values()
+    ticks = _accepted_ticks(s['dt_omega0'] / wp, 850, 1)
+    knots = np.r_[0., ticks[:-1] + s['dt_omega0'] / (2 * wp), ticks[-1]]
+    with np.load(fine / 'data.npz') as stored:
+        pump_data = dict(stored)
+    pump_data['mean_D'] = field * (.05 + .01 * np.cos(np.pi * ticks * wp / 170))
+    pump_data['mean_A'] = np.zeros(len(ticks))
+    current = .5 * (pump_data['mean'][:, 1] - pump_data['mean'][:, 0]) / 299792458.
+    push = pump_data['mean_D'][:-1] / field - s['dt_omega0'] / 2 * s['eta'] * current[:-1]
+    force = np.zeros((len(knots), 3))
+    force[:, 0] = field * np.r_[pump_data['mean_D'][0] / field, push, pump_data['mean_D'][-1] / field]
+    pump_path = fine.parent / 'coupled'
+    pump_record = json.loads((pump_path / 'run.json').read_text())
+    pump_record['settings'] = dict(s, label='coupled', model='DarkField')
+    (pump_path / 'run.json').write_text(json.dumps(pump_record))
+    np.savez_compressed(pump_path / 'data.npz', **pump_data)
+    with np.load(fine.parent / 'data.npz') as stored:
+        top = dict(stored)
+    top.update(realized_table_t=knots * wp, realized_table_D=force[:, 0] / field,
+               homogeneous_table_t=knots * wp)
+    np.savez_compressed(fine.parent / 'data.npz', **top)
+    for folder, every in ((coarse, 4), (middle, 2), (fine, 1)):
+        selected = np.unique(np.r_[0, np.arange(1, len(knots) - 1, every), len(knots) - 1])
+        for filename in ('initial_state.npz', 'final_state.npz'):
+            with np.load(folder / filename) as stored:
+                state = dict(stored)
+            state.update({'dark.times': knots[selected], 'dark.amplitude': force[selected]})
+            np.savez_compressed(folder / filename, **state)
+        native = json.loads((folder / 'run.json').read_text())
+        native['settings']['table_dt_omega0'] = .8
+        if folder == coarse:
+            native.update(git=record['git'], example='pair_waveform_branch', settings=dict(s, label='realized_coarse'))
+            control['results']['cases']['realized_coarse'] = native['results']
+        if folder == middle:
+            def native_hash(value):
+                return hashlib.sha256(f'{value.dtype.str}:{value.shape}'.encode() + value.tobytes()).hexdigest()
+            native['example'] = 'pair_waveform_table_replay'
+            native['settings']['table_replay'] = dict(
+                table_every=2, original_knots=len(knots), retained_knots=len(selected),
+                maximum_gap_omega0=float(np.max(np.diff(knots[selected]))) * wp,
+                original_times_sha256=native_hash(knots), original_amplitude_sha256=native_hash(force),
+                times_sha256=native_hash(knots[selected]), amplitude_sha256=native_hash(force[selected]),
+                selection='initial endpoint, first midpoint, every nth midpoint, terminal endpoint')
+            native['results'].update(samples=1, execution_index=1)
+        (folder / 'run.json').write_text(json.dumps(native))
+        if folder != middle:
+            actual = np.interp(knots[1:-1], knots[selected], force[selected, 0])
+            control['results']['forcing'][native['settings']['label']]['max_midpoint_force_error_over_initial'] = (
+                float(np.max(abs(actual - force[1:-1, 0])) / abs(force[0, 0])))
+    (fine.parent / 'run.json').write_text(json.dumps(control))
+    change_settings(middle, donor_record_sha256=hashlib.sha256((fine / 'run.json').read_bytes()).hexdigest(),
+                    donor_control_record_sha256=hashlib.sha256((fine.parent / 'run.json').read_bytes()).hexdigest(),
+                    initial_state_archive_sha256=hashlib.sha256((fine / 'initial_state.npz').read_bytes()).hexdigest())
+    return (coarse, middle, fine)
+
+
+def test_pair_table_resolution_preserves_original_gates_and_reproducible_raw_norms(pair_table_records):
+    import runpy
+    from docs.scripts.compare_replays import pair_table_comparison
+    result = pair_table_comparison(pair_table_records, ('4' * 40, '5' * 40))
+    tables = result['forcing']['tables']
+    assert result['forcing']['coarse_exact_decimation_of_fine']
+    np.testing.assert_allclose([row['nominal_spacing_omega0'] for row in tables], [.8, .4, .2])
+    assert tables[0]['max_midpoint_force_error_over_initial'] > tables[1]['max_midpoint_force_error_over_initial'] > 0
+    assert tables[2]['max_midpoint_force_error_over_initial'] == 0
+    late = result['comparisons'][0]['windows'][1]
+    assert late['samples'] == 101 and late['bounds_omega0'] == [150, 170]
+    raw = result['scalar_histories']
+    assert all(len(row) == 14 and 'dark' not in row for row in raw)
+    a, b = [np.asarray(row['mode_E']['real']) + 1j * np.asarray(row['mode_E']['imag']) for row in raw[:2]]
+    selected = np.asarray(raw[0]['t']) >= 150 - 1e-8
+    assert late['observables']['mode_E']['relative_l2_difference'] == pytest.approx(
+        np.linalg.norm(b[selected] - a[selected]) / np.linalg.norm(a[selected]))
+    assert 'kinetic_increment' in late['refinement_gates'] and 'local_spread_increment' in late['refinement_gates']
+    work = [row['work_increment'] for row in late['reductions']]
+    assert late['accounting']['two_endpoint_bound_over_abs_work_difference'] == pytest.approx(
+        4e-10 / abs(work[1] - work[0]))
+    assert not late['accounting']['two_endpoint_difference_gate']
+    assert not result['original_gauss_gates'][0]['ordinary_gauss_over_en_eps0']
+    assert str(pair_table_records[0]) not in json.dumps(result, allow_nan=False)
+    output = pair_table_records[0].parent / 'tables.json'
+    runpy.run_path('docs/scripts/compare_replays.py', run_name='__main__', init_globals=dict(
+        pair_tables=pair_table_records, pair_table_transition=('4' * 40, '5' * 40), output=output))
+    published = json.loads(output.read_text())
+    assert 'validation_source' in published and published['forcing'] == result['forcing']
+
+
+@pytest.mark.parametrize('corrupt', [
+    'source', 'runtime', 'pic_dt', 'initial_reference', 'hash', 'force',
+    'first_knot', 'last_knot', 'si_bound', 'type', 'donor', 'ordinary'])
+def test_pair_table_resolution_rejects_changed_protocol_or_native_force(pair_table_records, corrupt):  # noqa: C901
+    from docs.scripts.compare_replays import pair_table_comparison, pair_repeat_comparison
+    coarse, middle, fine = pair_table_records
+    native = json.loads((middle / 'run.json').read_text())
+    if corrupt in ('initial_reference', 'force', 'first_knot', 'last_knot', 'ordinary'):
+        with np.load(middle / 'initial_state.npz') as stored:
+            state = dict(stored)
+        key = {'initial_reference': 'dark.initial_ordinary', 'force': 'dark.amplitude',
+               'first_knot': 'dark.times', 'last_knot': 'dark.times', 'ordinary': 'key'}[corrupt]
+        if corrupt == 'force':
+            state[key][1, 0] *= 1.01
+        elif corrupt == 'first_knot':
+            state[key][1] += 1e-15
+        elif corrupt == 'last_knot':
+            state[key][-1] += 1e-15
+        else:
+            state[key] *= 2
+        np.savez_compressed(middle / 'initial_state.npz', **state)
+    else:
+        if corrupt == 'source':
+            native['git'] = '9' * 40
+        elif corrupt == 'runtime':
+            native['numpy'] = 'different'
+        elif corrupt == 'pic_dt':
+            native['settings']['dt_omega0'] /= 2
+        elif corrupt == 'hash':
+            native['settings']['table_replay']['times_sha256'] = '0' * 64
+        elif corrupt == 'si_bound':
+            native['results']['all_step_maxima_SI'][0] *= 2
+        elif corrupt == 'type':
+            native['example'] = 'pair_waveform_repeat'
+        elif corrupt == 'donor':
+            native['settings']['donor_record_sha256'] = '0' * 64
+        (middle / 'run.json').write_text(json.dumps(native))
+    with pytest.raises(ValueError):
+        pair_table_comparison((coarse, middle, fine), ('4' * 40, '5' * 40))
+    with pytest.raises(ValueError):
+        pair_repeat_comparison((middle, middle))
+
+
+def test_pair_table_resolution_requires_explicit_source_review(pair_table_records):
+    from docs.scripts.compare_replays import pair_table_comparison
+    with pytest.raises(ValueError, match='explicit reviewed'):
+        pair_table_comparison(pair_table_records)
+
+
+def test_pair_table_resolution_reports_roundoff_non_nested_coarse_knots(pair_table_records):
+    from docs.scripts.compare_replays import pair_table_comparison
+    coarse = pair_table_records[0]
+    for name in ('initial_state.npz', 'final_state.npz'):
+        with np.load(coarse / name) as stored:
+            state = dict(stored)
+        state['dark.times'][2] = np.nextafter(state['dark.times'][2], np.inf)
+        np.savez_compressed(coarse / name, **state)
+    result = pair_table_comparison(pair_table_records, ('4' * 40, '5' * 40))
+    assert not result['forcing']['coarse_exact_decimation_of_fine']
+    assert result['forcing']['intermediate_exact_decimation_of_fine']
+
+
+def test_pair_table_resolution_inherits_original_moment_protocol_without_rewriting_records(pair_table_records):
+    from docs.scripts.compare_replays import pair_table_comparison
+    inherited = ('accuracy_targets', 'table_dt_omega0', 'length_c_over_omega0', 'waterbag_full_width_over_c',
+                 'quadrature_nodes', 'saved_output_dt_omega0')
+    for index, folder in enumerate(pair_table_records):
+        record = json.loads((folder / 'run.json').read_text())
+        for key in (*inherited, *(('local_moments', 'local_spread_lengths_c_over_omega0') if index != 1 else ())):
+            del record['settings'][key]
+        (folder / 'run.json').write_text(json.dumps(record))
+    change_settings(pair_table_records[1], donor_record_sha256=hashlib.sha256(
+        (pair_table_records[2] / 'run.json').read_bytes()).hexdigest())
+    result = pair_table_comparison(pair_table_records, ('4' * 40, '5' * 40))
+    assert 'local_moments' not in result['native_runs'][2]['settings']
+    assert result['comparisons'][0]['windows'][1]['samples'] == 101
