@@ -250,7 +250,7 @@ def test_waveform_initial_archive_rejects_changed_experiment(tmp_path, waveform_
         pair_waveform_control(tmp_path, 512, 2, dtau, .05, **settings)
 
 
-@pytest.mark.parametrize('study', ['pair_waveform', 'pair_repeat', 'pair_table', 'pair_dt'])
+@pytest.mark.parametrize('study', ['pair_waveform', 'pair_repeat', 'pair_table', 'pair_dt', 'pair_force_extension'])
 def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path, study):
     import ast
     from pathlib import Path
@@ -263,7 +263,8 @@ def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path, study)
 
     namespace = {**vars(example), '__name__': '__main__', 'study': study,
                  'samples': 2, 'table_every': 2, 'pic_dt': .0125,
-                 'initial_state': tmp_path / 'initial.npz', 'pair_waveform_control': stub, 'pair_repeat': stub}
+                 'initial_state': tmp_path / 'initial.npz', 'pair_waveform_control': stub, 'pair_repeat': stub,
+                 'pair_force_extension': stub}
     # Execute the actual dispatch block with a producer stub, avoiding five runs.
     dispatch = ast.parse(Path(example.__file__).read_text()).body[-1]
     exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
@@ -271,7 +272,10 @@ def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path, study)
     assert calls[0][0][-1 if study == 'pair_waveform' else 1] == namespace['initial_state']
     if study in ('pair_repeat', 'pair_table', 'pair_dt'):
         assert calls[0][0][2:] == (2, False)
-        assert calls[0][1] == ({'pair_table': dict(table_every=2), 'pair_dt': dict(pic_dt=.0125)}.get(study, {}))
+        assert calls[0][1] == ({'pair_table': dict(table_every=2), 'pair_dt': dict(
+            pic_dt=.0125, force_extension=None, force_extension_transition=())}.get(study, {}))
+    if study == 'pair_force_extension':
+        assert calls[0][0][-1] == () and calls[0][1] == {}
 
 
 @pytest.fixture
@@ -675,3 +679,111 @@ def test_spatial_dark_force_changes_cold_linear_response_at_cubic_order():
     prescribed = relativistic_response(*args, spatial_eta=0., **controls)[0]
     np.testing.assert_allclose((coupled - prescribed)[-1].real,
                                eta**2 * seed * time[-1]**3 / 12, rtol=1e-3)
+
+
+def test_genuine_force_extension_keeps_complete_restart_prefix_current_work_and_global_bounds(tmp_path, monkeypatch):
+    """A real small coupled step supplies the tail; NumPy reconstructs both continuity currents."""
+    import json
+    from examples import dark_reservoir as example
+    from docs.scripts.compare_replays import PAIR_MAXIMA, _pair_extension, _same_leaves
+
+    source, native_provenance, native_save = ['4' * 40], example.provenance, example.save_run
+    monkeypatch.setattr(example, 'provenance', lambda **kwargs: dict(native_provenance(**kwargs), git=source[0]))
+
+    def save(*args, **kwargs):
+        native_save(*args, **kwargs)
+        path = args[0] / 'run.json'
+        record = json.loads(path.read_text())
+        record['git'] = source[0]  # Synthetic clean provenance for this local fixture, never publication evidence.
+        path.write_text(json.dumps(record))
+
+    monkeypatch.setattr(example, 'save_run', save)
+    original = tmp_path / 'original'
+    example.pair_waveform_control(original, 512, 2, .025, .1, quadrature=4, table_dt=.05,
+                                  output_dt=.025, block_horizon=.05, local_moments=True)
+    fine, tail = original / 'realized_fine', tmp_path / 'tail'
+    source[0] = '5' * 40
+    transition = ('4' * 40, '5' * 40)
+    values = example.pair_force_extension(tail, fine / 'initial_state.npz', transition)
+    times, force, proof = _pair_extension(fine, tail, transition)
+    with np.load(original / 'coupled' / 'final_state.npz') as old, np.load(tail / 'initial_state.npz') as stored:
+        _same_leaves(dict(old), dict(stored))
+        start = dict(stored)
+    with np.load(tail / 'final_state.npz') as stored:
+        end = dict(stored)
+    with np.load(fine / 'initial_state.npz') as stored:
+        np.testing.assert_array_equal(times[:-2], stored['dark.times'])
+        np.testing.assert_array_equal(force[:-2], stored['dark.amplitude'])
+    dt, length = float(start['dark.dt']), float(start['dark.length'])
+    cells, count = int(start['cells']), int(start['counts'][0])
+    dx, h, c, eps = length / cells, dt / 2, example.c, example.epsilon_0
+    q = np.repeat(start['dark.charge'] * example.e, count) * start['w']
+    position = (start['x'][:, 0] + length / 2) / dx - .5
+    base = np.floor(position + .5).astype(int)
+    rho_half = np.zeros(cells)
+    for offset in (-1, 0, 1):
+        r = abs(position - base - offset)
+        weight = np.where(r < .5, .75 - r*r, np.where(r < 1.5, .5 * (1.5 - r)**2, 0.))
+        np.add.at(rho_half, (base + offset) % cells, q * weight / dx)
+
+    def current(before, after, state):
+        residual = -(after - before) / h
+        result = dx * np.cumsum(residual - residual.mean())
+        velocity = state['u'][:, 0] / np.sqrt(1 + np.sum((state['u'] / c)**2, axis=1))
+        return result - result.mean() + np.sum(q * velocity) / length
+
+    j1, j2 = current(start['rho'], rho_half, start), current(rho_half, end['rho'], end)
+    d0, a0, d1 = start['dark.E'][:, 0], start['dark.A'][:, 0], end['dark.E'][:, 0]
+    omega, eta = float(start['dark.omega']), float(start['dark.eta'])
+    middle = d0 + h * (omega**2 * a0 - eta * j1 / eps)
+    field_scale = json.loads((fine / 'run.json').read_text())['settings']['normalization']['field_scale_V_m']
+    np.testing.assert_allclose(force[-2, 0], middle.mean(), rtol=2e-12, atol=2e-14 * field_scale)
+    work = -eta * h * dx * (np.sum(j1 * (d0 + middle) / 2) + np.sum(j2 * (middle + d1) / 2))
+    np.testing.assert_allclose(float(end['dark.work'] - start['dark.work']), work, rtol=2e-10,
+                               atol=2e-14 * float(start['dark.initial_dark']))
+    assert end['time'] == start['time'] + dt and end['steps'] == start['steps'] + 1
+    for key in ('background', 'initial_ordinary', 'initial_dark', 'initial_projection_norm'):
+        np.testing.assert_array_equal(end['dark.' + key], start['dark.' + key])
+    original_maxima = json.loads((original / 'coupled' / 'run.json').read_text())['results']['all_step_maxima']
+    assert all(proof['native_run']['results']['all_step_maxima'][key] >= original_maxima[key] for key in PAIR_MAXIMA)
+    assert values['balance'].shape == (2,) and len(proof['restored_native_leaves']) == len(start)
+    replay = tmp_path / 'replay'
+    example.pair_repeat(replay, fine / 'initial_state.npz', pic_dt=.0125, force_extension=tail,
+                        force_extension_transition=transition)
+    with np.load(replay / 'initial_state.npz') as restored:
+        np.testing.assert_array_equal(restored['dark.times'], times)
+        np.testing.assert_array_equal(restored['dark.amplitude'], force)
+    with pytest.raises(ValueError, match='single PIC timestep'):
+        example.pair_repeat(tmp_path / 'invalid', fine / 'initial_state.npz', force_extension=tail)
+    with pytest.raises(ValueError, match='reviewed source'):
+        example.pair_force_extension(tmp_path / 'invalid_source', fine / 'initial_state.npz')
+    with pytest.raises(ValueError, match='reviewed source'):
+        _pair_extension(fine, tail)
+
+
+def test_pair_pic_no_extension_retains_original_accepted_clock_coverage_failure(
+        tmp_path, monkeypatch, prescribed_pair_archive):
+    """The historical repeated-addition deficit must fail before compilation, without a tail."""
+    import jax.numpy as jnp
+    from darkjaxincell import DarkSimulation, PrescribedDrive
+    from examples import dark_reservoir as example
+    from docs.scripts.compare_replays import _accepted_ticks
+
+    path, donor, start = prescribed_pair_archive
+    wp, dtau, steps = 1e9, .0015625, 108800
+    ticks = _accepted_ticks(dtau / wp, steps, 1)
+    times = np.r_[0., ticks[:-1] + dtau / (2 * wp), ticks[-1]]
+    model = PrescribedDrive(.5, jnp.tile(donor.dark.amplitude[0], (len(times), 1)), 0., times=jnp.asarray(times))
+    sim = DarkSimulation(donor.plasma.replace(domain=donor.plasma.domain.replace(time_step=dtau / wp)), model)
+    _, _, setting = example.pair_repeat_initial(path)
+    setting.update(dt_omega0=dtau, horizon_omega0=170., scalar_dt_omega0=.2, block_steps=6400)
+    monkeypatch.setattr(example, 'pair_repeat_initial', lambda _: (sim, start, dict(setting)))
+
+    def forbidden(*args, **kwargs):
+        pytest.fail('uncovered PIC run reached compilation')
+
+    monkeypatch.setattr(example, 'paper_run', forbidden)
+    finer = _accepted_ticks(.00078125 / wp, 217600, 1)
+    assert finer[-2] + .00078125 / (2 * wp) <= times[-1] < finer[-1]
+    with pytest.raises(ValueError, match='cover the accepted native endpoint'):
+        example.pair_repeat(tmp_path / 'uncovered', path, pic_dt=.00078125)

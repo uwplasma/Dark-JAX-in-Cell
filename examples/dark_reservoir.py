@@ -63,6 +63,8 @@ initial_state = None if initial_state is None else Path(initial_state)
 samples = globals().get('samples', 1)  # pair_repeat executions reuse one exact archived state/table.
 table_every = globals().get('table_every', 1)  # pair_table retains every nth archived midpoint.
 pic_dt = globals().get('pic_dt', None)  # pair_dt changes PIC dt in omega0 units, preserving the SI force table.
+force_extension = globals().get('force_extension', None)  # Explicit genuine coupled one-step tail for pair_dt.
+force_extension_transition = globals().get('force_extension_transition', ())  # Reviewed (donor, producer) SHAs.
 observe_executable = globals().get('observe_executable', False)  # Host-only repeat compilation evidence.
 momentum_seed = globals().get('momentum_seed', 0.)  # Electron δu / initial σe; zero keeps the paper loading.
 seed_mode = globals().get('seed_mode', 16)
@@ -797,7 +799,100 @@ def pair_pic_timestep(sim, start, setting, pic_dt):
         ordinary=o.replace(x=x))
 
 
-def pair_repeat(folder, initial_state, samples=1, observe_executable=False, table_every=1, pic_dt=None):
+def pair_force_extension(folder, initial_state, transition=()):
+    """Append two real accepted force samples, preserving the coupled global ledger."""
+    from compare_replays import (PAIR_MAXIMA, PAIR_PHYSICS, _pair_extension, _pair_fine_forcing,
+                                 _pair_source, _same_leaves)
+
+    drive, _, setting = pair_repeat_initial(initial_state)
+    path, folder = Path(initial_state).parent, Path(folder)
+    control, _, _, _, times, force = _pair_fine_forcing(path)
+    setting.update({key: control['settings'][key] for key in PAIR_PHYSICS})
+    if not setting['local_moments']:
+        raise ValueError('force extension requires the donor physical moment histories')
+    donor, raw, hashes = _pair_source(path.parent / 'coupled')
+    actual = provenance()['git']
+    if (tuple(transition) != (() if actual == donor['git'] else (donor['git'], actual))
+            or len(actual) != 40 or not set(actual) <= set('0123456789abcdef')):
+        raise ValueError('force extension requires clean source and an explicit reviewed source transition')
+    wp, energy = [setting['normalization'][key] for key in ('omega0_rad_s', 'energy_scale_J_m2')]
+    sim = DarkSimulation(drive.plasma, DarkField(setting['dark_mass_over_omega0'] * wp, setting['eta']))
+    previous = path.parent / 'coupled' / 'final_state.npz'
+    start = load_state(previous, sim)
+    if (float(start.ordinary.time) != times[-1]
+            or int(start.ordinary.steps) != len(times) - 2):
+        raise ValueError('force extension requires the fine table terminal coupled checkpoint')
+    save_compressed_state(folder / 'initial_state.npz', start, sim)
+    with np.load(previous, allow_pickle=False) as old, np.load(folder / 'initial_state.npz', allow_pickle=False) as new:
+        _same_leaves(dict(old), dict(new))  # Actual native leaves, including potentials, references and maxima.
+    en = e * sum(float(species.density) for species in sim.plasma.species)
+    length = sim.plasma.domain.length
+    units = np.array([energy, energy / c, en * length, en * wp, en / epsilon_0, en / epsilon_0,
+                      en * length, energy, energy])
+    maxima = np.array([donor['results']['all_step_maxima'][key] for key in PAIR_MAXIMA]) * units
+    maxima = np.where(maxima > 0, np.nextafter(np.nextafter(maxima, np.inf), np.inf), maxima)
+    maxima[[0, 4, 5]] = np.maximum(maxima[[0, 4, 5]], np.array([
+        start.max_balance_error, start.max_ordinary_gauss, start.max_dark_gauss]))
+    reference = {key: jnp.asarray(value[0]) for key, value in raw.items() if not key.startswith('pump_')}
+    scales = jnp.asarray(setting['local_spread_lengths_c_over_omega0']) * c / wp
+    final, values, maximum, _, compile_s, warm_s, memory = paper_run(
+        sim, start, 1, 1, None, wp, scales, folder, setting['seed_mode'], reference=reference, maxima=maxima)
+    knots, amplitude = pair_push_table(sim.plasma, start.ordinary, values, sim.dark.omega, sim.dark.eta)
+    values.update(force_times=np.r_[times, knots[1:]], force_amplitude=np.concatenate((
+        force, np.column_stack((amplitude[1:], np.zeros((2, 2)))))))
+    save_compressed_state(folder / 'final_state.npz', final, sim)
+    setting.update(label='coupled', model='DarkField', initial_state_source='Exact complete final coupled donor')
+    setting['force_extension'] = dict(
+        reviewed_source_transition=list(transition), prefix_knots=len(times),
+        prefix_times_sha256=array_fingerprint(times), prefix_amplitude_sha256=array_fingerprint(force),
+        donor_sha256={**{name + '_sha256': hashlib.sha256(file.read_bytes()).hexdigest() for name, file in (
+            ('force_run', path / 'run.json'), ('force_initial', Path(initial_state)),
+            ('force_data', path / 'data.npz'), ('control_run', path.parent / 'run.json'),
+            ('control_data', path.parent / 'data.npz'), ('coupled_final', previous),
+            ('coupled_initial', path.parent / 'coupled' / 'initial_state.npz'))}, **hashes},
+        accepted_steps=1, native_scalar_dt_omega0=setting['dt_omega0'])
+    results = dict(compile_s=compile_s, warm_primal_s=warm_s,
+                   compiler_temporary_MiB=memory.temp_size_in_bytes / 2**20 if memory else None,
+                   all_step_maxima=pair_all_step_maxima(maximum, sim.plasma, wp, energy),
+                   all_step_maxima_SI=np.asarray(maximum).tolist(),
+                   initial_ordinary_fingerprints={key: array_fingerprint(getattr(start.ordinary, key))
+                                                  for key in ('x', 'u', 'w', 'E', 'B', 'rho')},
+                   claim='One genuine accepted coupled step; original force prefix retained exactly. '
+                         'Reviewed source transition and new execution; no same-executable claim.')
+    save_run(folder, 'pair_waveform_force_extension', setting, results, **values)
+    np.savez_compressed(folder / 'data.npz', **values)
+    _pair_extension(path, folder, transition)  # Strict postflight; failed original numerical gates remain reported.
+    return values
+
+
+def pair_extended_drive(sim, setting, initial_state, folder, transition, samples, table_every, pic_dt):
+    """Explicit lineage-backed coverage, leaving all ordinary preparation unchanged."""
+    if folder is None:
+        if transition:
+            raise ValueError('force extension transition requires an extension archive')
+        return sim
+    if pic_dt is None or table_every != 1 or samples != 1:
+        raise ValueError('force extension is an explicit single PIC timestep replay, without table decimation')
+    from compare_replays import _pair_extension
+    times, amplitude, proof = _pair_extension(Path(initial_state).parent, folder, transition)
+    if proof['native_run']['git'] != provenance()['git']:
+        raise ValueError('force extension and PIC replay must share the reviewed producer source')
+    steps, dt = round(setting['horizon_omega0'] / setting['dt_omega0']), float(sim.plasma.domain.dt)
+    last = paper_accepted_clock(dt, steps - 1) + dt / 2
+    if last > proof['old_terminal_s']:
+        raise ValueError('scoped force extension requires every accepted PIC midpoint in the original prefix')
+    setting['force_extension'] = proof['native_sha256']
+    setting['pic_dt_replay'].update(times_sha256=array_fingerprint(times),
+                                    amplitude_sha256=array_fingerprint(amplitude),
+                                    intervention='Original prefix retained. Accepted coupled tail extends coverage; '
+                                    'table shape/hash and PIC timestep/execution changed.')
+    drive = PrescribedDrive(sim.dark.eta, jnp.asarray(amplitude), sim.dark.omega, sim.dark.phase,
+                            times=jnp.asarray(times))
+    return DarkSimulation(sim.plasma, drive)
+
+
+def pair_repeat(folder, initial_state, samples=1, observe_executable=False, table_every=1, pic_dt=None,
+                force_extension=None, force_extension_transition=()):
     """Replay an archived force, varying either its knots or the longitudinal PIC timestep."""
     if (type(samples) is not int or samples < 1 or type(table_every) is not int or table_every < 1
             or table_every > 1 and samples != 1 or pic_dt is not None and (table_every != 1 or samples != 1)):
@@ -807,6 +902,8 @@ def pair_repeat(folder, initial_state, samples=1, observe_executable=False, tabl
         raise ValueError('observe_executable must be a boolean')
     sim, start, setting = pair_repeat_initial(initial_state)
     sim, start = pair_pic_timestep(sim, start, setting, pic_dt)
+    sim = pair_extended_drive(sim, setting, initial_state, force_extension, force_extension_transition,
+                              samples, table_every, pic_dt)
     wp, energy_scale = [setting['normalization'][key] for key in ('omega0_rad_s', 'energy_scale_J_m2')]
     dtau, horizon, cadence = [setting[key] for key in ('dt_omega0', 'horizon_omega0', 'scalar_dt_omega0')]
     scales = np.asarray(setting['local_spread_lengths_c_over_omega0']) * c / wp
@@ -1830,12 +1927,15 @@ if __name__ == "__main__":  # noqa: C901
     elif study == 'pair_dt':
         if pic_dt is None:
             raise ValueError('pair_dt requires pic_dt in omega0 units')
-        pair_repeat(output, initial_state, samples, observe_executable, pic_dt=pic_dt)
+        pair_repeat(output, initial_state, samples, observe_executable, pic_dt=pic_dt,
+                    force_extension=force_extension, force_extension_transition=force_extension_transition)
+    elif study == 'pair_force_extension':
+        pair_force_extension(output, initial_state, force_extension_transition)
     elif study == 'paper_pilot':
         paper_geometry_pilot(output)
     elif study != 'mobile_ions':
         raise ValueError('study must be mobile_ions, paper, paper_continue, pair, pair_dark, pair_waveform, '
-                         'pair_repeat, pair_table, pair_dt or paper_pilot')
+                         'pair_repeat, pair_table, pair_dt, pair_force_extension or paper_pilot')
     else:
         presets = ((64, 4000, 0.04, 40), (128, 8000, 0.02, 40)) if full else (
             (32, 1000, 0.08, 20),)

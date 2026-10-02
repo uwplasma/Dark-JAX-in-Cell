@@ -1763,3 +1763,115 @@ def test_pair_pic_timestep_rejects_unmatched_native_inputs(pair_pic_step_records
         pair_pic_step_comparison((donor, replay), () if corrupt == 'transition' else ('4' * 40, '5' * 40))
     with pytest.raises(ValueError, match='complete quadratic realized-force branches'):
         pair_repeat_comparison((replay, replay))
+
+
+@pytest.fixture
+def pair_extension_records(pair_pic_step_records):
+    """Manufactured complete field lineage; the producer tests use a genuinely advanced state."""
+    from docs.scripts.compare_replays import PAIR_MAXIMA, _pair_extension, _pair_native_hash
+    fine, replay = pair_pic_step_records
+    control = json.loads((fine.parent / 'run.json').read_text())
+    coupled = fine.parent / 'coupled'
+    donor = json.loads((coupled / 'run.json').read_text())
+    with np.load(coupled / 'data.npz') as stored:
+        origin = dict(stored)
+    with np.load(fine / 'initial_state.npz') as stored:
+        state = {key: stored[key] for key in stored.files if key not in ('dark.times', 'dark.amplitude', 'dark.phase')}
+        times, force = stored['dark.times'], stored['dark.amplitude']
+    s = dict(control['settings'], **donor['settings'])
+    wp, field, energy = [s['normalization'][key] for key in ('omega0_rad_s', 'field_scale_V_m', 'energy_scale_J_m2')]
+    d = float(origin['pump_mean_D'][-1])
+    state.update(time=np.asarray(times[-1]), steps=np.asarray(len(times)-2, dtype=np.int32))
+    state.update({'dark.' + key: np.asarray(value) for key, value in dict(
+        mode='field', format=2, omega=s['dark_mass_over_omega0']*wp,
+        E=np.tile([d, 0., 0.], (s['cells'], 1)), B=np.zeros_like(state['B']),
+        A=np.zeros_like(state['B']), phi=np.zeros(s['cells']), work=0., initial_dark=.5*energy*(d/field)**2).items()})
+    state['dark.initial_ordinary'] = origin['electric'][0] + origin['kinetic'][0].sum()
+    origin['dark'][:] = state['dark.initial_dark']
+    origin['balance'][:] = state['dark.initial_ordinary'] + state['dark.initial_dark']
+    np.savez_compressed(coupled / 'data.npz', **origin)
+    np.savez_compressed(coupled / 'final_state.npz', **state)
+    extension = fine.parent / 'extension'
+    extension.mkdir()
+    np.savez_compressed(extension / 'initial_state.npz', **state)
+    final = dict(state, time=np.asarray(float(times[-1]) + float(state['dark.dt'])),
+                 steps=state['steps'] + np.asarray(1, dtype=np.int32))
+    np.savez_compressed(extension / 'final_state.npz', **final)
+    raw = {key: np.repeat(value[0:1], 2, axis=0) for key, value in origin.items() if not key.startswith('pump_')}
+    raw.update(t=np.array([state['time'], final['time']]), mean_D=np.array([d, d]),
+               dark=np.full(2, state['dark.initial_dark']), work=np.zeros(2),
+               force_times=np.r_[times, float(times[-1])+float(state['dark.dt'])/2, final['time']],
+               force_amplitude=np.concatenate((force, np.tile([d, 0., 0.], (2, 1)))))
+    np.savez_compressed(extension / 'data.npz', **raw)
+    maxima = donor['results']['all_step_maxima']
+    en = state['dark.density'].sum()*1.602176634e-19
+    length, c = float(state['dark.length']), 299792458.
+    eps = energy/(length*field**2)
+    units = [energy, energy/c, en*length, en*wp, en/eps, en/eps, en*length, energy, energy]
+    results = dict(donor['results'], all_step_maxima_SI=(np.array([maxima[key] for key in PAIR_MAXIMA])*units).tolist())
+    files = dict(run=coupled/'run.json', data=coupled/'data.npz', force_run=fine/'run.json',
+                 force_initial=fine/'initial_state.npz', force_data=fine/'data.npz', control_run=fine.parent/'run.json',
+                 control_data=fine.parent/'data.npz', coupled_final=coupled/'final_state.npz',
+                 coupled_initial=coupled/'initial_state.npz')
+    s['force_extension'] = dict(
+        reviewed_source_transition=['4'*40, '5'*40], accepted_steps=1, native_scalar_dt_omega0=s['dt_omega0'],
+        prefix_knots=len(times), prefix_times_sha256=_pair_native_hash(times),
+        prefix_amplitude_sha256=_pair_native_hash(force), donor_sha256={
+            key+'_sha256': hashlib.sha256(path.read_bytes()).hexdigest() for key, path in files.items()})
+    record = dict(donor, git='5'*40, example='pair_waveform_force_extension', settings=s, results=results)
+    (extension/'run.json').write_text(json.dumps(record))
+    _, _, proof = _pair_extension(fine, extension, ('4'*40, '5'*40))
+    replay_record = json.loads((replay/'run.json').read_text())
+    replay_record['settings']['force_extension'] = proof['native_sha256']
+    replay_record['settings']['pic_dt_replay'].update(times_sha256=_pair_native_hash(raw['force_times']),
+                                                      amplitude_sha256=_pair_native_hash(raw['force_amplitude']))
+    for name in ('initial_state.npz', 'final_state.npz'):
+        with np.load(replay/name) as stored:
+            leaves = dict(stored)
+        leaves.update({'dark.times': raw['force_times'], 'dark.amplitude': raw['force_amplitude']})
+        np.savez_compressed(replay/name, **leaves)
+    (replay/'run.json').write_text(json.dumps(replay_record))
+    return fine, replay, extension
+
+
+def test_pair_force_extension_requires_opt_in_complete_prefix_and_qualified_execution(pair_extension_records):
+    from docs.scripts.compare_replays import pair_pic_step_comparison
+    fine, replay, extension = pair_extension_records
+    with pytest.raises(ValueError):
+        pair_pic_step_comparison((fine, replay), ('4'*40, '5'*40))
+    result = pair_pic_step_comparison((fine, replay), ('4'*40, '5'*40), extension)
+    assert not result['initialization']['fixed_force_byte_identical']
+    assert result['initialization']['original_force_prefix_byte_identical']
+    assert result['force_extension']['appended_knots'] == 2
+    assert result['force_extension']['candidate_last_midpoint_s'] <= result['force_extension']['old_terminal_s']
+    assert 'compile shapes changed' in result['notes'] and 'separately compiled' in result['force_extension']['claim']
+    assert not result['original_gauss_gates'][0]['ordinary_gauss_over_en_eps0']
+
+
+@pytest.mark.parametrize('corrupt', [
+    'source', 'runtime', 'prefix', 'tail', 'clock', 'potential', 'work', 'reference', 'maxima', 'donor'])
+def test_pair_force_extension_rejects_forged_lineage_or_native_tail(pair_extension_records, corrupt):
+    from docs.scripts.compare_replays import _pair_extension
+    fine, _, extension = pair_extension_records
+    record = json.loads((extension/'run.json').read_text())
+    if corrupt in ('source', 'runtime', 'maxima', 'donor'):
+        if corrupt == 'source':
+            record['git'] = '9'*40
+        elif corrupt == 'runtime':
+            record['numpy'] = 'different'
+        elif corrupt == 'maxima':
+            record['results']['all_step_maxima_SI'][0] = 1.
+        else:
+            record['settings']['force_extension']['donor_sha256']['coupled_final_sha256'] = '0'*64
+        (extension/'run.json').write_text(json.dumps(record))
+    else:
+        name = 'data.npz' if corrupt in ('prefix', 'tail', 'clock') else 'initial_state.npz'
+        with np.load(extension/name) as stored:
+            raw = dict(stored)
+        key = dict(prefix='force_amplitude', tail='force_amplitude', clock='t', potential='dark.phi',
+                   work='dark.work', reference='dark.initial_dark')[corrupt]
+        index = -2 if corrupt == 'tail' else 0
+        raw[key].flat[index] += 1.
+        np.savez_compressed(extension/name, **raw)
+    with pytest.raises(ValueError):
+        _pair_extension(fine, extension, ('4'*40, '5'*40))

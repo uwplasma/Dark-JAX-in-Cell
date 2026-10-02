@@ -23,6 +23,7 @@ pair_tables = globals().get('pair_tables', ())  # Original coarse, decimated rep
 pair_table_transition = globals().get('pair_table_transition', ())  # Reviewed (donor SHA, replay SHA).
 pair_pic_steps = globals().get('pair_pic_steps', ())  # Fine donor, changed PIC dt at exactly the same SI force.
 pair_pic_transition = globals().get('pair_pic_transition', ())  # Reviewed (donor SHA, replay SHA).
+pair_pic_extension = globals().get('pair_pic_extension', None)  # Explicit one accepted coupled-step force tail.
 ensemble = globals().get('ensemble', ())  # Ordered (coarse, half-step) native folders for seeds 0/1/2 or 0–4.
 ensemble_window = globals().get('ensemble_window', (800, 1000))
 continuation = globals().get('continuation', False)  # Explicit timestep-only lineage audit.
@@ -329,7 +330,7 @@ PAPER_MAXIMA = ('max_energy_work_defect_over_initial_thermal', 'max_momentum_def
                 'max_ordinary_work_defect_over_nmc2L')
 
 
-def _archive(path, legacy_shape=None):
+def _archive(path, legacy_shape=None, field=False):
     """Read complete prescribed restarts without JAX or trusting ZIP recompression."""
     import zipfile
     with zipfile.ZipFile(path) as archive:
@@ -346,9 +347,10 @@ def _archive(path, legacy_shape=None):
                                               'overflow'))
     required.update('dark.' + key for key in ('format', 'mode', 'omega', 'eta', 'cells', 'length', 'length_y',
                                               'length_z', 'dt', 'relativistic', 'mass', 'charge', 'density',
-                                              'has_external_B', 'amplitude', 'phase', 'background', 'work',
+                                              'has_external_B', 'background', 'work',
                                               'initial_ordinary', 'initial_dark', 'initial_projection_norm',
                                               'max_balance_error', 'max_ordinary_gauss', 'max_dark_gauss'))
+    required.update('dark.' + key for key in (('E', 'B', 'A', 'phi') if field else ('amplitude', 'phase')))
     if (not required <= state.keys() or any(not np.isfinite(value).all() for value in state.values()
                                             if value.dtype.kind in 'biufc')
             or any(value.dtype.itemsize != 8 for value in state.values() if value.dtype.kind == 'f')):
@@ -1550,6 +1552,7 @@ def _pair_prescribed_load(folder, example='pair_waveform_repeat', labels=('reali
     if (example not in ('pair_waveform_repeat', 'pair_waveform_branch', *interventions)
             or record['example'] != example
             or set(s) & {'table_replay', 'pic_dt_replay'} != declared
+            or 'force_extension' in s and example != 'pair_waveform_pic_dt_replay'
             or any(not isinstance(s[key], dict) for key in set(s) & {'table_replay', 'pic_dt_replay'})
             or s['model'] != 'PrescribedDrive' or s['label'] not in labels or s['scalar_units'] != 'native SI'
             or not s.get('local_moments', repeat) or s['shape_order'] != 2
@@ -1839,6 +1842,123 @@ def _pair_native_hash(value):
                           + np.ascontiguousarray(value).tobytes()).hexdigest()
 
 
+def _pair_extension(fine, folder, transition=()):  # noqa: C901 — scoped complete-checkpoint lineage gates
+    """Validate one accepted coupled step; ordinary table readers never accept tails."""
+    fine, folder = Path(fine), Path(folder)
+    control, _, control_hashes, _, times, force = _pair_fine_forcing(fine)
+    donor, origin, donor_hashes = _pair_source(fine.parent / 'coupled')
+    record, raw, hashes = _pair_source(folder)
+    s, detail = record['settings'], record['settings'].get('force_extension', {})
+    if (record['example'] != 'pair_waveform_force_extension'
+            or tuple(transition) != (() if record['git'] == donor['git'] else (donor['git'], record['git']))
+            or detail.get('reviewed_source_transition') != list(transition)
+            or any(record[key] != donor[key] for key in PAIR_RUNTIME[1:])
+            or s.get('label') != 'coupled' or s.get('model') != 'DarkField'
+            or any(s.get(key) != control['settings'].get(key) for key in (
+                *PAIR_PHYSICS, 'cells', 'particles_per_cell_per_species', 'dt_omega0', 'horizon_omega0',
+                'velocity_seed_over_c', 'scalar_dt_omega0', 'forcing_native_dt_omega0', 'local_moments'))
+            or detail.get('accepted_steps') != 1 or detail.get('native_scalar_dt_omega0') != s['dt_omega0']):
+        raise ValueError('force extension requires one accepted step and explicitly reviewed source/runtime/physics')
+    files = (('force_run', fine / 'run.json'), ('force_initial', fine / 'initial_state.npz'),
+             ('force_data', fine / 'data.npz'), ('control_run', fine.parent / 'run.json'),
+             ('control_data', fine.parent / 'data.npz'), ('coupled_final', fine.parent / 'coupled' / 'final_state.npz'),
+             ('coupled_initial', fine.parent / 'coupled' / 'initial_state.npz'))
+    expected_hashes = dict(donor_hashes)
+    expected_hashes.update({name + '_sha256': hashlib.sha256(path.read_bytes()).hexdigest() for name, path in files})
+    if (detail.get('donor_sha256') != expected_hashes or detail.get('prefix_knots') != len(times)
+            or detail.get('prefix_times_sha256') != _pair_native_hash(times)
+            or detail.get('prefix_amplitude_sha256') != _pair_native_hash(force)):
+        raise ValueError('force extension donor files and exact original prefix must be bound by hashes')
+    states = [_archive(folder / name, legacy_shape=2, field=True)
+              for name in ('initial_state.npz', 'final_state.npz')]
+    with np.load(fine.parent / 'coupled' / 'final_state.npz', allow_pickle=False) as old, np.load(
+            folder / 'initial_state.npz', allow_pickle=False) as restored:
+        _same_leaves(dict(old), dict(restored))
+        native_leaves = {key: fingerprint(restored[key]) for key in restored.files}
+    start, final = states
+    evolving = {'E', 'x', 'u', 'rho', 'time', 'steps', 'dark.E', 'dark.B', 'dark.A', 'dark.phi', 'dark.work',
+                'dark.max_balance_error', 'dark.max_ordinary_gauss', 'dark.max_dark_gauss'}
+    _same_leaves({key: value for key, value in start.items() if key not in evolving},
+                 {key: value for key, value in final.items() if key not in evolving})
+    wp, field_scale, energy = [s['normalization'][key] for key in (
+        'omega0_rad_s', 'field_scale_V_m', 'energy_scale_J_m2')]
+    dt, length = float(start['dark.dt']), float(start['dark.length'])
+    scalar_keys = {key for key in origin if not key.startswith('pump_')}
+    if (len(start) != 53 or len(final) != 53 or start['time'] != times[-1] or start['steps'] != len(times) - 2
+            or final['steps'] != start['steps'] + 1 or final['time'] != float(start['time']) + dt
+            or raw.keys() != scalar_keys | {'force_times', 'force_amplitude'}
+            or any(raw[key].shape != (2, *origin[key].shape[1:]) for key in scalar_keys)
+            or not np.array_equal(raw['t'], [float(start['time']), float(final['time'])])
+            or any(state['dark.mode'] != 'field' or state['dark.format'] != 2 or state['shape_order'] != 2
+                   or state['algorithm'] != 'explicit' or state['dark.dt'] != s['dt_omega0'] / wp
+                   or state['cells'] != s['cells'] or state['dark.cells'] != s['cells']
+                   or state['dark.omega'] != s['dark_mass_over_omega0'] * wp or state['dark.eta'] != s['eta']
+                   or state['dark.has_external_B'] or np.any(state['B']) or np.any(state['dark.B'])
+                   or any(state[key].shape != (s['cells'], 3) for key in ('dark.E', 'dark.B', 'dark.A'))
+                   or state['dark.phi'].shape != (s['cells'],)
+                   or any(np.any(state[key][:, 1:]) for key in ('u', 'E', 'dark.E', 'dark.A')) for state in states)):
+        raise ValueError('force extension complete native model, accepted clock or field restart disagrees')
+    data = _pair_normalize({key: value for key, value in raw.items() if not key.startswith('force_')}, s, 'coupled')
+    count, dx = s['cells'] * s['particles_per_cell_per_species'], length / s['cells']
+    eps, c = energy / (length * field_scale**2), 299792458.
+    s_physical = dict(s, length_c_over_omega0=length * wp / c)
+    for state, index, filename in zip(states, (0, -1), ('initial_state.npz', 'final_state.npz')):
+        ordinary = {key: _pair_native_hash(state[key]) for key in ('x', 'u', 'w', 'E', 'B', 'rho')}
+        _pair_initial(folder, s_physical, ordinary, {key: value[index][None] for key, value in data.items()}, filename)
+        dark = .5 * eps * dx * (np.sum(state['dark.E']**2 + state['dark.omega']**2 * state['dark.A']**2)
+                                + state['dark.omega']**2 / c**2 * np.sum(state['dark.phi']**2))
+        momentum = np.einsum('s,sp,spc->c', state['dark.mass'], state['w'].reshape(2, count),
+                             state['u'].reshape(2, count, 3))
+        centred_A = (state['dark.A'] + np.roll(state['dark.A'], 1, axis=0)) / 2
+        momentum += eps * state['dark.omega']**2 / c**2 * dx * np.sum(state['dark.phi'][:, None] * centred_A, axis=0)
+        electric = .5 * eps * dx * np.sum(state['E']**2)
+        if (not np.allclose([electric, dark], [raw['electric'][index], raw['dark'][index]],
+                            rtol=2e-12, atol=2e-14 * energy)
+                or not np.allclose([np.mean(state['dark.E'][:, 0]) / field_scale,
+                                    np.mean(state['dark.A'][:, 0]) * wp / field_scale],
+                                   [raw['mean_D'][index] / field_scale, raw['mean_A'][index] * wp / field_scale],
+                                   rtol=2e-12, atol=2e-14)
+                or not np.allclose(momentum, raw['momentum'][index], rtol=2e-12, atol=2e-13 * energy / c)
+                or state['dark.work'] != raw['work'][index]):
+            raise ValueError('force extension endpoint energy, momentum or unchanged work ledger disagrees')
+    en = float(start['dark.density'].sum()) * 1.602176634e-19
+    units = np.asarray([energy, energy / c, en * length, en * wp, en / eps, en / eps, en * length, energy, energy])
+    _pair_repeat_bounds(record['results'], final, units, data, True)
+    total = raw['electric'] + raw['dark'] + raw['kinetic'].sum(axis=1)
+    ordinary = raw['electric'] + raw['kinetic'].sum(axis=1)
+    if (any(record['results']['all_step_maxima'][key] < donor['results']['all_step_maxima'][key] for key in PAIR_MAXIMA)
+            or np.max(abs(raw['balance'] - origin['balance'][0])) > record['results']['all_step_maxima_SI'][0]
+            + 2e-14 * energy or not np.allclose(raw['balance'], total, rtol=2e-12, atol=2e-14 * energy)
+            or not np.allclose([start['dark.initial_ordinary'], start['dark.initial_dark']],
+                               [origin['electric'][0] + origin['kinetic'][0].sum(), origin['dark'][0]], rtol=2e-12)
+            or np.max(abs(raw['dark'] - start['dark.initial_dark'] - raw['work']))
+            > record['results']['all_step_maxima_SI'][7] + 2e-14 * energy
+            or np.max(abs(ordinary - start['dark.initial_ordinary'] + raw['work']))
+            > record['results']['all_step_maxima_SI'][8] + 2e-14 * energy):
+        raise ValueError('force extension must retain all original nine maxima and the global energy reference')
+    charge_density = start['w'].reshape(2, count).sum(axis=1) / length * start['dark.charge'] * 1.602176634e-19
+    source = float(start['dark.omega'])**2 * raw['mean_A'][0] - s['eta'] * (raw['mean'][0] @ charge_density) / eps
+    push = raw['mean_D'][0] + dt / 2 * source
+    tail_t = np.array([float(start['time']) + dt / 2, float(final['time'])])
+    tail_a = np.column_stack(([push, raw['mean_D'][-1]], np.zeros((2, 2))))
+    expected_t, expected_a = np.r_[times, tail_t], np.concatenate((force, tail_a))
+    if (raw['force_amplitude'][-1, 0] != raw['mean_D'][-1]
+            or not np.array_equal(raw['force_times'], expected_t)) or not np.allclose(
+            raw['force_amplitude'], expected_a, rtol=2e-12, atol=2e-14 * field_scale):
+        raise ValueError('force extension must append exactly two genuine accepted force samples')
+    _same_leaves({'times': raw['force_times'][:len(times)], 'force': raw['force_amplitude'][:len(times)]},
+                 {'times': times, 'force': force})
+    hashes.update({name + '_sha256': hashlib.sha256((folder / (name + '.npz')).read_bytes()).hexdigest()
+                   for name in ('initial_state', 'final_state')})
+    return raw['force_times'], raw['force_amplitude'], dict(
+        native_run=record, native_sha256=hashes, donor_sha256=expected_hashes, restored_native_leaves=native_leaves,
+        prefix_knots=len(times), appended_knots=2, old_terminal_s=float(times[-1]),
+        new_terminal_s=float(final['time']), original_gauss_gates={
+            key: record['results']['all_step_maxima'][key] <= 2e-13 for key in PAIR_MAXIMA[4:6]},
+        claim='Exact native restoration and unchanged force prefix; '
+        'one genuine accepted continuation step from reviewed sources, separately compiled.')
+
+
 def _pair_table_forces(folders, sources):  # noqa: C901 — separate native-table integrity gates
     """Check the actual donor force, accepted clocks and replay decimation separately."""
     control, top, control_hashes, pump_hashes, times, force = _pair_fine_forcing(folders[2])
@@ -1982,13 +2102,16 @@ def pair_table_comparison(folders, transition=()):
                       'remain distinct; passing conservation or knot gates does not certify late convergence.')
 
 
-def _pair_pic_initial(folders, sources, detail, times, force):
+def _pair_pic_initial(folders, sources, detail, times, force, extension=None):
     """Exact native leaves except half-step x/dt; independent physical restagger check."""
     leaves = [source[3]['initial_leaves_without_table'] for source in sources]
     if (any({key: value for key, value in row.items() if key not in ('x', 'dark.dt')}
             != {key: value for key, value in leaves[0].items() if key not in ('x', 'dark.dt')} for row in leaves[1:])
-            or sources[0][3]['actual_force_sha256'] != sources[1][3]['actual_force_sha256']
-            or sources[0][3]['actual_force_times_sha256'] != sources[1][3]['actual_force_times_sha256']):
+            or extension is None and (sources[0][3]['actual_force_sha256'] != sources[1][3]['actual_force_sha256']
+                                      or sources[0][3]['actual_force_times_sha256'] !=
+                                      sources[1][3]['actual_force_times_sha256'])
+            or sources[1][3]['actual_force_sha256'] != fingerprint(force)
+            or sources[1][3]['actual_force_times_sha256'] != fingerprint(times)):
         raise ValueError('PIC timestep replay requires identical force and all other complete initial leaves')
     with np.load(Path(folders[0]) / 'initial_state.npz', allow_pickle=False) as old, np.load(
             Path(folders[1]) / 'initial_state.npz', allow_pickle=False) as new:
@@ -2012,14 +2135,32 @@ def _pair_pic_initial(folders, sources, detail, times, force):
             or not set(detail['canonical_integer_positions_sha256']) <= set('0123456789abcdef')
             or not 0 <= detail.get('canonical_position_error_over_L', np.inf) <= 2e-13):
         raise ValueError('PIC timestep canonical positions, declared restagger or exact force fingerprints disagree')
-    return dict(native_initial_leaf_count=count, unchanged_leaves_except=['x', 'dark.dt'],
-                all_other_native_initial_leaves_exact=True, fixed_force_byte_identical=True,
-                independent_numpy_position_errors=errors, position_bound_over_L=2e-13,
-                native_canonical_sha256=detail['canonical_integer_positions_sha256'],
-                note='Canonical hash is native provenance; NumPy restagger is a separate floating-point check.')
+    result = dict(native_initial_leaf_count=count, unchanged_leaves_except=['x', 'dark.dt'],
+                  all_other_native_initial_leaves_exact=True, fixed_force_byte_identical=True,
+                  independent_numpy_position_errors=errors, position_bound_over_L=2e-13,
+                  native_canonical_sha256=detail['canonical_integer_positions_sha256'],
+                  note='Canonical hash is native provenance; NumPy restagger is a separate floating-point check.')
+    if extension is not None:
+        result.update(fixed_force_byte_identical=False, original_force_prefix_byte_identical=True)
+    return result
 
 
-def pair_pic_step_comparison(folders, transition=()):
+def _pair_pic_extension(folders, replay, extension, transition):
+    times, force, proof = _pair_extension(folders[0], extension, transition)
+    if (proof['native_run']['git'] != replay['git']
+            or replay['settings'].get('force_extension') != proof['native_sha256']):
+        raise ValueError('PIC force extension needs explicit native lineage and the reviewed replay source')
+    s = replay['settings']
+    dt = s['dt_omega0'] / s['normalization']['omega0_rad_s']
+    ticks = _accepted_ticks(dt, round(s['horizon_omega0'] / s['dt_omega0']), 1)
+    if ticks[-2] + dt / 2 > proof['old_terminal_s']:
+        raise ValueError('scoped PIC force extension requires every accepted midpoint in the original prefix')
+    proof.update(candidate_last_midpoint_s=float(ticks[-2] + dt / 2), candidate_endpoint_s=float(ticks[-1]),
+                 original_endpoint_coverage_failure=bool(np.nextafter(proof['old_terminal_s'], np.inf) < ticks[-1]))
+    return times, force, proof
+
+
+def pair_pic_step_comparison(folders, transition=(), extension=None):
     """Fixed archived SI force, distinct rephased PIC timesteps and executions."""
     if len(folders) != 2:
         raise ValueError('pair PIC steps require one fine donor and one changed-timestep folder')
@@ -2028,6 +2169,9 @@ def pair_pic_step_comparison(folders, transition=()):
     a, b = sources
     old, new = a[0]['git'], b[0]['git']
     control, _, control_hashes, pump_hashes, times, force = _pair_fine_forcing(folders[0])
+    extension_proof = None
+    if extension is not None:
+        times, force, extension_proof = _pair_pic_extension(folders, b[0], extension, transition)
     settings = [{**control['settings'], **source[0]['settings']} for source in sources]
     s, detail = settings[1], settings[1]['pic_dt_replay']
     if ((bool(transition) if old == new else tuple(transition) != (old, new))
@@ -2046,6 +2190,8 @@ def pair_pic_step_comparison(folders, transition=()):
     extras = {'initial_state_source', 'donor_git', 'initial_state_archive_sha256', 'donor_record_sha256',
               'donor_control_record_sha256', 'producer_script_sha256', 'local_moments',
               'local_spread_lengths_c_over_omega0', 'pic_dt_replay'}
+    if extension is not None:
+        extras.add('force_extension')
     if (set(b[0]['settings']) - set(a[0]['settings']) - extras
             or s.get('donor_git') != old or s.get('donor_record_sha256') != a[2]['run_sha256']
             or s.get('donor_control_record_sha256') != control_hashes['run_sha256']
@@ -2057,7 +2203,7 @@ def pair_pic_step_comparison(folders, transition=()):
             or not isinstance(s.get('producer_script_sha256'), str) or len(s['producer_script_sha256']) != 64
             or not set(s['producer_script_sha256']) <= set('0123456789abcdef')):
         raise ValueError('PIC timestep replay donor hashes, lineage, metadata or single-intervention protocol disagree')
-    initialization = _pair_pic_initial(folders, sources, detail, times, force)
+    initialization = _pair_pic_initial(folders, sources, detail, times, force, extension_proof)
     windows = _pair_refinement_windows(a, b, s['accuracy_targets'])
     for window in windows:
         low, high = window['bounds_omega0']
@@ -2066,26 +2212,33 @@ def pair_pic_step_comparison(folders, transition=()):
             raise ValueError('PIC timestep windows need corresponding native samples, without interpolation')
         window['actual_clocks_per_run_omega0'] = [
             source[1]['t'][mask][[0, -1]].tolist() for source, mask in zip(sources, masks)]
-    return dict(comparison='fixed archived-force PIC timestep and execution sensitivity',
-                reviewed_source_transition=list(transition) if old != new else None,
-                initialization=initialization, windows=windows, accuracy_targets=s['accuracy_targets'],
-                native_runs=[source[0] for source in sources], native_sha256=[source[2] for source in sources],
-                archive_diagnostics=[source[3] for source in sources], scalar_histories=_pair_scalar_histories(sources),
-                source_control_sha256=control_hashes, source_coupled_sha256=pump_hashes,
-                conservation_budget=s['accuracy_targets']['conservation_over_transfer_and_target_difference'],
-                rate_accounting_budget=1 / 3,
-                original_gauss_bound_over_en_eps0=2e-13,
-                original_gauss_gates=[{key: source[0]['results']['all_step_maxima'][key] <= 2e-13
-                                       for key in PAIR_MAXIMA[4:6]} for source in sources],
-                nominal_clock_bound_omega0=1e-9,
-                nominal_clock_gates=[bool(abs(source[1]['t'][-1] - source[0]['settings']['horizon_omega0']) <= 1e-9)
-                                     for source in sources],
-                notes='Identical SI piecewise-linear force, different PIC midpoint sampling and position staggering. '
-                      'Separate accepted native clocks at equal scalar cadence; no interpolation/alignment. '
-                      'Sources are reviewed algorithm-matched only; executable identity and isolated truncation cause '
-                      'are unobserved. Raw reductions and trajectory norms remain distinct. '
-                      'Frames are not realizations; '
-                      'global/two-endpoint conservation gates remain unchanged and do not certify convergence.')
+    result = dict(comparison='fixed archived-force PIC timestep and execution sensitivity',
+                  reviewed_source_transition=list(transition) if old != new else None,
+                  initialization=initialization, windows=windows, accuracy_targets=s['accuracy_targets'],
+                  native_runs=[source[0] for source in sources], native_sha256=[source[2] for source in sources],
+                  archive_diagnostics=[source[3] for source in sources],
+                  scalar_histories=_pair_scalar_histories(sources),
+                  source_control_sha256=control_hashes, source_coupled_sha256=pump_hashes,
+                  conservation_budget=s['accuracy_targets']['conservation_over_transfer_and_target_difference'],
+                  rate_accounting_budget=1 / 3,
+                  original_gauss_bound_over_en_eps0=2e-13,
+                  original_gauss_gates=[{key: source[0]['results']['all_step_maxima'][key] <= 2e-13
+                                         for key in PAIR_MAXIMA[4:6]} for source in sources],
+                  nominal_clock_bound_omega0=1e-9,
+                  nominal_clock_gates=[bool(abs(source[1]['t'][-1] - source[0]['settings']['horizon_omega0']) <= 1e-9)
+                                       for source in sources],
+                  notes='Identical SI piecewise-linear force, different PIC midpoint sampling and position staggering. '
+                        'Separate accepted native clocks at equal scalar cadence; no interpolation/alignment. '
+                        'Sources are reviewed algorithm-matched only; executable identity and isolated truncation '
+                        'cause are unobserved. Raw reductions and trajectory norms remain distinct. '
+                        'Frames are not realizations; '
+                        'global/two-endpoint conservation gates remain unchanged and do not certify convergence.')
+    if extension_proof is not None:
+        result['force_extension'] = extension_proof
+        result['notes'] = ('Whole table hashes and compile shapes changed by an explicit accepted continuation. '
+                           'Every requested PIC midpoint lies in its byte-identical original force prefix. '
+                           + result['notes'])
+    return result
 
 
 def _pair_late(source, tolerance=1e-8):
@@ -2360,6 +2513,8 @@ if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
         raise ValueError('pair table source transition requires pair_tables')
     if pair_pic_transition and not pair_pic_steps:
         raise ValueError('pair PIC source transition requires pair_pic_steps')
+    if pair_pic_extension is not None and not pair_pic_steps:
+        raise ValueError('pair PIC extension requires explicit pair_pic_steps')
     if (refined or finer_step or loading_refined or loading_repeat) and destination is None:
         raise ValueError('refinements require a publish folder')
     if finer_step and (implicit or picard or method_controls or phase_controls or pair_controls or pair_repeats
@@ -2375,7 +2530,7 @@ if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
             raise ValueError('prescribed pair comparisons write scalar JSON only')
         result = (pair_repeat_comparison(pair_repeats, pair_repeat_observer, pair_repeat_donor, pair_repeat_transition)
                   if pair_repeats else pair_table_comparison(pair_tables, pair_table_transition) if pair_tables else
-                  pair_pic_step_comparison(pair_pic_steps, pair_pic_transition))
+                  pair_pic_step_comparison(pair_pic_steps, pair_pic_transition, extension=pair_pic_extension))
         source, root = Path(__file__).resolve(), Path(__file__).resolve().parents[2]
         result['validation_source'] = dict(
             git=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
