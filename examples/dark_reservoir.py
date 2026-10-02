@@ -71,6 +71,7 @@ seed_mode = globals().get('seed_mode', 16)
 seed_phase = globals().get('seed_phase', 0.)
 shape_order = globals().get('shape_order', 2)  # 5 selects the optional parent quintic weighting.
 longitudinal_gather = globals().get('longitudinal_gather', None)  # Fresh paper uses average; continuation infers.
+clock = globals().get('clock', None)  # Fresh paper accumulates; continuation retains its archived clock.
 # Pair-waveform controls: one loading, a coupled run and two refined external-force interventions.
 particles_per_cell = globals().get('particles_per_cell', 128 if full else 8)
 pair_loading = globals().get('pair_loading', 'global' if study == 'pair_waveform' else 'cell')
@@ -1492,8 +1493,10 @@ def paper_initial(sim, seed, initial_state):
         restored = load_state(initial_state, sim)
         for key in ('x', 'u', 'w'):
             np.testing.assert_array_equal(getattr(restored.ordinary, key), getattr(start.ordinary, key))
-        if float(restored.ordinary.time) != 0 or float(restored.work) != 0:
-            raise ValueError('paper initial archive must be a zero-time, zero-work state')
+        if (float(restored.ordinary.time) != 0 or int(restored.ordinary.steps) != 0 or float(restored.work) != 0
+                or (sim.clock == 'anchored' and (float(restored.clock_time) != 0 or int(restored.clock_step) != 0))):
+            raise ValueError('paper initial archive must be a zero-time, zero-work state '
+                             'with zero steps and a zero clock origin')
         start = restored
     fingerprints = dict(
         loading={key: array_fingerprint(np.concatenate([np.asarray(getattr(s, key)) for s in sim.plasma.species]))
@@ -1619,7 +1622,8 @@ def paper_continuation_state(path):
             or setting['force_quiver_over_c'] != setting['drive_quiver_over_sigma'] * np.sqrt(.001)):
         raise ValueError('paper continuation donor units or physical loading differ')
     model = paper_archived_model(path, setting, wp, field)
-    sim = DarkSimulation(plasma, model, longitudinal_gather=setting.get('longitudinal_gather', 'average'))
+    sim = DarkSimulation(plasma, model, longitudinal_gather=setting.get('longitudinal_gather', 'average'),
+                         clock=setting.get('clock', 'accumulated'))
     origin, start = load_state(path.parent / 'initial_state.npz', sim), load_state(path, sim)
     hashes = {key: array_fingerprint(getattr(origin.ordinary, key)) for key in ('x', 'u', 'w', 'E', 'B', 'rho')}
     if isinstance(model, DarkField):
@@ -1628,13 +1632,17 @@ def paper_continuation_state(path):
                for key in ('x', 'v')}
     if dict(state=hashes, loading=loading) != setting['initial_fingerprints']:
         raise ValueError('paper continuation original arrays differ from the donor fingerprints')
+    native_time = (int(start.ordinary.steps) * float(plasma.domain.dt) if sim.clock == 'anchored'
+                   else paper_accepted_clock(float(plasma.domain.dt), int(start.ordinary.steps)))
     if (float(origin.ordinary.time) != 0 or float(origin.ordinary.steps) != 0 or float(origin.work) != 0
             or not np.issubdtype(np.asarray(start.ordinary.steps).dtype, np.integer)
             or int(start.ordinary.steps) <= 0
-            or float(start.ordinary.time) != paper_accepted_clock(
-                float(plasma.domain.dt), int(start.ordinary.steps))):
+            or (sim.clock == 'anchored' and (float(origin.clock_time) != 0 or int(origin.clock_step) != 0))
+            or float(start.ordinary.time) != native_time):
         raise ValueError('paper continuation requires exact zero-origin and native checkpoint clocks')
-    for key in ('background', 'initial_ordinary', 'initial_dark'):
+    references = ('background', 'initial_ordinary', 'initial_dark')
+    references += ('clock_time', 'clock_step') if sim.clock == 'anchored' else ()
+    for key in references:
         if not np.array_equal(getattr(origin, key), getattr(start, key)):
             raise ValueError(f'paper continuation changed the global {key} ledger')
     if not np.array_equal(origin.ordinary.w, start.ordinary.w):
@@ -1693,13 +1701,15 @@ def paper_continuation_checks(sim, origin, start, prefix, setting, results, hori
     return steps, stride, scales if local else None, prior
 
 
-def paper_continue(folder, initial_state, horizon, longitudinal_gather=None):
+def paper_continue(folder, initial_state, horizon, longitudinal_gather=None, clock=None):
     """Extend a native Gaussian replay with its original global reference and prefix."""
     if initial_state is None or Path(folder).resolve() == Path(initial_state).parent.resolve():
         raise ValueError('paper continuation needs a donor final archive and a distinct output folder')
     sim, origin, start, prefix, setting, old_results, lineage = paper_continuation_state(initial_state)
     if longitudinal_gather is not None and longitudinal_gather != sim.longitudinal_gather:
         raise ValueError('paper continuation cannot change longitudinal_gather')
+    if clock is not None and clock != sim.clock:
+        raise ValueError('paper continuation cannot change clock')
     steps, stride, scales, prior = paper_continuation_checks(
         sim, origin, start, prefix, setting, old_results, horizon)
     normalization = setting['normalization']
@@ -1765,7 +1775,8 @@ def seed_reference(history, amplitude, coupling, seed, mode, phase):
 
 def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
                block_horizon=None, local_moments=False, initial_state=None,
-               momentum_seed=0., seed_mode=16, seed_phase=0., shape_order=2, longitudinal_gather='average'):
+               momentum_seed=0., seed_mode=16, seed_phase=0., shape_order=2, longitudinal_gather='average',
+               clock='accumulated'):
     """Hook Fig. 2 drive with reduced moments, work and both constraint ledgers."""
     if not np.isfinite(horizon) or horizon <= 0 or not np.isfinite(ratio) or ratio < 0:
         raise ValueError("paper horizon must be positive and drive ratio nonnegative, both finite")
@@ -1778,7 +1789,7 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
     model = (PrescribedDrive(1.0, jnp.array([force, 0., 0.]), wp) if eta is None
              else DarkField(wp, eta, initial_E=jnp.tile(
                  jnp.array([force / eta, 0., 0.]), (cells, 1))))
-    sim = DarkSimulation(plasma, model, longitudinal_gather=longitudinal_gather)
+    sim = DarkSimulation(plasma, model, longitudinal_gather=longitudinal_gather, clock=clock)
     start, fingerprints = paper_initial(sim, seed, initial_state)
     seed_diagnostics = seed_noise(plasma, start.ordinary, momentum_seed, seed_mode, seed_phase) if momentum_seed else {}
     stride = max(1, round(0.5 / dtau))
@@ -1872,6 +1883,8 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
                     parent_revision=parent_revision())
     if longitudinal_gather != 'average':
         settings['longitudinal_gather'] = longitudinal_gather
+    if clock != 'accumulated':
+        settings['clock'] = clock
     with midnight():
         fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout='constrained')
         axes[0, 0].plot(t, history['electric'] - history['electric'][0], label='electric change')
@@ -1915,15 +1928,19 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
 if __name__ == "__main__":  # noqa: C901
     if globals().get('longitudinal_gather') not in (None, 'average') and study not in ('paper', 'paper_continue'):
         raise ValueError('longitudinal_gather is supported only by study=paper or paper_continue')
+    if globals().get('clock') not in (None, 'accumulated') and study not in ('paper', 'paper_continue'):
+        raise ValueError('clock is supported only by study=paper or paper_continue')
     if study == 'paper':
         with elapsed_progress("Resonant replay"):
             paper_case(output, cells, particles, dt, horizon, seed, drive_ratio,
                        coupling, block_horizon, local_moments, initial_state,
                        momentum_seed, seed_mode, seed_phase, shape_order,
-                       longitudinal_gather='average' if longitudinal_gather is None else longitudinal_gather)
+                       longitudinal_gather='average' if longitudinal_gather is None else longitudinal_gather,
+                       **({} if clock is None else dict(clock=clock)))
     elif study == 'paper_continue':
         paper_continue(output, initial_state, horizon, **(
-            {} if globals().get('longitudinal_gather') is None else dict(longitudinal_gather=longitudinal_gather)))
+            {} if globals().get('longitudinal_gather') is None else dict(longitudinal_gather=longitudinal_gather)),
+            **({} if globals().get('clock') is None else dict(clock=clock)))
     elif study == 'pair':
         pair_figure(output, full)
     elif study == 'pair_dark':

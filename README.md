@@ -419,6 +419,8 @@ The [source-free Proca comparison](docs/scripts/benchmark_time_integrators.py) e
 
 [Benchmark script](docs/scripts/benchmark_time_integrators.py) · `quick=False`.
 
+Long prescribed-drive runs can use the experimental `clock='anchored'` option to evaluate timestamps and forcing phase from a retained origin and step counter. Complete restarts preserve both anchors. [Clock algorithm and independent derivative checks](docs/performance.md#anchored-timestamps); [simulation script](examples/dark_reservoir.py) · `study='paper', clock='anchored'`. Field accuracy and Gauss conservation remain separate checks.
+
 ## Differentiate and optimize a physical objective
 
 JAX derivatives pass through particle loading and weights, fields, the PIC run and the measured objective. The [density calibration](examples/optimize_dark_photon.py) maximizes coherent electric plus cold bulk energy on one fixed physical interval, with $p=n/n_{\rm ref}$:

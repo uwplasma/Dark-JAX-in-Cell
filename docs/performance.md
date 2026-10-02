@@ -65,6 +65,21 @@ Full-state and scalar comparisons pass the declared $10^{-10}$ normalized tolera
 
 ## Which clock to trust
 
+### Anchored timestamps
+
+`DarkSimulation(..., clock='anchored')` is an experimental timestamp option. With an origin $(t_\star,n_\star)$ retained in the complete state, it evaluates
+
+$$
+t_n=t_\star+(n-n_\star)\Delta t,\qquad
+t_{n+1/2}=t_\star+(n-n_\star+\tfrac12)\Delta t.
+$$
+
+The midpoint supplies the prescribed drive's absolute phase. This avoids accumulated rounding from repeatedly adding $\Delta t$; multiplication and addition still have representation error. The field integrator and spatial Gauss residual use their existing operations. Fresh initializations capture their actual time and step. Restarts retain those anchors and reject a clock-scheme change; an earlier trajectory's phase error is not repaired. The default `clock='accumulated'` retains the existing arithmetic.
+
+[dark_reservoir.py](../examples/dark_reservoir.py) accepts `study='paper', clock='anchored'`. Its paper protocol starts at zero; `study='paper_continue', clock=None` infers and checks the donor scheme. Other studies retain their existing clocks. TOML accepts `clock="anchored"` in `[dark]`, or use `--clock anchored` with the CLI. Anchored restarts use dark format 5, including the gather when nondefault; accumulated formats remain 2, 3 or 4. [Independent cold affine, Fréchet, finite-difference, arbitrary-origin and complete-restart checks](../tests/test_proca.py) cover the CPU path. GPU compatibility and late kinetic accuracy require separate checks before using this option for a production result.
+
+### Vacuum field integrators
+
 The source-free [time-step experiment](scripts/benchmark_time_integrators.py) uses the same staggered 1D Proca difference operators as the package, in normalized units $c=\Omega_D=\epsilon_0=1$. Its initial field contains longitudinal and both transverse components, with $\phi_D=-D E_{D,x}$, $B_D=\operatorname{curl} A_D=0$. The matrix exponential of the **same spatially discrete generator** is the temporal oracle. The 16-cell run lasts $\Omega_Dt=200$; these are vacuum field tests, without particles or current deposition.
 
 ![Proca vacuum energy and long-time state error](_static/figures/time_integrators/figure.png)
@@ -423,7 +438,7 @@ For `study='pair_dt'`, supply that folder as `force_extension` with the same tra
 
 The output retains complete `initial_state.npz`, `segment_initial_state.npz` and `final_state.npz` restarts. Exact `prefix_run.json` and `prefix_data.npz` copies preserve the donor evidence; `segment_data.npz` holds raw SI segment scalars, while `data.npz` joins the unchanged normalized prefix and new normalized scalars with one boundary sample. Prefix-only analytic curves remain in the prefix file. Archive/data/record hashes, segment clocks and separate producer sources record the lineage; timing refers to the new segment. This extends one trajectory and does not establish late convergence or equivalence to a single uninterrupted executable.
 
-[compare_replays.py](scripts/compare_replays.py) audits prescribed continuations with `continuation=True, variant='dt'`, explicit oldest-first `continuation_donors=((donor0,), (donor1,))` and reviewed `continuation_transitions=((old_SHA,new_SHA),)`. Complete donor/checkpoint leaves, exact prefix files, SI normalization, native repeated-addition clocks and all nine inherited bounds are checked. The duplicated scalar boundary retains the producer's $2\times10^{-12}$ endpoint tolerance and reports its raw roundoff separately; the joined histories and checkpoint leaves remain exact. The fixed $800$–$1000$ and $4800$–$5000$ windows use global conservation budgets. A vanishing transfer remains a failed relative budget. The additive rate envelope bounds accounting alone, not temporal, spatial or execution uncertainty.
+[compare_replays.py](scripts/compare_replays.py) audits prescribed continuations with `continuation=True, variant='dt'`, explicit oldest-first `continuation_donors=((donor0,), (donor1,))` and reviewed `continuation_transitions=((old_SHA,new_SHA),)`. Complete donor/checkpoint leaves, exact prefix files, SI normalization, the recorded accumulated or anchored clock and all nine inherited bounds are checked. Anchored paper archives retain the scalar zero origin; a scheme change is rejected. The duplicated scalar boundary retains the producer's $2\times10^{-12}$ endpoint tolerance and reports its raw roundoff separately; the joined histories and checkpoint leaves remain exact. The fixed $800$–$1000$ and $4800$–$5000$ windows use global conservation budgets. A vanishing transfer remains a failed relative budget. The additive rate envelope bounds accounting alone, not temporal, spatial or execution uncertainty.
 
 #### Bounded GPU repeatability test
 

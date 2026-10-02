@@ -182,7 +182,11 @@ class PrescribedDrive:
 
 @pytree_dataclass(static=())
 class DarkState:
-    """Complete restart state, including initial energy and all-step residual maxima."""
+    """Complete restart state, including energy references and all-step maxima.
+
+    ``clock_time`` (seconds) and ``clock_step`` anchor an optional counter-based
+    clock. They remain ``None`` for the accumulated clock and survive restarts.
+    """
 
     ordinary: object
     E: object
@@ -197,6 +201,36 @@ class DarkState:
     max_balance_error: object
     max_ordinary_gauss: object
     max_dark_gauss: object
+    clock_time: object = None
+    clock_step: object = None
+
+
+def _check_clock(state, simulation):
+    """Reject scheme changes and inconsistent anchors without rephasing a state."""
+    anchors = state.clock_time, state.clock_step
+    if getattr(simulation, "clock", "accumulated") == "accumulated":
+        if any(value is not None for value in anchors):
+            raise ValueError("accumulated clock cannot resume anchored state")
+        return
+    values = (*anchors, state.ordinary.time, state.ordinary.steps)
+    for value, name, kind in zip(values, ("clock_time", "clock_step", "time", "steps"),
+                                 (np.floating, np.integer, np.floating, np.integer)):
+        if value is None or np.shape(value) != ():
+            raise ValueError(f"anchored {name} must be scalar")
+        dtype = getattr(value, "dtype", None)
+        if not np.issubdtype(dtype if dtype is not None else np.asarray(value).dtype, kind):
+            raise ValueError(f"anchored {name} has unsupported dtype")
+    if any(isinstance(value, jax.core.Tracer) for value in (*values, simulation.plasma.domain.dt)):
+        return
+    origin, anchor_step, actual, step = map(np.asarray, values)
+    if not np.isfinite(origin) or not np.isfinite(actual) or anchor_step < 0 or step < anchor_step:
+        raise ValueError("anchored clock needs finite times and ordered nonnegative steps")
+    elapsed = (int(step) - int(anchor_step)) * float(simulation.plasma.domain.dt)
+    expected = np.asarray(float(origin) + elapsed, dtype=actual.dtype)
+    # Only representation roundoff in the multiplication and addition is allowed.
+    tolerance = 2 * (abs(np.spacing(np.asarray(elapsed, dtype=actual.dtype))) + abs(np.spacing(expected)))
+    if not np.isfinite(expected) or abs(float(actual) - float(expected)) > tolerance:
+        raise ValueError("anchored timestamp does not match clock_time/clock_step")
 
 
 @pytree_dataclass(static=())
@@ -253,7 +287,7 @@ class DarkOutput:
                      self.ordinary.dx, self.model.omega, self.model.eta)
 
 
-@pytree_dataclass(static=("longitudinal_gather",))
+@pytree_dataclass(static=("longitudinal_gather", "clock"))
 class DarkSimulation:
     """Periodic explicit Maxwell PIC with a dynamical Proca field or prescribed drive.
 
@@ -262,14 +296,19 @@ class DarkSimulation:
     ``longitudinal_gather='six_face'`` changes only ordinary E_x interpolation
     with quintic particles. This optional stencil is not an exact energy method
     or a general three-velocity momentum-conservation theorem.
+    Experimental ``clock='anchored'`` evaluates absolute time from a retained
+    origin and step counter, including prescribed forcing at the midpoint.
     """
 
     plasma: Simulation
     dark: object
     longitudinal_gather: str = "average"
+    clock: str = "accumulated"
 
     def __post_init__(self):
         d, s = self.plasma.domain, self.plasma.solver
+        if self.clock not in ("accumulated", "anchored"):
+            raise ValueError("clock must be 'accumulated' or 'anchored'")
         if self.longitudinal_gather not in ("average", "six_face"):
             raise ValueError("longitudinal_gather must be 'average' or 'six_face'")
         if self.longitudinal_gather == "six_face" and getattr(s, "shape_order", 2) != 5:
@@ -307,10 +346,13 @@ class DarkSimulation:
         state = DarkState(ordinary, E, B, A, phi, background, jnp.zeros(()),
                           jnp.zeros(()), jnp.zeros(()), correction,
                           jnp.zeros(()), jnp.zeros(()), jnp.zeros(()))
+        if self.clock == "anchored":
+            state = state.replace(clock_time=ordinary.time, clock_step=ordinary.steps)
         return _reset_diagnostics(state, self.plasma, self.dark, extra[0]), extra
 
     def continue_with_parameters(self, state):
         """Begin a new experiment at this state; reclose Gauss and reset all ledgers."""
+        _check_clock(state, self)
         if isinstance(self.dark, DarkField):
             if state.E is None or state.A is None or state.phi is None:
                 raise ValueError("continuation needs a complete Proca state")
@@ -327,6 +369,8 @@ class DarkSimulation:
         """Mirrored field halves around the parent's Boris push and two deposits."""
         p, d, model = self.plasma, self.plasma.domain, self.dark
         o, h, dx = state.ordinary, d.dt / 2, d.dx
+        if self.clock == "anchored":
+            _check_clock(state, self)
         m, q = extra
         v = p._velocity(o.u)
         charge = q * o.w
@@ -342,7 +386,9 @@ class DarkSimulation:
             work1 = -model.eta * h * dx * jnp.sum(J1 * (state.E + E_D) / 2)
             effective_E, effective_B = gather_E + model.eta * E_D, B + model.eta * B_D
         else:
-            drive = model.at(o.time + h)
+            midpoint = (state.clock_time + lax.optimization_barrier((o.steps - state.clock_step + .5) * d.dt)
+                        if self.clock == "anchored" else o.time + h)
+            drive = model.at(midpoint)
             effective_E, effective_B = gather_E + model.eta * drive, B
         fields = p._fields_at(o.x, effective_E, effective_B, rho_half)
         u = p._accelerate(o.u, fields, o.qm, d.dt)
@@ -365,8 +411,10 @@ class DarkSimulation:
             mean_v = p._mean_velocity(o.u, u)
             work = state.work + d.dt * jnp.sum(charge[:, None] * mean_v * model.eta * drive)
         totals = p._accumulate(o.moments, x_next, v_new, o.w)
+        time = (state.clock_time + lax.optimization_barrier((o.steps - state.clock_step + 1) * d.dt)
+                if self.clock == "anchored" else o.time + d.dt)
         ordinary = o.replace(E=E, B=B, x=x_half, u=u, rho=rho_next,
-                             time=o.time + d.dt, steps=o.steps + 1, moments=totals)
+                             time=time, steps=o.steps + 1, moments=totals)
         kinetic = _kinetic_species(p, ordinary, m)
         ordinary_total = _ordinary_total(ordinary, kinetic, dx)
         if isinstance(model, DarkField):
@@ -395,6 +443,7 @@ class DarkSimulation:
         if steps < 1 or store_every < 1 or steps % store_every:
             raise ValueError("steps must be positive and divisible by store_every")
         carry, extra = self.initial_state(random.PRNGKey(seed)) if state is None else (state, self.plasma.per_particle)
+        _check_clock(carry, self)
         traced = any(isinstance(leaf, jax.core.Tracer) for leaf in jax.tree.leaves((self, state, seed)))
         meter = None if traced else reporter(verbose, steps)
         histories, done = [], 0

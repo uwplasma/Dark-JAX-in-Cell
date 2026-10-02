@@ -642,11 +642,12 @@ def test_tabulated_drive_neutral_impulse_current_constraints_and_work():
         out.dark_gauss()
 
 
-def test_tabulated_drive_complete_restart_and_parameter_jump(tmp_path):
+@pytest.mark.parametrize('clock', ['accumulated', 'anchored'])
+def test_tabulated_drive_complete_restart_and_parameter_jump(tmp_path, clock):
     base = waveform_plasma()
     model = PrescribedDrive(.4, jnp.array([[1e-5, 2e-5, -1e-5], [2e-5, -1e-5, 3e-5]]),
                             0., times=jnp.array([0., .4 / OMEGA]))
-    sim = DarkSimulation(base, model)
+    sim = DarkSimulation(base, model, clock=clock)
     whole, first = sim.run(8), sim.run(3)
     path = save_state(tmp_path / "waveform", first.state, sim)
     restored = load_state(path, sim)
@@ -661,12 +662,12 @@ def test_tabulated_drive_complete_restart_and_parameter_jump(tmp_path):
     assert int(tail.state.ordinary.steps) == 8
     with np.load(path, allow_pickle=False) as data:
         saved = {key: data[key] for key in data.files}
-    assert saved["dark.format"] == 3
+    assert saved["dark.format"] == (5 if clock == 'anchored' else 3)
     np.testing.assert_array_equal(saved["dark.times"], model.times)
     np.testing.assert_array_equal(saved["dark.amplitude"], model.amplitude)
     for changed, key in ((model.replace(times=model.times * 1.1), "times"),
                          (model.replace(amplitude=2 * model.amplitude), "amplitude")):
-        following = DarkSimulation(base, changed)
+        following = DarkSimulation(base, changed, clock=clock)
         with pytest.raises(ValueError, match=f"dark.{key}"):
             load_state(path, following)
         continuation = load_for_continuation(path, sim, following)
@@ -677,10 +678,10 @@ def test_tabulated_drive_complete_restart_and_parameter_jump(tmp_path):
     np.savez(path, **saved)
     with pytest.raises(ValueError, match="dark.times"):
         load_state(path, sim)
-    cosine = DarkSimulation(base, PrescribedDrive(.4, jnp.array([1e-5, 0., 0.]), 0.))
+    cosine = DarkSimulation(base, PrescribedDrive(.4, jnp.array([1e-5, 0., 0.]), 0.), clock=clock)
     path = save_state(tmp_path / "cosine", cosine.initial_state(jax.random.PRNGKey(0))[0], cosine)
     with np.load(path, allow_pickle=False) as data:
-        assert data["dark.format"] == 2 and "dark.times" not in data.files
+        assert data["dark.format"] == (5 if clock == 'anchored' else 2) and "dark.times" not in data.files
     assert load_for_continuation(path, cosine, sim).E is None
     different = base.replace(species=tuple(s.replace(n=64, x=None, v=None) for s in base.species))
     with pytest.raises(ValueError, match="populations"):
@@ -913,9 +914,10 @@ def test_mean_current_drives_both_fields():
                                rtol=0.02)
 
 
-def test_drive_phase_survives_native_restart(tmp_path):
+@pytest.mark.parametrize('clock', ['accumulated', 'anchored'])
+def test_drive_phase_survives_native_restart(tmp_path, clock):
     base = plasma(density=0.2 * N_REF)
-    sim = DarkSimulation(base, PrescribedDrive(0.1, jnp.array([1e-5, 0, 0]), OMEGA, 0.3))
+    sim = DarkSimulation(base, PrescribedDrive(0.1, jnp.array([1e-5, 0, 0]), OMEGA, 0.3), clock=clock)
     whole = sim.run(9)
     first = sim.run(4)
     restored = load_state(save_state(tmp_path / "drive", first.state, sim), sim)
@@ -1364,8 +1366,12 @@ def test_six_face_accepted_work_identity_and_transverse_gather(monkeypatch):
 
 
 @pytest.mark.parametrize('mode', ['cosine', 'waveform', 'field'])
-def test_six_face_restart_and_method_guards(tmp_path, mode):
+@pytest.mark.parametrize('clock', ['accumulated', 'anchored'])
+def test_six_face_restart_and_method_guards(tmp_path, mode, clock):
     sim, state, _ = six_face_fixture(field=mode == 'field')
+    if clock == 'anchored':
+        sim = sim.replace(clock=clock)
+        state = state.replace(clock_time=state.ordinary.time, clock_step=state.ordinary.steps)
     if mode == 'waveform':
         sim = sim.replace(dark=PrescribedDrive(sim.dark.eta, jnp.stack((sim.dark.amplitude, -sim.dark.amplitude)),
                                                0., times=jnp.array([0., .2 / OMEGA])))
@@ -1377,7 +1383,8 @@ def test_six_face_restart_and_method_guards(tmp_path, mode):
     jax.tree.map(lambda a, b: np.testing.assert_array_equal(a, b), whole.state, resumed.state)
     with np.load(path, allow_pickle=False) as data:
         saved = dict(data)
-    assert saved['dark.format'] == 4 and str(saved['dark.longitudinal_gather']) == 'six_face'
+    assert saved['dark.format'] == (5 if clock == 'anchored' else 4)
+    assert str(saved['dark.longitudinal_gather']) == 'six_face'
     for previous, following in ((sim, sim.replace(longitudinal_gather='average')),
                                 (sim.replace(longitudinal_gather='average'), sim)):
         native = state if previous.longitudinal_gather == 'average' else first.state
@@ -1443,7 +1450,181 @@ def test_six_face_homogeneous_density_force_frechet_derivative():
     np.testing.assert_allclose(objective(point), .5 * (y[0]**2 + y[1]**2 / rho), atol=2e-13, rtol=2e-10)
 
 
-def test_six_face_toml_cli_and_record(tmp_path):
+def anchored_cold(parameters):
+    """Fresh cold preparation; the nonzero origin is an input, not a legacy reset."""
+    electric, velocity, origin, dt, force, density = parameters
+    length = 2 * np.pi * c / OMEGA
+    x, _ = quiet_start(16, length)
+    populations = tuple(Species(name, 16, charge, ratio * mass_electron, density * N_REF, x=x,
+                                v=jnp.zeros_like(x).at[:, 0].set(velocity * c if charge < 0 else 0.))
+                        for name, charge, ratio in (('electron', -1, 1.), ('ion', 1, 1836.)))
+    p = Simulation(Domain(length, 8, time_step=dt / OMEGA), populations)
+    scale = mass_electron * c * OMEGA / e
+    sim = DarkSimulation(p, PrescribedDrive(1., jnp.array([force * scale, 0., 0.]), OMEGA), clock='anchored')
+    state, _ = sim.initial_state(jax.random.PRNGKey(0))
+    step = jnp.asarray(37, jnp.int32)
+    state = state.replace(ordinary=state.ordinary.replace(
+        E=state.ordinary.E.at[:, 0].add(electric * scale), time=origin / OMEGA, steps=step),
+        clock_time=origin / OMEGA, clock_step=step)
+    return sim, sim.continue_with_parameters(state)
+
+
+def anchored_cold_reference(parameters, steps):
+    """Independent cold affine map and all six Fréchet derivatives in fixed units."""
+    E0, v0, origin, dt, amplitude, density = map(float, parameters)
+    H, K = np.eye(3), np.eye(3)
+    H[0, 1:], K[1:, 0] = [dt * density / 2, -dt * density / 2], [-dt, dt / 1836]
+    kick = np.array([0., -dt, dt / 1836])
+    Hd, Hn, Kd = np.zeros((3, 3)), np.zeros((3, 3)), np.zeros((3, 3))
+    Hd[0, 1:], Hn[0, 1:], Kd[1:, 0] = [.5 * density, -.5 * density], [dt / 2, -dt / 2], [-1., 1 / 1836]
+    M, b = H @ K @ H, H @ kick
+    Md, Mn = Hd @ K @ H + H @ Kd @ H + H @ K @ Hd, Hn @ K @ H + H @ K @ Hn
+    bd, bn = Hd @ kick + H @ np.array([0., -1., 1 / 1836]), Hn @ kick
+    y, tangent, trace = np.array([E0, v0, 0.]), np.zeros((3, 6)), []
+    tangent[0, 0] = tangent[1, 1] = 1.
+    for index in range(steps):
+        phase = origin + (index + .5) * dt
+        force = amplitude * np.cos(phase)
+        derivative = np.array([0., 0., -amplitude * np.sin(phase),
+                               -(index + .5) * amplitude * np.sin(phase), np.cos(phase), 0.])
+        following = M @ tangent + b[:, None] * derivative
+        following[:, 3] += Md @ y + bd * force
+        following[:, 5] += Mn @ y + bn * force
+        y, tangent = M @ y + b * force, following
+        trace.append(y.copy())
+    value = .5 * (y[0]**2 + density * (y[1]**2 + 1836 * y[2]**2))
+    gradient = y[0] * tangent[0] + density * (y[1] * tangent[1] + 1836 * y[2] * tangent[2])
+    gradient[5] += .5 * (y[1]**2 + 1836 * y[2]**2)
+    return np.asarray(trace), value, gradient
+
+
+def test_anchored_clock_phase_energy_frechet_and_finite_difference():
+    point = np.array([.01, .02, .37, .04, .03, 1.1])
+
+    def objective(parameters):
+        sim, state = anchored_cold(parameters)
+        out = sim.run(16, state=state, store_particles=False)
+        return out.energy()['total'][-1] / (N_REF * mass_electron * c**2 * sim.plasma.domain.length)
+
+    sim, state = anchored_cold(jnp.asarray(point))
+    out = sim.run(16, state=state)
+    scale = mass_electron * c * OMEGA / e
+    velocity = np.asarray(out.ordinary.v[:, :, 0]) / c
+    actual = np.column_stack((np.mean(out.ordinary.E[:, :, 0], axis=1) / scale,
+                              velocity[:, :16].mean(axis=1), velocity[:, 16:].mean(axis=1)))
+    trace, value, gradient = anchored_cold_reference(point, 16)
+    np.testing.assert_allclose(actual, trace, atol=2e-13, rtol=0)
+    np.testing.assert_allclose(objective(point), value, atol=2e-13, rtol=0)
+    np.testing.assert_allclose(jax.grad(objective)(jnp.asarray(point)), gradient, atol=2e-12, rtol=2e-10)
+    compiled = jax.jit(objective)
+    errors = []
+    for delta in (1e-4, 2.5e-5, 6.25e-6):
+        finite = np.array([(float(compiled(point + delta * row)) - float(compiled(point - delta * row))) / (2 * delta)
+                           for row in np.eye(6)])
+        errors.append(np.max(abs(finite - gradient)))
+    assert errors[-1] < errors[0] / 100
+    np.testing.assert_allclose(finite, gradient, atol=2e-10, rtol=2e-7)
+    zero = point.copy()
+    zero[2] = 0.
+    np.testing.assert_allclose(objective(zero), anchored_cold_reference(zero, 16)[1], atol=2e-13, rtol=0)
+
+
+def test_anchored_clock_archive_guards_and_arbitrary_origin(tmp_path):
+    from darkjaxincell._simulation import _check_clock
+    sim, state = anchored_cold(jnp.array([.01, .02, .37, .04, .03, 1.1]))
+    first, whole = sim.run(3, state=state), sim.run(8, state=state)
+    path = save_state(tmp_path / 'clock', first.state, sim)
+    loaded = load_state(path, sim)
+    jax.tree.map(np.testing.assert_array_equal, loaded, first.state)
+    resumed = sim.run(5, state=loaded)
+    jax.tree.map(np.testing.assert_array_equal, resumed.state, whole.state)
+    for name in ('clock_time', 'clock_step', 'initial_ordinary', 'initial_dark', 'background'):
+        np.testing.assert_array_equal(getattr(resumed.state, name), getattr(state, name))
+    following = sim.replace(dark=sim.dark.replace(eta=.8))
+    jumped = load_for_continuation(path, sim, following)
+    assert float(jumped.work) == 0
+    np.testing.assert_array_equal(jumped.clock_time, state.clock_time)
+    np.testing.assert_array_equal(jumped.clock_step, state.clock_step)
+    legacy = sim.replace(clock='accumulated')
+    with pytest.raises(ValueError, match='clock'):
+        load_for_continuation(path, sim, legacy)
+    with pytest.raises(ValueError, match='clock'):
+        legacy.run(1, state=loaded)
+    bare = loaded.replace(clock_time=None, clock_step=None)
+    for operation in (lambda: sim.run(1, state=bare), lambda: sim._step(bare, sim.plasma.per_particle),
+                      lambda: sim.continue_with_parameters(bare), lambda: save_state(path, bare, sim)):
+        with pytest.raises(ValueError, match='clock_time'):
+            operation()
+    with pytest.raises(ValueError, match='clock must'):
+        sim.replace(clock='reset')
+    with np.load(path, allow_pickle=False) as data:
+        saved = dict(data)
+    assert saved['dark.format'] == 5 and str(saved['dark.clock']) == 'anchored'
+    changes = [('dark.clock', None), ('dark.clock', np.asarray('accumulated')), ('dark.format', np.asarray(2)),
+               ('dark.clock_time', None), ('dark.clock_step', None), ('dark.clock_time', np.asarray([0.])),
+               ('dark.clock_time', np.asarray(np.inf)), ('dark.clock_time', np.asarray(1j)),
+               ('dark.clock_step', np.asarray(37.)), ('dark.clock_step', np.asarray(True)),
+               ('dark.clock_step', np.asarray(-1)), ('dark.clock_step', np.asarray(41)),
+               ('dark.clock_time', np.asarray(.5 / OMEGA))]
+    for key, value in changes:
+        broken = {name: array for name, array in saved.items() if name != key}
+        if value is not None:
+            broken[key] = value
+        np.savez(tmp_path / 'broken.npz', **broken)
+        with pytest.raises(ValueError, match='clock|anchored|dark.format'):
+            load_state(tmp_path / 'broken.npz', sim)
+    # Spoofing a legacy format cannot smuggle anchors into an accumulated run.
+    np.savez(tmp_path / 'broken.npz', **{**saved, 'dark.format': np.asarray(2)})
+    with pytest.raises(ValueError, match='clock'):
+        load_state(tmp_path / 'broken.npz', legacy)
+    # A timestamp within representation roundoff is readable; a physical shift is not.
+    near = loaded.replace(ordinary=loaded.ordinary.replace(time=jnp.nextafter(loaded.ordinary.time, jnp.inf)))
+    _check_clock(near, sim)
+
+
+def test_anchored_clock_scalar_long_count_and_closed_nonclock_equivalence(tmp_path):
+    from decimal import Decimal, localcontext
+    from darkjaxincell._simulation import _check_clock
+    sim, state, _ = six_face_fixture(field=True)
+    angle = jnp.arange(8) * 2 * jnp.pi / 8
+    scale = mass_electron * c * OMEGA / e
+    model = sim.dark.replace(initial_E=jnp.tile(jnp.array([.03, .02, -.01]) * scale, (8, 1)),
+                             initial_A=jnp.stack((.004 * jnp.cos(angle), .003 * jnp.sin(angle),
+                                                  .002 * jnp.cos(angle)), axis=1) * scale / OMEGA)
+    sim = sim.replace(dark=model)
+    state, _ = sim.initial_state(jax.random.PRNGKey(0))
+    state = state.replace(ordinary=state.ordinary.replace(time=.37 / OMEGA, steps=jnp.asarray(9, jnp.int32)),
+                          max_ordinary_gauss=jnp.asarray(1e-12 * e * N_REF / epsilon_0),
+                          max_dark_gauss=jnp.asarray(2e-12 * e * N_REF / epsilon_0))
+    anchored = sim.replace(clock='anchored')
+    initial = state.replace(clock_time=state.ordinary.time, clock_step=state.ordinary.steps)
+    whole, native = anchored.run(8, state=initial).state, sim.run(8, state=state).state
+    nonclock = whole.replace(ordinary=whole.ordinary.replace(time=native.ordinary.time),
+                             clock_time=None, clock_step=None)
+    jax.tree.map(np.testing.assert_array_equal, nonclock, native)
+    half = anchored.run(4, state=initial).state
+    resumed = anchored.run(4, state=load_state(save_state(tmp_path / 'closed', half, anchored), anchored)).state
+    jax.tree.map(np.testing.assert_array_equal, resumed, whole)
+    for name in ('max_balance_error', 'max_ordinary_gauss', 'max_dark_gauss'):
+        assert float(getattr(whole, name)) >= float(getattr(initial, name))
+    assert float(whole.max_dark_gauss) * epsilon_0 / (e * N_REF) > 2e-13
+    dt, count = .0025 / OMEGA, 400000
+    naive = 0.
+    for _ in range(count):
+        naive += dt
+    expected = count * dt
+    with localcontext() as context:
+        context.prec = 70
+        exact = Decimal.from_float(dt) * count
+        assert abs(Decimal.from_float(expected) - exact) * Decimal(OMEGA) < Decimal('1e-9')
+        assert abs(Decimal.from_float(naive) - exact) * Decimal(OMEGA) > Decimal('1e-9')
+    long = initial.replace(clock_time=jnp.asarray(0.), clock_step=jnp.asarray(0, jnp.int32),
+                           ordinary=initial.ordinary.replace(time=jnp.asarray(expected), steps=jnp.asarray(count)))
+    _check_clock(long, anchored.replace(plasma=sim.plasma.replace(domain=sim.plasma.domain.replace(time_step=dt))))
+
+
+@pytest.mark.parametrize('clock', ['accumulated', 'anchored'])
+def test_six_face_toml_cli_and_record(tmp_path, clock):
     source = tmp_path / 'optional.toml'
     source.write_text('''[domain]
 length = 1.0
@@ -1466,13 +1647,19 @@ eta = 0.1
 amplitude = [1e-5, 0.0, 0.0]
 longitudinal_gather = "six_face"
 ''')
+    source.write_text(source.read_text() + f'clock = "{clock}"\n')
     sim, _ = load_toml(source)
     assert sim.longitudinal_gather == 'six_face'
+    assert sim.clock == clock
     assert load_toml(source, longitudinal_gather='average')[0].longitudinal_gather == 'average'
+    opposite = 'anchored' if clock == 'accumulated' else 'accumulated'
+    assert load_toml(source, clock=opposite)[0].clock == opposite
     target = tmp_path / 'cli'
-    assert main([str(source), '--longitudinal-gather', 'six_face', '--save', str(target)]) == 0
+    assert main([str(source), '--longitudinal-gather', 'six_face', '--clock', clock, '--save', str(target)]) == 0
     record = json.loads((target / 'run.json').read_text())
     assert record['settings']['longitudinal_gather'] == 'six_face'
+    assert record['settings'].get('clock', 'accumulated') == clock
+    assert ('clock' in record['settings']) == (clock != 'accumulated')
     loaded = load_state(target / 'restart.npz', sim)
     assert int(loaded.ordinary.steps) == 2
 

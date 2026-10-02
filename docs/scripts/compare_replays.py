@@ -192,10 +192,11 @@ def _controls(records, data, variant, tolerance):
     settings = [record['settings'] for record in records]
     if any('continuation' in setting for setting in settings):
         raise ValueError('mixed-producer continuation requires a separate lineage audit')
-    controls = [{'shape_order': 2, 'XLA_FLAGS': '', 'longitudinal_gather': 'average', **row} for row in settings]
+    controls = [{'shape_order': 2, 'XLA_FLAGS': '', 'longitudinal_gather': 'average',
+                 'clock': 'accumulated', **row} for row in settings]
     allowed = (VARIANTS[variant] if variant == 'resolution'
                else (VARIANTS[variant], 'shape_order' if variant == 'shape' else None))
-    for key in (*PARAMETERS, 'shape_order', 'XLA_FLAGS', 'longitudinal_gather'):
+    for key in (*PARAMETERS, 'shape_order', 'XLA_FLAGS', 'longitudinal_gather', 'clock'):
         if key not in allowed and controls[0][key] != controls[1][key]:
             raise ValueError(f'controlled comparisons must share {key}')
     for key in ('momentum_seed_over_sigma_e', 'seed_mode', 'seed_phase'):
@@ -460,7 +461,9 @@ def _continuation_state_checks(states, record, data):
     method = setting.get('longitudinal_gather', 'average')
     formats = {'average': 2, 'six_face': 4}
     for state, index in zip(states, (0, -1)):
-        if (method not in formats or int(state['format']) != 2 or int(state['dark.format']) != formats[method]
+        _continuation_clock_anchors(state, setting)
+        expected_format = 5 if setting.get('clock', 'accumulated') == 'anchored' else formats.get(method)
+        if (method not in formats or int(state['format']) != 2 or int(state['dark.format']) != expected_format
                 or str(state.get('dark.longitudinal_gather', 'average')) != method
                 or (method == 'six_face' and int(state['shape_order']) != 5)
                 or str(state['algorithm']) != 'explicit' or str(state['dark.mode']) != 'drive'
@@ -506,13 +509,36 @@ def _continuation_state_checks(states, record, data):
     _continuation_clock(final, setting, data)
 
 
+def _continuation_clock_anchors(state, setting):
+    """Paper continuations retain their zero-time origin and recorded clock scheme."""
+    scheme = setting.get('clock', 'accumulated')
+    names = ('dark.clock_time', 'dark.clock_step')
+    if scheme == 'accumulated':
+        if any(key in state for key in ('dark.clock', *names)):
+            raise ValueError('accumulated continuation cannot contain clock anchors')
+    elif scheme == 'anchored':
+        if str(state.get('dark.clock')) != scheme:
+            raise ValueError('continuation clock scheme disagrees with archive')
+        for name, kind in zip(names, (np.floating, np.integer)):
+            value = state.get(name)
+            if (value is None or value.shape != () or not np.issubdtype(value.dtype, kind)
+                    or not np.isfinite(value) or value != 0):
+                raise ValueError('paper continuation clock anchors must retain the scalar zero origin')
+    else:
+        raise ValueError('unsupported continuation clock')
+
+
 def _continuation_clock(final, setting, data):
     stride = round(setting['output_dt_omega_p'] / setting['dt_omega_p'])
     if (stride < 1 or not np.issubdtype(final['steps'].dtype, np.integer) or int(final['steps']) <= 0
             or type(setting['block_steps']) is not int or setting['block_steps'] < 1
             or setting['block_steps'] % stride or int(final['steps']) % setting['block_steps']):
         raise ValueError('continuation needs complete integer blocks and native sampling')
-    ticks = _accepted_ticks(float(final['dark.dt']), int(final['steps']), stride)
+    if setting.get('clock', 'accumulated') == 'anchored':
+        steps = np.arange(0, int(final['steps']) + 1, stride)
+        ticks = float(final['dark.clock_time']) + (steps - int(final['dark.clock_step'])) * float(final['dark.dt'])
+    else:
+        ticks = _accepted_ticks(float(final['dark.dt']), int(final['steps']), stride)
     if (not np.array_equal(data['t'], ticks * setting['normalization']['omega_p_rad_s'])
             or float(final['time']) != ticks[-1]):
         raise ValueError('continuation accepted clocks disagree')
@@ -561,8 +587,9 @@ def _continuation_source(old, record, transitions, tolerance):
                 'block_horizon_omega_p', 'local_moments_output_dt_omega_p', 'local_spread_lengths_c_over_wp')
     if any(key not in row for row in (old['settings'], setting) for key in required):
         raise ValueError('continuation requires the complete native protocol and units')
-    if setting.get('longitudinal_gather', 'average') != old['settings'].get('longitudinal_gather', 'average'):
-        raise ValueError('continuation changed physical longitudinal_gather')
+    if (setting.get('longitudinal_gather', 'average') != old['settings'].get('longitudinal_gather', 'average')
+            or setting.get('clock', 'accumulated') != old['settings'].get('clock', 'accumulated')):
+        raise ValueError('continuation changed longitudinal_gather or clock')
     for key in (*PARAMETERS, 'shape_order', 'XLA_FLAGS', 'recorded_mode', 'momentum_seed_over_sigma_e',
                 'seed_mode', 'seed_phase'):
         if setting.get(key) != old['settings'].get(key):

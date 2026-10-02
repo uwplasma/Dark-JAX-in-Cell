@@ -279,7 +279,8 @@ def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path, study)
 
 
 @pytest.mark.parametrize('method', ['average', 'six_face'])
-def test_paper_optional_gather_dispatch_settings_and_restart(tmp_path, method):
+@pytest.mark.parametrize('clock', ['accumulated', 'anchored'])
+def test_paper_optional_gather_dispatch_settings_and_restart(tmp_path, method, clock):
     """The named paper control reaches the native method and complete restart."""
     import ast
     from contextlib import nullcontext
@@ -289,27 +290,42 @@ def test_paper_optional_gather_dispatch_settings_and_restart(tmp_path, method):
 
     calls = []
     namespace = {**vars(example), '__name__': '__main__', 'study': 'paper',
-                 'longitudinal_gather': method, 'elapsed_progress': lambda *args: nullcontext(),
+                 'longitudinal_gather': method, 'clock': clock, 'elapsed_progress': lambda *args: nullcontext(),
                  'paper_case': lambda *args, **kwargs: calls.append(kwargs)}
     dispatch = ast.parse(Path(example.__file__).read_text()).body[-1]
     exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
-    assert calls == [{'longitudinal_gather': method}]
+    assert calls == [{'longitudinal_gather': method, 'clock': clock}]
     history, settings, _ = example.paper_case(tmp_path, 8, 32, .25, .5, 0, .03,
-                                              shape_order=5, longitudinal_gather=method)
+                                              shape_order=5, longitudinal_gather=method, clock=clock)
     assert settings.get('longitudinal_gather', 'average') == method
     assert ('longitudinal_gather' in settings) == (method != 'average')
+    assert settings.get('clock', 'accumulated') == clock
+    assert ('clock' in settings) == (clock != 'accumulated')
     plasma, wp = example.paper_plasma(8, 32, .25, 0, shape_order=5)
     field = .03 * np.sqrt(.001) * example.mass_electron * example.c * wp / example.e
     sim = example.DarkSimulation(plasma, example.PrescribedDrive(1., example.jnp.array([field, 0., 0.]), wp),
-                                 longitudinal_gather=method)
+                                 longitudinal_gather=method, clock=clock)
     restored = load_state(tmp_path / 'final_state.npz', sim)
     assert int(restored.ordinary.steps) == 2 and history['t'][-1] == pytest.approx(.5)
     origin = load_state(tmp_path / 'initial_state.npz', sim)
+    shifted = origin.replace(ordinary=origin.ordinary.replace(steps=example.jnp.asarray(1, example.jnp.int32)))
+    if clock == 'anchored':
+        shifted = shifted.replace(clock_step=shifted.ordinary.steps)
+    path = tmp_path / 'nonzero_step.npz'
+    example.save_compressed_state(path, shifted, sim)
+    with pytest.raises(ValueError, match='zero clock origin'):
+        example.paper_initial(sim, 0, path)
+    if clock == 'anchored':
+        shifted = shifted.replace(clock_time=-sim.plasma.domain.dt, clock_step=example.jnp.asarray(0))
+        example.save_compressed_state(path, shifted, sim)
+        with pytest.raises(ValueError, match='zero clock origin'):
+            example.paper_initial(sim, 0, path)
     full, _, maximum, *_ = example.paper_run(sim, origin, 4, 2, .5, wp, None, tmp_path / 'whole')
     example.save_compressed_state(tmp_path / 'whole' / 'final_state.npz', full, sim)
     joined, continued_settings, result = example.paper_continue(
         tmp_path / 'continued', tmp_path / 'final_state.npz', 1.)
     assert continued_settings.get('longitudinal_gather', 'average') == method
+    assert continued_settings.get('clock', 'accumulated') == clock
     np.testing.assert_array_equal(joined['t'][:len(history['t'])], history['t'])
     np.testing.assert_array_equal(result['all_step_maxima_SI'], np.maximum(
         np.asarray(maximum), result['reconstructed_prior_maxima_SI']))
@@ -321,19 +337,25 @@ def test_paper_optional_gather_dispatch_settings_and_restart(tmp_path, method):
     with pytest.raises(ValueError, match='cannot change longitudinal_gather'):
         example.paper_continue(tmp_path / 'wrong', tmp_path / 'final_state.npz', 1.,
                                longitudinal_gather='six_face' if method == 'average' else 'average')
+    with pytest.raises(ValueError, match='cannot change clock'):
+        example.paper_continue(tmp_path / 'wrong_clock', tmp_path / 'final_state.npz', 1.,
+                               clock='anchored' if clock == 'accumulated' else 'accumulated')
     if method != 'average':
         with pytest.raises(ValueError, match='longitudinal_gather'):
             load_state(tmp_path / 'final_state.npz', sim.replace(longitudinal_gather='average'))
     calls.clear()
     namespace.update(study='paper_continue', paper_continue=lambda *args, **kwargs: calls.append(kwargs))
     exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
-    assert calls == [{'longitudinal_gather': method}]
+    assert calls == [{'longitudinal_gather': method, 'clock': clock}]
     calls.clear()
-    namespace.update(study='paper', longitudinal_gather=None)
+    namespace.update(study='paper', longitudinal_gather=None, clock=None)
     exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
     assert calls == [{'longitudinal_gather': 'average'}]
     namespace.update(study='pair', longitudinal_gather='six_face')
     with pytest.raises(ValueError, match='only by study=paper'):
+        exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
+    namespace.update(longitudinal_gather=None, clock='anchored')
+    with pytest.raises(ValueError, match='clock is supported only by study=paper'):
         exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
 
 

@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from jaxincell import load_state as load_ordinary_state
 from jaxincell import save_state as save_ordinary_state
 
-from ._simulation import DarkField, DarkState
+from ._simulation import DarkField, DarkState, _check_clock
 
 FORMAT = 2
 
@@ -36,18 +36,21 @@ def _model_metadata(simulation):
     if getattr(simulation, "longitudinal_gather", "average") != "average":
         data.update({"dark.format": np.asarray(4),
                      "dark.longitudinal_gather": np.asarray(simulation.longitudinal_gather)})
+    if getattr(simulation, "clock", "accumulated") != "accumulated":
+        data.update({"dark.format": np.asarray(5), "dark.clock": np.asarray(simulation.clock)})
     return data
 
 
 def save_state(path, state, simulation):
     """Save particles, fields, potentials, background, clock and work in one NPZ."""
+    _check_clock(state, simulation)
     path = save_ordinary_state(path, state.ordinary, simulation.plasma)
     with np.load(path, allow_pickle=False) as ordinary:
         arrays = {name: ordinary[name] for name in ordinary.files}
     arrays.update(_model_metadata(simulation))
     for name in ("E", "B", "A", "phi", "background", "work", "initial_ordinary",
                  "initial_dark", "initial_projection_norm", "max_balance_error",
-                 "max_ordinary_gauss", "max_dark_gauss"):
+                 "max_ordinary_gauss", "max_dark_gauss", "clock_time", "clock_step"):
         value = getattr(state, name)
         if value is not None:
             arrays[f"dark.{name}"] = np.asarray(value)
@@ -55,11 +58,20 @@ def save_state(path, state, simulation):
     return path
 
 
+def _clock_anchors(data, simulation):
+    if getattr(simulation, "clock", "accumulated") == "accumulated" and any(
+            f"dark.{name}" in data for name in ("clock", "clock_time", "clock_step")):
+        raise ValueError("archive clock does not match accumulated simulation")
+    return {name: data[f"dark.{name}"] if f"dark.{name}" in data else None
+            for name in ("clock_time", "clock_step")}
+
+
 def load_state(path, simulation):
     """Restore only an identical physical experiment and complete diagnostic state."""
     ordinary = load_ordinary_state(path, simulation.plasma)
     with np.load(path, allow_pickle=False) as data:
         expected = _model_metadata(simulation)
+        anchors = _clock_anchors(data, simulation)
         if ("dark.longitudinal_gather" in data and not np.array_equal(
                 data["dark.longitudinal_gather"], getattr(simulation, "longitudinal_gather", "average"))):
             raise ValueError("archive dark.longitudinal_gather does not match this simulation")
@@ -71,6 +83,7 @@ def load_state(path, simulation):
                  "max_ordinary_gauss", "max_dark_gauss")
         values = [jnp.asarray(data[f"dark.{name}"]) if f"dark.{name}" in data else None
                   for name in names]
+        _check_clock(DarkState(ordinary, *values, **anchors), simulation)
         mode = str(expected["dark.mode"])
     for name, value in zip(names, values):
         if value is None and (mode == "field" or name not in names[:4]):
@@ -83,7 +96,8 @@ def load_state(path, simulation):
     for name, value in zip(names[4:], values[4:]):
         if value.shape != ():
             raise ValueError(f"archive dark.{name} must be scalar")
-    return DarkState(ordinary, *values)
+    anchors = {name: jnp.asarray(value) if value is not None else None for name, value in anchors.items()}
+    return DarkState(ordinary, *values, **anchors)
 
 
 def load_for_continuation(path, previous, following):
@@ -95,6 +109,8 @@ def load_for_continuation(path, previous, following):
         raise ValueError("continuation changes particle populations or shape_order")
     if getattr(previous, "longitudinal_gather", "average") != getattr(following, "longitudinal_gather", "average"):
         raise ValueError("continuation changes longitudinal_gather")
+    if getattr(previous, "clock", "accumulated") != getattr(following, "clock", "accumulated"):
+        raise ValueError("continuation changes clock")
     allowed = {"dark.omega", "dark.eta", "dark.amplitude", "dark.phase", "dark.times", "dark.format"}
     for key in sorted(old.keys() | new.keys()):
         if key not in allowed and (key not in old or key not in new

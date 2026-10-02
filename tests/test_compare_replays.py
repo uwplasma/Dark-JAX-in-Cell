@@ -84,9 +84,10 @@ def test_physical_seed_changes_cannot_be_hidden_in_a_resolution_comparison(recor
 
 
 @pytest.mark.parametrize('variant', ['repeat', 'dt', 'mesh', 'loading', 'seed', 'shape', 'resolution'])
-def test_gather_changes_cannot_be_hidden_in_a_resolution_comparison(records, variant):
-    change_settings(records[1], longitudinal_gather='six_face')
-    with pytest.raises(ValueError, match='longitudinal_gather'):
+@pytest.mark.parametrize('change', [dict(longitudinal_gather='six_face'), dict(clock='anchored')])
+def test_method_changes_cannot_be_hidden_in_a_resolution_comparison(records, variant, change):
+    change_settings(records[1], **change)
+    with pytest.raises(ValueError, match=next(iter(change))):
         compare_replays(*records, variant=variant, windows=((0, 1),))
 
 
@@ -260,7 +261,7 @@ def test_continuation_preserves_producers_raw_windows_and_global_bounds(continue
 
 @pytest.mark.parametrize('corrupt', ['prefix', 'origin', 'boundary', 'endpoint', 'units', 'join', 'lineage',
                                      'source', 'runtime', 'phase', 'maximum', 'clock', 'background',
-                                     'initial_energy', 'qm', 'x64', 'prior', 'script_hash', 'gather'])
+                                     'initial_energy', 'qm', 'x64', 'prior', 'script_hash', 'gather', 'clock_scheme'])
 def test_continuation_rejects_corrupt_native_lineage(continued_records, corrupt):
     from docs.scripts.compare_replays import compare_continuations
     folders, donors, transitions = continued_records
@@ -295,6 +296,8 @@ def test_continuation_rejects_corrupt_native_lineage(continued_records, corrupt)
             record['settings']['continuation']['producer_script_sha256'] = 'unverified'
         elif corrupt == 'gather':
             record['settings']['longitudinal_gather'] = 'six_face'
+        elif corrupt == 'clock_scheme':
+            record['settings']['clock'] = 'anchored'
         else:
             record['git' if corrupt == 'source' else 'jax'] = '9' * 40
         path.write_text(json.dumps(record))
@@ -302,14 +305,19 @@ def test_continuation_rejects_corrupt_native_lineage(continued_records, corrupt)
         compare_continuations(*folders, donors, transitions)
 
 
-def test_continuation_optional_gather_format_matches_record_and_archive(continued_records):
+@pytest.mark.parametrize('clock', ['accumulated', 'anchored'])
+def test_continuation_optional_gather_format_matches_record_and_archive(continued_records, clock):
     from docs.scripts.compare_replays import _archive, _continuation_state_checks, _load
     folder = continued_records[0][0]
     record, data, _, _ = _load(folder, 1e-5)
     record['settings']['longitudinal_gather'] = 'six_face'
+    record['settings']['clock'] = clock
     states = [_archive(folder / name) for name in ('initial_state.npz', 'final_state.npz')]
     for state in states:
         state.update({'dark.format': np.asarray(4), 'dark.longitudinal_gather': np.asarray('six_face')})
+        if clock == 'anchored':
+            state.update({'dark.format': np.asarray(5), 'dark.clock': np.asarray(clock),
+                          'dark.clock_time': np.asarray(0.), 'dark.clock_step': np.asarray(0, dtype=np.int32)})
     _continuation_state_checks(states, record, data)
     for key, value in (('dark.format', np.asarray(2)), ('dark.longitudinal_gather', np.asarray('average')),
                        ('dark.longitudinal_gather', None), ('shape_order', np.asarray(2))):
@@ -322,6 +330,45 @@ def test_continuation_optional_gather_format_matches_record_and_archive(continue
     record['settings']['longitudinal_gather'] = 'unknown'
     with pytest.raises(ValueError, match='longitudinal_gather'):
         _continuation_state_checks(states, record, data)
+
+
+def test_continuation_anchored_clock_metadata_and_exact_ticks(continued_records):
+    from docs.scripts.compare_replays import (_archive, _continuation_clock, _continuation_clock_anchors,
+                                              _continuation_state_checks, _load)
+    folder = continued_records[0][0]
+    record, data, _, _ = _load(folder, 1e-5)
+    setting = {**record['settings'], 'clock': 'anchored'}
+    states = [_archive(folder / name) for name in ('initial_state.npz', 'final_state.npz')]
+    for state in states:
+        state.update({'dark.format': np.asarray(5), 'dark.clock': np.asarray('anchored'),
+                      'dark.clock_time': np.asarray(0.), 'dark.clock_step': np.asarray(0, dtype=np.int32)})
+    _continuation_state_checks(states, {**record, 'settings': setting}, data)
+    for key, value in (('dark.clock', None), ('dark.clock', np.asarray('accumulated')),
+                       ('dark.clock_time', None), ('dark.clock_step', None),
+                       ('dark.clock_time', np.asarray([0.])), ('dark.clock_time', np.asarray(np.inf)),
+                       ('dark.clock_time', np.asarray(1.)), ('dark.clock_step', np.asarray(0.)),
+                       ('dark.clock_step', np.asarray(True)), ('dark.clock_step', np.asarray(1))):
+        broken = {name: array for name, array in states[-1].items() if name != key}
+        if value is not None:
+            broken[key] = value
+        with pytest.raises(ValueError, match='clock'):
+            _continuation_clock_anchors(broken, setting)
+    for scheme in ('accumulated', 'unknown'):
+        with pytest.raises(ValueError, match='clock'):
+            _continuation_clock_anchors(states[-1], {**setting, 'clock': scheme})
+    # Non-dyadic native steps expose repeated-addition error without any dynamics.
+    dt, count, stride = .0025, 400000, 200
+    state = {**states[-1], 'dark.dt': np.asarray(dt), 'steps': np.asarray(count), 'time': np.asarray(count * dt)}
+    setting = {**setting, 'dt_omega_p': dt, 'output_dt_omega_p': stride * dt, 'block_steps': 40000,
+               'normalization': {'omega_p_rad_s': 1.}}
+    ticks = np.arange(0, count + 1, stride) * dt
+    _continuation_clock(state, setting, {'t': ticks})
+    corrupted = ticks.copy()
+    corrupted[-1] = np.nextafter(corrupted[-1], np.inf)
+    with pytest.raises(ValueError, match='accepted clocks'):
+        _continuation_clock(state, setting, {'t': corrupted})
+    with pytest.raises(ValueError, match='accepted clocks'):
+        _continuation_clock(state, {**setting, 'clock': 'accumulated'}, {'t': ticks})
 
 
 def test_continuation_keeps_exact_join_with_reported_recompiled_boundary_roundoff(continued_records):
