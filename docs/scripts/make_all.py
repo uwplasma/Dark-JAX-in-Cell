@@ -269,11 +269,13 @@ for label, timing in sampling_record['results']['timing'].items():
         measured[f'pair_sampling_{label}_{key}'] = f'{timing[key]:.3f}'
 pair_long = EVIDENCE.parent / 'pair_waveform_long'
 pair_long_native = ROOT / 'artifacts' / 'pair_waveform_controls' / 'late_global_8192_128'
-run_example('examples/dark_reservoir.py', study='pair_waveform', cells=8192, particles_per_cell=128,
-            dt=.003125, horizon=170., block_horizon=10., local_moments=True, pair_loading='global',
-            eta=.5, dark_mass=1., force=.05, velocity_seed=2e-4, quadrature=64, table_dt=.00625,
-            scalar_dt=.2, output_dt=.2, linear_end=20., output=pair_long_native)
-run_example('docs/scripts/compare_replays.py', pair_controls=(pair_long_native,), destination=pair_long)
+pair_long_half = pair_long_native.with_name('late_global_8192_128_halfdt')
+for folder, dt in ((pair_long_native, .003125), (pair_long_half, .0015625)):
+    run_example('examples/dark_reservoir.py', study='pair_waveform', cells=8192, particles_per_cell=128,
+                dt=dt, horizon=170., block_horizon=10., local_moments=True, pair_loading='global',
+                eta=.5, dark_mass=1., force=.05, velocity_seed=2e-4, quadrature=64, table_dt=.00625,
+                scalar_dt=.2, output_dt=.2, linear_end=20., output=folder)
+run_example('docs/scripts/compare_replays.py', pair_controls=(pair_long_native, pair_long_half), destination=pair_long)
 long_result = json.loads((pair_long / 'run.json').read_text())['results']
 long_late = long_result['late'][0]
 for key in ('additional_dark_depletion_gain_mean', 'total_dark_fraction_mean', 'coherent_dark_fraction_mean',
@@ -296,6 +298,27 @@ for kind in ('realized', 'homogeneous'):
     comparison = long_window['comparisons'][f'{kind}_coarse_vs_{kind}_fine']
     for key in ('mode_E', 'electric', 'nonzero_electric'):
         measured[f'pair_long_{kind}_{key}_table_l2_percent'] = f"{100 * comparison[key]['relative_l2_difference']:.3f}"
+half_late = long_result['late'][1]
+half_comparison = long_result['controlled_pairs'][0]
+for label, comparison in half_comparison['branches'].items():
+    mode_error = comparison['observables']['mode_E']['relative_l2_difference']
+    measured[f'pair_half_{label}_mode_percent'] = f'{100 * mode_error:.2f}'
+    work = [row['native_reductions'][label]['work_increment'] for row in (long_late, half_late)]
+    measured[f'pair_half_{label}_work_change_percent'] = f'{100 * (work[1] - work[0]) / abs(work[0]):+.3f}'
+    defects = [max(row['conservation'][label]['native_all_step_maxima'][key] for key in (
+        'energy_work_over_energy_scale', 'ordinary_sector_work_over_energy_scale',
+        'dark_sector_work_over_energy_scale'))
+        for row in (long_late, half_late)]
+    measured[f'pair_half_{label}_ledger_over_work_difference'] = f'{sum(defects) / abs(work[1] - work[0]):.4f}'
+for key, value in half_late['conservation']['coupled']['native_all_step_maxima'].items():
+    measured[f'pair_half_{key}'] = f'{value:.3e}'
+for key in ('additional_dark_depletion_gain_mean', 'total_dark_fraction_mean', 'coherent_dark_fraction_mean',
+            'nonzero_dark_fraction_mean'):
+    measured[f'pair_half_{key}_percent'] = f"{100 * half_late['native_reductions']['coupled'][key]:.3f}"
+gain = half_comparison['raw_window_mean_differences']['additional_dark_depletion_gain_mean']
+measured['pair_half_gain_change_percent'] = f"{100 * (gain['comparison_mean'] / gain['reference_mean'] - 1):+.5f}"
+measured['pair_half_defect_over_gain_percent'] = (
+    f"{100 * half_late['conservation']['coupled']['maximum_energy_sector_defect_over_depletion_gain']:.4f}")
 pair_repeat_native = ROOT / 'artifacts' / 'pair_execution_repeat' / 'late_realized_fine'
 pair_repeat_file = pair_long / 'execution_repeat.json'
 run_example('examples/dark_reservoir.py', study='pair_repeat', samples=2, observe_executable=True,

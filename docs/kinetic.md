@@ -265,9 +265,9 @@ The [comparison record](_static/figures/pair_waveform_controls/run.json) retains
 
 The long baseline uses 8,192 cells and 1,048,576 particles per species through $\omega_0t=170$, with $\Delta t\omega_0=0.003125$, $10/\omega_0$ compiled blocks and $0.2/\omega_0$ scalar cadence. It retains the physical box, velocity distribution, seed, coupling and mass defined above. The global quantile loading avoids repeating a small velocity ring in every cell.
 
-![Long globally loaded dark reservoir and independent warm-envelope comparison](_static/figures/pair_waveform_long/figure.png)
+![Two timesteps in the long globally loaded dark reservoir and independent warm-envelope comparison](_static/figures/pair_waveform_long/figure.png)
 
-[Simulation script](../examples/dark_reservoir.py) · `study='pair_waveform', cells=8192, particles_per_cell=128, dt=.003125, horizon=170, block_horizon=10, local_moments=True, pair_loading='global', scalar_dt=.2, output_dt=.2, table_dt=.00625`; [comparison and plot](scripts/compare_replays.py) · `pair_controls=(folder,)` ([complete inputs](scripts/make_all.py)).
+[Simulation script](../examples/dark_reservoir.py) · `study='pair_waveform', cells=8192, particles_per_cell=128, dt=.003125, horizon=170, block_horizon=10, local_moments=True, pair_loading='global', scalar_dt=.2, output_dt=.2, table_dt=.00625`; repeat with `dt=.0015625`; [comparison and plot](scripts/compare_replays.py) · `pair_controls=(baseline, halfstep)` ([complete inputs](scripts/make_all.py)).
 
 The early complex ordinary mode agrees with independent Vlasov–Proca theory within **{{ pair_long_coupled_linear_percent }}%** in relative $L^2$ on $0\leq\omega_0t\leq20$. The homogeneous-force companion agrees with its separate spatial theory within **{{ pair_long_homogeneous_fine_linear_percent }}%**. These compare seeded linear responses, rather than reproducing a published nonlinear dark-reservoir curve; [Cruz *et al.*](https://arxiv.org/pdf/2104.04490v1) establish the underlying ordinary pair instability.
 
@@ -283,23 +283,43 @@ The inclusive $150\leq\omega_0t\leq170$ window has 101 native samples. Total dar
 
 Here $U_\star=n_{\rm tot}m_ec^2L$, with $n_{\rm tot}$ the sum of both species' number densities, and $U_D(0)=0.005U_\star$. Prescribed companions have external-work budgets; their injected work can exceed the initial finite reservoir. A coupled-versus-prescribed difference includes the changed spatial force and reservoir response, and is not by itself a new nonlinear mechanism.
 
-| Coupled all-step maximum | Normalized value |
-|---|---:|
-| Total energy/work defect / $U_\star$ | {{ pair_long_energy_work_over_energy_scale }} |
-| Dark-sector work defect / $U_\star$ | {{ pair_long_dark_sector_work_over_energy_scale }} |
-| Ordinary-sector work defect / $U_\star$ | {{ pair_long_ordinary_sector_work_over_energy_scale }} |
-| Momentum change / $(U_\star/c)$ | {{ pair_long_momentum_over_energy_scale_over_c }} |
-| Particle charge change / $(en_{\rm tot}L)$ | {{ pair_long_charge_over_enL }} |
-| Grid charge change / $(en_{\rm tot}L)$ | {{ pair_long_grid_charge_over_enL }} |
-| Continuity residual / $(en_{\rm tot}\omega_0)$ | {{ pair_long_continuity_over_enomega0 }} |
-| Ordinary Gauss residual / $(en_{\rm tot}/\epsilon_0)$ | {{ pair_long_ordinary_gauss_over_en_eps0 }} |
-| Dark Gauss residual / $(en_{\rm tot}/\epsilon_0)$ | {{ pair_long_dark_gauss_over_en_eps0 }} |
+| Coupled all-step maximum | $\Delta t\omega_0=.003125$ | $.0015625$ |
+|---|---:|---:|
+| Total energy/work defect / $U_\star$ | {{ pair_long_energy_work_over_energy_scale }} | {{ pair_half_energy_work_over_energy_scale }} |
+| Dark-sector work defect / $U_\star$ | {{ pair_long_dark_sector_work_over_energy_scale }} | {{ pair_half_dark_sector_work_over_energy_scale }} |
+| Ordinary-sector work defect / $U_\star$ | {{ pair_long_ordinary_sector_work_over_energy_scale }} | {{ pair_half_ordinary_sector_work_over_energy_scale }} |
+| Momentum change / $(U_\star/c)$ | {{ pair_long_momentum_over_energy_scale_over_c }} | {{ pair_half_momentum_over_energy_scale_over_c }} |
+| Particle charge change / $(en_{\rm tot}L)$ | {{ pair_long_charge_over_enL }} | {{ pair_half_charge_over_enL }} |
+| Grid charge change / $(en_{\rm tot}L)$ | {{ pair_long_grid_charge_over_enL }} | {{ pair_half_grid_charge_over_enL }} |
+| Continuity residual / $(en_{\rm tot}\omega_0)$ | {{ pair_long_continuity_over_enomega0 }} | {{ pair_half_continuity_over_enomega0 }} |
+| Ordinary Gauss residual / $(en_{\rm tot}/\epsilon_0)$ | {{ pair_long_ordinary_gauss_over_en_eps0 }} | {{ pair_half_ordinary_gauss_over_en_eps0 }} |
+| Dark Gauss residual / $(en_{\rm tot}/\epsilon_0)$ | {{ pair_long_dark_gauss_over_en_eps0 }} | {{ pair_half_dark_gauss_over_en_eps0 }} |
 
 The largest energy/sector-work defect is **{{ pair_long_defect_over_gain_percent }}%** of the measured mean depletion gain, within its 0.1% budget. Independent serial endpoint charge, particle/field energy, full momentum and force-table reconstruction agree with native outputs. Complete current histories are not archived, so these independent checks do not reconstruct every particle-work or continuity sample. The separate short-audit $2\times10^{-13}$ endpoint-Gauss bound is retained as a failure in every long branch; residuals accumulate near floating-point roundoff.
 
 Late force-table response remains unresolved. Coarse→every-step complex selected-mode $L^2$ differences are **{{ pair_long_realized_mode_E_table_l2_percent }}%** for realized forcing and **{{ pair_long_homogeneous_mode_E_table_l2_percent }}%** for the warm envelope, above the 5% gate. Corresponding nonzero-energy trajectory differences are **{{ pair_long_realized_nonzero_electric_table_l2_percent }}% / {{ pair_long_homogeneous_nonzero_electric_table_l2_percent }}%**. Small bulk means do not certify the phase-sensitive mode or resolve the smaller plasma-energy differences against the ledger budget. Every-step tables reproduce the exact native accepted force; the archived execution checks below measure their repeatability separately.
 
-The [record](_static/figures/pair_waveform_long/run.json) retains all five native sources, raw reductions and nine conservation maxima; [compressed scalar arrays](_static/figures/pair_waveform_long/data.npz) retain plotted histories. The strongly oscillating gain requires longer horizons and separate timestep, mesh, loading and execution controls before a persistent-depletion claim. A single baseline supplies no continuum-convergence or novelty claim.
+The [record](_static/figures/pair_waveform_long/run.json) retains both complete five-branch sources, raw reductions and nine conservation maxima; [compressed scalar arrays](_static/figures/pair_waveform_long/data.npz) retain plotted histories. The strongly oscillating gain requires longer horizons and separate timestep, mesh, loading and execution controls before a persistent-depletion claim.
+
+#### Half-step nonlinear conversion
+
+Both five-branch runs use [472ebfe](https://github.com/uwplasma/Dark-JAX-in-Cell/tree/472ebfeb7c104d05d5a90bc8a451ebbdbddc15ad), parent `2d693cb`, JAX/CUDA 0.6.2 and float64. Only the PIC timestep changes from $.003125/\omega_0$ to $.0015625/\omega_0$; mesh, counts, physical inputs, execution-block duration and scalar cadence remain fixed. Particle momenta and weights match exactly. Undoing the initial half drift recovers integer-time positions within $2.3\times10^{-16}L$; native half-step positions, deposited charge and initialized longitudinal fields differ. This is a matched physical preparation, not an exact-state execution repeat. Every-step force tables follow their respective accepted clocks, so this comparison also changes the fine prescribed waveform.
+
+| Branch, 150–170 | Work-increment change | Raw complex-mode $L^2$ difference | $(\delta_a+\delta_b)/|\Delta W_b-\Delta W_a|$ |
+|---|---:|---:|---:|
+| Coupled reservoir | {{ pair_half_coupled_work_change_percent }}% | {{ pair_half_coupled_mode_percent }}% | {{ pair_half_coupled_ledger_over_work_difference }} |
+| Realized mean, coarse table | {{ pair_half_realized_coarse_work_change_percent }}% | {{ pair_half_realized_coarse_mode_percent }}% | {{ pair_half_realized_coarse_ledger_over_work_difference }} |
+| Realized mean, every-step table | {{ pair_half_realized_fine_work_change_percent }}% | {{ pair_half_realized_fine_mode_percent }}% | {{ pair_half_realized_fine_ledger_over_work_difference }} |
+| Warm envelope, coarse table | {{ pair_half_homogeneous_coarse_work_change_percent }}% | {{ pair_half_homogeneous_coarse_mode_percent }}% | {{ pair_half_homogeneous_coarse_ledger_over_work_difference }} |
+| Warm envelope, every-step table | {{ pair_half_homogeneous_fine_work_change_percent }}% | {{ pair_half_homogeneous_fine_mode_percent }}% | {{ pair_half_homogeneous_fine_ledger_over_work_difference }} |
+
+[Simulation script](../examples/dark_reservoir.py) · `study='pair_waveform', dt=.0015625`; [comparison and plot above](scripts/compare_replays.py) · `pair_controls=(baseline, halfstep)` ([complete inputs](scripts/make_all.py)).
+
+The norms retain all 101 shared native samples, without smoothing, phase alignment or amplitude rescaling. Each timestep has one execution; these differences include execution variation and are not an isolated truncation-error estimate. Every complex-mode comparison fails the original 5% gate even though the matched bulk observables pass their individual trajectory gates. At half step the coupled mean gain is **{{ pair_half_additional_dark_depletion_gain_mean_percent }}%**, changing **{{ pair_half_gain_change_percent }}% relative** to baseline; total dark retention is **{{ pair_half_total_dark_fraction_mean_percent }}%**. Small changes in these means do not certify a converged trajectory.
+
+Here $\delta_i=\max(\delta H_i,\delta W_{O,i},\delta W_{D,i})$ is the original global all-step ledger maximum in units of $U_\star$. All five work-difference ratios exceed the fixed $10^{-3}$ conservation budget. Bounding an interval by its two endpoint errors doubles these ratios. Thus the small inter-run work changes cannot yet be attributed to physics. The coupled error is **{{ pair_half_defect_over_gain_percent }}%** of its much larger depletion gain and meets that separate budget. The dark-sector work error contracts approximately fourfold; the ordinary-sector maximum barely decreases. This suggests a separate spatial/work-consistency check, but does not identify the cause of the late error.
+
+Independent archive CRC, endpoint charge/energy/momentum, accepted-force reconstruction and 64/128-node homogeneous quadrature checks pass. All original $2\times10^{-13}$ Gauss failures remain in both five-branch histories; nominal-clock $10^{-9}$ bounds pass. These finite-reservoir controls establish neither a nonlinear reproduction nor a contradiction of [Hook, Huang and Shalaby](https://arxiv.org/pdf/2510.13956v1), whose target uses a prescribed source. No late asymptotic order, continuum limit or new depletion mechanism is inferred.
 
 #### Exact forcing and execution repeats
 

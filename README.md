@@ -338,11 +338,25 @@ The seeded early response is checked against independent relativistic Vlasov–P
 
 This **2,097,152-particle** run follows the closed dark reservoir through $\omega_0t=170$, with 8,192 cells, $\Delta t\omega_0=0.003125$, $\eta=0.5$ and $\Omega_D=\omega_0$. Four prescribed-force companions separate its realized mean force from an independent warm homogeneous envelope and refine each force table. The early seeded complex mode agrees with independent Vlasov–Proca theory within **0.879%** in relative $L^2$ over $0\leq\omega_0t\leq20$.
 
-<img src="docs/_static/figures/pair_waveform_long/figure.png" width="900" alt="Long globally loaded pair plasma: spatial mode, additional dark depletion, local velocity spread and complete energy balance">
+<img src="docs/_static/figures/pair_waveform_long/figure.png" width="900" alt="Two timesteps in the long globally loaded pair plasma: mode amplitude, additional dark depletion, local velocity spread and complete energy balance">
 
-[Simulation script](examples/dark_reservoir.py) · `study='pair_waveform'`, `horizon=170`, `scalar_dt=.2`; [comparison and plot](docs/scripts/compare_replays.py) · `pair_controls=(folder,)` ([full inputs](docs/scripts/make_all.py)).
+[Simulation script](examples/dark_reservoir.py) · `study='pair_waveform'`, `horizon=170`, `scalar_dt=.2`; [comparison and plot](docs/scripts/compare_replays.py) · `pair_controls=(baseline, halfstep)` ([full inputs](docs/scripts/make_all.py)).
 
 On $150\leq\omega_0t\leq170$, total dark energy averages **27.755%** of its initial value; additional depletion relative to the warm envelope averages **24.456%**. The energy/sector-work defect is **0.0358%** of that gain. Late force-table controls agree on mean field energies but differ **30.520%** in the complex selected-mode trajectory, exceeding its 5% gate. The gain oscillates strongly; these measurements establish neither permanent depletion nor late convergence. [Raw reductions, conservation and interpretation](docs/kinetic.md#long-global-loading-through-170).
+
+### Half-step nonlinear conversion
+
+Halving $\Delta t\omega_0$ to **0.0015625** keeps the particle count, mesh, physical loading and $150\leq\omega_0t\leq170$ window fixed. Mean additional depletion changes by **−0.00528%**, while phase-sensitive trajectories remain unresolved:
+
+| Branch | Complex electric-mode $L^2$ difference |
+|---|---:|
+| Closed dark reservoir | 40.93% |
+| Its realized mean force, every-step table | 31.39% |
+| Independent warm envelope, every-step table | 25.08% |
+
+[Simulation script](examples/dark_reservoir.py) · `study='pair_waveform', dt=.0015625`; [comparison and plot above](docs/scripts/compare_replays.py) · `pair_controls=(baseline, halfstep)` ([full inputs](docs/scripts/make_all.py)).
+
+All three exceed the 5% trajectory gate. Each timestep has one execution, so these differences include execution variation. The dark-sector work error decreases about fourfold, while the ordinary-sector error changes little. The ledger bounds also exceed the budget for resolving the small work differences. These controls establish neither a converged nonlinear result nor a contradiction of published conversion results. [All five branches, conservation and qualifications](docs/kinetic.md#half-step-nonlinear-conversion).
 
 ### Exact forcing and execution repeats
 
