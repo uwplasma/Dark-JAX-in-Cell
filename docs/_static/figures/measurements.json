@@ -210,7 +210,7 @@
       "platform": "Darwin arm64",
       "jax_enable_x64": true,
       "backend": "cpu",
-      "git": "aea374c353ce40f8c400ccdb3d91f4e1805aa3eb",
+      "git": "609217ad4c21e86be26d35da58c6d6623d16b55c",
       "run": "pair_waveform_controls/run.json"
     },
     "pair_sampling_cost": {

@@ -6,7 +6,7 @@
  "platform": "Darwin arm64",
  "jax_enable_x64": true,
  "backend": "cpu",
- "git": "aea374c353ce40f8c400ccdb3d91f4e1805aa3eb",
+ "git": "609217ad4c21e86be26d35da58c6d6623d16b55c",
  "example": "pair_control_comparison",
  "settings": {
   "parent_revision": "2d693cbd36f617545463132dd9af493d47600639",
