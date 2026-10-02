@@ -2,6 +2,7 @@
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 
 import numpy as np
 
@@ -2034,6 +2035,12 @@ if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
         if destination is not None or variant != 'repeat' or constraints or legacy:
             raise ValueError('pair repeats write scalar JSON only')
         result = pair_repeat_comparison(pair_repeats, pair_repeat_observer, pair_repeat_donor, pair_repeat_transition)
+        source, root = Path(__file__).resolve(), Path(__file__).resolve().parents[2]
+        result['validation_source'] = dict(
+            git=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
+            script=source.relative_to(root).as_posix(), script_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
+            numpy=np.__version__, tracked_source_dirty=bool(subprocess.check_output(
+                ['git', 'status', '--porcelain', '--untracked-files=no'], cwd=root, text=True).strip()))
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(result, indent=2, allow_nan=False))
     elif continuation:
