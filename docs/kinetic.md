@@ -97,7 +97,7 @@ At 128 cells, halving $\Delta t\omega_p$ from 0.0125 to 0.00625 leaves the late 
 
 ![Matched cold two-stream fields and energy through $\omega_pt=200$](_static/figures/two_stream_extended/figure.png)
 
-Late coherent phases and vortex shapes change with grid refinement. A warmer, seeded ensemble and further spatial refinement are needed before interpreting the late difference physically. This cold two-stream problem has no counterpart for separately dark-charged particles; both beams carry ordinary charge and couple through $\eta$. It also differs from the mobile-ion, homogeneous resonant drive in [Hook, Huang and Shalaby](https://journals.aps.org/prl/abstract/10.1103/98cx-7t43) and is not a reproduction of that paper's heating curve.
+Late coherent phases and vortex shapes change with grid refinement. A warmer, seeded ensemble and further spatial refinement are needed before interpreting the late difference physically. This cold two-stream problem has no counterpart for separately dark-charged particles; both beams carry ordinary charge and couple through $\eta$. It also differs from the mobile-ion, homogeneous resonant drive in [Hook, Huang and Shalaby, arXiv v1](https://arxiv.org/pdf/2510.13956v1) and is not a reproduction of that paper's heating curve.
 
 ## Warm two streams and a stable control
 
