@@ -261,7 +261,7 @@ These controls use **206,000 particles per species** on 2,000 cells through $\om
 
 ### Higher-order particle weighting
 
-Matched **412,000-particle** runs compare quadratic and six-cell quintic weighting through $\omega_pt=1000$. The largest energy/work defect falls from **$2.26\times10^{-6}$ to $2.11\times10^{-6}nm_ec^2L$**, with unchanged particle charge and Gauss residuals below $4.6\times10^{-13}en/\epsilon_0$. On $800$–$1000$, mean electric energy changes **+10.0%**, injected work **+24.4%**, and local electron/ion spread increments **−0.82% / +3.04%**. The conversion-rate gate still fails. The weights follow SHARP's integrated quintic family; the gather is a face-centred approximation. [Methods, independent checks and measured cost](docs/kinetic.md#particle-weighting-under-nonlinear-drive).
+Matched **412,000-particle** runs compare quadratic and six-cell quintic weighting through $\omega_pt=1000$. The largest energy/work defect falls from **$2.26\times10^{-6}$ to $2.11\times10^{-6}nm_ec^2L$**, with unchanged particle charge and Gauss residuals below $4.6\times10^{-13}en/\epsilon_0$. On $800\leq\omega_pt\leq1000$, mean electric energy changes **+10.0%**, injected work **+24.4%**, and local electron/ion spread increments **−0.82% / +3.04%**. The conversion-rate gate still fails. The weights follow SHARP's integrated quintic family; the gather is a face-centred approximation. [Methods, independent checks and measured cost](docs/kinetic.md#particle-weighting-under-nonlinear-drive).
 
 <img src="docs/_static/figures/shape_controls/figure.png" width="900" alt="Matched quadratic and quintic resonant drive: field energy, local spread, density and energy/work balance">
 
