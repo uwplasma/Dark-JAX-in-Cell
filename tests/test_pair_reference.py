@@ -269,7 +269,7 @@ def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path, study)
     assert len(calls) == 1
     assert calls[0][0][-1 if study == 'pair_waveform' else 1] == namespace['initial_state']
     if study == 'pair_repeat':
-        assert calls[0][0][-1] == 2
+        assert calls[0][0][2:] == (2, False)
 
 
 @pytest.fixture
@@ -332,7 +332,13 @@ def test_archived_pair_repeat_preserves_table_midpoint_force_complete_restart_an
     midpoint = tmp_path / 'midpoint.npz'
     example.save_compressed_state(midpoint, accepted, sim)
     resumed = sim._step(load_state(midpoint, sim), sim.plasma.per_particle)[0]
-    runs = example.pair_repeat(tmp_path / 'repeat', path, samples=2)
+    runs = example.pair_repeat(tmp_path / 'repeat', path, samples=2, observe_executable=True)
+    observer = json.loads((tmp_path / 'repeat' / 'executable_observer.json').read_text())
+    assert observer['completed'] and len(observer['compilations']) == 2
+    assert observer['compilations'][0]['same_loaded_executable_as_first'] is False
+    assert all(row['runtime_available'] and len(row['stablehlo_sha256']) == 64
+               for row in observer['compilations'])
+    assert 'not binary serialization' in observer['interpretation']
     for index, run in enumerate(runs, 1):
         folder = tmp_path / 'repeat' / f'execution_{index}'
         with np.load(path) as original, np.load(folder / 'initial_state.npz') as restored:

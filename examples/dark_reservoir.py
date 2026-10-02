@@ -60,6 +60,7 @@ local_moments = globals().get('local_moments', full and study == 'pair_waveform'
 initial_state = globals().get('initial_state', None)
 initial_state = None if initial_state is None else Path(initial_state)
 samples = globals().get('samples', 1)  # pair_repeat executions reuse one exact archived state/table.
+observe_executable = globals().get('observe_executable', False)  # Host-only repeat compilation evidence.
 momentum_seed = globals().get('momentum_seed', 0.)  # Electron δu / initial σe; zero keeps the paper loading.
 seed_mode = globals().get('seed_mode', 16)
 seed_phase = globals().get('seed_phase', 0.)
@@ -715,10 +716,12 @@ def pair_repeat_initial(initial_state):
     return sim, start, setting
 
 
-def pair_repeat(folder, initial_state, samples=1):
+def pair_repeat(folder, initial_state, samples=1, observe_executable=False):
     """Repeat exact archived forcing, preserving every native clock and ledger."""
     if type(samples) is not int or samples < 1:
         raise ValueError('pair_repeat samples must be a positive integer')
+    if type(observe_executable) is not bool:
+        raise ValueError('observe_executable must be a boolean')
     sim, start, setting = pair_repeat_initial(initial_state)
     wp, energy_scale = [setting['normalization'][key] for key in ('omega0_rad_s', 'energy_scale_J_m2')]
     dtau, horizon, cadence = [setting[key] for key in ('dt_omega0', 'horizon_omega0', 'scalar_dt_omega0')]
@@ -735,13 +738,32 @@ def pair_repeat(folder, initial_state, samples=1):
         accepted_time += dt
     if sim.dark.times[0] != 0 or np.nextafter(float(sim.dark.times[-1]), np.inf) < accepted_time:
         raise ValueError('pair_repeat forcing table must cover the accepted native endpoint')
-    histories = []
+    histories, loaded = [], []
+    observer = dict(source=provenance()['git'],
+                    producer_script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                    method='Observe lower/compile; return the compiled object unchanged. No traced operations added.',
+                    timing_note='Observer text hashing is outside public compilation and execution timings.',
+                    interpretation='Runtime object identity is local to this process. '
+                                   'HLO text is not binary serialization.',
+                    compilations=[])
+
+    def observe(lowered, executable):
+        before = time.perf_counter()
+        runtime, text = executable.runtime_executable(), executable.as_text()
+        observer['compilations'].append(dict(
+            index=len(loaded) + 1, runtime_available=runtime is not None,
+            same_loaded_executable_as_first=bool(loaded and runtime is not None and runtime is loaded[0]),
+            stablehlo_sha256=hashlib.sha256(lowered.as_text().encode()).hexdigest(),
+            optimized_hlo_text_sha256=hashlib.sha256(text.encode()).hexdigest() if text is not None else None,
+            observer_seconds=time.perf_counter() - before))
+        loaded.append(runtime)  # Retain references so Python identities cannot be recycled.
+
     for index in range(samples):
         destination = Path(folder) / f'execution_{index + 1}' if samples > 1 else Path(folder)
         with elapsed_progress(f"{setting['label']} archived repeat {index + 1}/{samples}"):
             final, values, maximum, _, compile_s, warm_s, memory = paper_run(
                 sim, start, steps, stride, blocks * dtau, wp, jnp.asarray(scales) if setting['local_moments'] else None,
-                destination, setting['seed_mode'])
+                destination, setting['seed_mode'], compilation_observer=observe if observe_executable else None)
         save_compressed_state(destination / 'final_state.npz', final, sim)
         results = dict(compile_s=compile_s, warm_primal_s=warm_s,
                        compiler_temporary_MiB=memory.temp_size_in_bytes / 2**20 if memory else None,
@@ -753,10 +775,15 @@ def pair_repeat(folder, initial_state, samples=1):
                        local_spread_final=(np.asarray(coarse_spread(sim, final, scales)) / energy_scale).tolist(),
                        execution_index=index + 1, samples=samples,
                        claim='Exact archived force/state; donor and producer sources are recorded separately.',
-                       timing_note='One postcompile execution per call; executable identity is not asserted.')
+                       timing_note=('One postcompile execution per call; local executable observations are separate.'
+                                    if observe_executable else
+                                    'One postcompile execution per call; executable identity is not asserted.'))
         save_run(destination, 'pair_waveform_repeat', setting, results, **values)
         np.savez_compressed(destination / 'data.npz', **values)
         histories.append(dict(history=values, settings=setting, results=results))
+    if observe_executable:
+        observer['completed'] = len(observer['compilations']) == samples
+        (Path(folder) / 'executable_observer.json').write_text(json.dumps(observer, indent=2) + '\n')
     return histories
 
 
@@ -1284,7 +1311,7 @@ def paper_initial(sim, seed, initial_state):
 
 
 def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder, mode=1, pump=False,
-              reference=None, maxima=None):
+              reference=None, maxima=None, compilation_observer=None):
     """Compile one fixed interval, preserving the global reference across every block."""
     if block_horizon is not None and (not np.isfinite(block_horizon) or block_horizon <= 0):
         raise ValueError('paper block horizon must be finite and positive')
@@ -1295,8 +1322,11 @@ def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder, mode
     save_compressed_state(Path(folder) / 'initial_state.npz', start, sim)
     print(f'🦇 Compiling {block_steps} paper steps per block', flush=True)
     before = time.perf_counter()
-    executable = measured_run.lower(sim, start, block_steps, stride, reference, scales, mode, pump=pump).compile()
+    lowered = measured_run.lower(sim, start, block_steps, stride, reference, scales, mode, pump=pump)
+    executable = lowered.compile()
     compile_seconds = time.perf_counter() - before
+    if compilation_observer is not None:
+        compilation_observer(lowered, executable)
     memory = executable.memory_analysis()
     print(f'🦇 Compiled in {compile_seconds:.2f} s; advancing {steps // block_steps} blocks', flush=True)
     before = time.perf_counter()
@@ -1701,7 +1731,7 @@ if __name__ == "__main__":  # noqa: C901
                               block_horizon, local_moments, shape_order, pair_loading, linear_end, scalar_dt,
                               initial_state)
     elif study == 'pair_repeat':
-        pair_repeat(output, initial_state, samples)
+        pair_repeat(output, initial_state, samples, observe_executable)
     elif study == 'paper_pilot':
         paper_geometry_pilot(output)
     elif study != 'mobile_ions':

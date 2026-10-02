@@ -947,6 +947,220 @@ def pair_records(tmp_path):
     return paths
 
 
+@pytest.fixture
+def pair_repeat_records(pair_records):
+    """Complete manufactured prescribed restarts and ledgers; no dynamics or JAX."""
+    import hashlib
+    from docs.scripts.compare_replays import PAIR_MAXIMA, _accepted_ticks
+    donor = pair_records[0] / 'realized_fine'
+    record = json.loads((donor / 'run.json').read_text())
+    s = record['settings']
+    s.update(horizon_omega0=170., scalar_dt_omega0=.2, forcing_native_dt_omega0=.2, block_steps=5)
+    wp, field, energy = s['normalization'].values()
+    c, count, cells = 299792458., s['cells'] * s['particles_per_cell_per_species'], s['cells']
+    ticks = _accepted_ticks(.2 / wp, 850, 1)
+    tau = ticks * wp
+    with np.load(donor / 'initial_state.npz') as archive:
+        state = dict(archive)
+    state.update(format=np.array(1), counts=np.array([count, count]), cells=np.array(cells),
+                 algorithm=np.array('explicit'), time=np.array(0.), steps=np.array(0, dtype=np.int32),
+                 qm=np.repeat(state['dark.charge'] / state['dark.mass'], count) * 1.602176634e-19,
+                 sigma=np.zeros(2), key=np.array([3, 7], dtype=np.uint32), names=np.array(['electrons', 'positrons']))
+    state.update({'wall.' + key: np.zeros((2, 2, 3) if 'momentum' in key else (2, 2)) for key in
+                  ('arrived', 'collected', 'injected', 'energy_in', 'energy_out', 'energy_injected',
+                   'momentum', 'momentum_injected', 'truncated', 'overflow')})
+    state.update({'dark.' + key: np.asarray(value) for key, value in dict(
+        format=3, mode='drive', cells=cells, length_y=.01, length_z=.01, dt=.2 / wp, has_external_B=False,
+        background=0., work=0., initial_dark=0., initial_projection_norm=0., max_balance_error=0.,
+        max_ordinary_gauss=0., max_dark_gauss=0.).items()})
+    state['dark.times'] = np.array([0., ticks[-1]])
+    state['dark.amplitude'] = np.array([[.05 * field, 0., 0.], [.04 * field, 0., 0.]])
+    with np.load(donor / 'data.npz') as archive:
+        initial = {key: archive[key][0] for key in archive.files}
+    state['dark.initial_ordinary'] = initial['balance']
+    np.savez_compressed(donor / 'initial_state.npz', **state)
+    maximum = dict.fromkeys(PAIR_MAXIMA, 0.)
+    maximum.update(energy_work_over_energy_scale=1e-10, ordinary_sector_work_over_energy_scale=1e-10,
+                   ordinary_gauss_over_en_eps0=3e-13)
+    en = state['dark.density'].sum() * 1.602176634e-19
+    length = float(state['dark.length'])
+    eps = energy / (length * field**2)
+    units = np.array([energy, energy / c, en * length, en * wp, en / eps, en / eps, en * length, energy, energy])
+    record['results'].update(all_step_maxima=maximum)
+    paths = [donor.parent / f'execution_{index}' for index in (1, 2)]
+    for index, path in enumerate([donor, *paths]):
+        path.mkdir(exist_ok=True)
+        data = {key: np.broadcast_to(value, (len(ticks), *np.shape(value))).copy() for key, value in initial.items()}
+        data['t'] = ticks.copy()
+        shape = np.sin(np.pi * tau / 170)
+        shape[[0, -1]] = 0.
+        data['mean_E'] = field * .002 * tau / 170 * (1 + index * 1e-5 * shape)
+        mode = .0001 * tau / 170 * np.exp(index * .01j * shape)
+        data['mode_E'] = field * mode / 2
+        data['electric'] = energy * (.5 * (data['mean_E'] / field)**2 + .25 * abs(mode)**2)
+        data['work'] = data['electric'].copy()
+        data['balance'] = np.full(len(ticks), initial['balance'])
+        data['local_spread'] += energy * 1e-7 * tau[:, None, None] / 170
+        result = dict(record['results'], local_spread_initial=(data['local_spread'][0] / energy).tolist(),
+                      local_spread_final=(data['local_spread'][-1] / energy).tolist())
+        final = {key: value.copy() for key, value in state.items()}
+        angle = 2 * np.pi * s['seed_mode'] * np.arange(cells) / cells
+        final['E'][:, 0] = data['mean_E'][-1] + field * mode[-1].real * np.cos(angle)
+        final.update(time=np.array(ticks[-1]), steps=np.array(850, dtype=np.int32))
+        final.update({'dark.work': data['work'][-1], 'dark.max_balance_error': energy * 1e-10,
+                      'dark.max_ordinary_gauss': en / eps * 3e-13})
+        np.savez_compressed(path / 'final_state.npz', **final)
+        np.savez_compressed(path / 'data.npz', **data)
+        if index:
+            (path / 'initial_state.npz').write_bytes((donor / 'initial_state.npz').read_bytes())
+            result.update(execution_index=index, samples=2, all_step_maxima_SI=(np.array(
+                [maximum[key] for key in PAIR_MAXIMA]) * units).tolist())
+        native = dict(record, git='5' * 40 if index else record['git'], results=result,
+                      example='pair_waveform_repeat' if index else 'pair_waveform_branch')
+        (path / 'run.json').write_text(json.dumps(native))
+    control = json.loads((donor.parent / 'run.json').read_text())
+    control['settings'].update({key: s[key] for key in
+                                ('horizon_omega0', 'scalar_dt_omega0', 'forcing_native_dt_omega0')})
+    control['results']['cases']['realized_fine']['all_step_maxima'] = maximum
+    (donor.parent / 'run.json').write_text(json.dumps(control))
+    for path in paths:
+        change_settings(path, donor_git=record['git'], initial_state_archive_sha256=hashlib.sha256(
+            (donor / 'initial_state.npz').read_bytes()).hexdigest(),
+            donor_record_sha256=hashlib.sha256((donor / 'run.json').read_bytes()).hexdigest(),
+            donor_control_record_sha256=hashlib.sha256((donor.parent / 'run.json').read_bytes()).hexdigest(),
+            producer_script_sha256='6' * 64)
+    observer = donor.parent / 'observer.json'
+    entries = [dict(index=index, runtime_available=True, same_loaded_executable_as_first=index == 2,
+                    stablehlo_sha256='7' * 64, optimized_hlo_text_sha256='8' * 64, observer_seconds=.1)
+               for index in (1, 2)]
+    observed = dict(source='5' * 40, completed=True, producer_script_sha256='6' * 64, compilations=entries,
+                    method='Host-only identity observation.', timing_note='Text hashing is outside native timings.',
+                    interpretation='Process-local identity; text hashes do not serialize binaries.')
+    observer.write_text(json.dumps(observed))
+    return paths, donor, observer
+
+
+def test_pair_repeat_raw_phase_budget_and_optional_source_observer(pair_repeat_records):
+    import runpy
+    from docs.scripts.compare_replays import pair_repeat_comparison
+    paths, donor, observer = pair_repeat_records
+    result = pair_repeat_comparison(paths, observer, donor, ('4' * 40, '5' * 40))
+    late = result['windows'][1]
+    assert late['bounds_omega0'] == [150, 170] and late['samples'] == 101
+    time = np.array(late['actual_clocks_omega0'])
+    tau = np.linspace(*time, 101)
+    weight = (tau / 170)**2
+    expected = np.sqrt(np.sum(weight * (.01 * np.sin(np.pi * tau / 170))**2) / weight.sum())
+    assert late['mode_phase']['reference_amplitude_squared_weighted_rms_rad'] == pytest.approx(expected, abs=1e-14)
+    assert not late['mode_phase']['alignment'] and not result['all_scalar_histories_bitwise_equal']
+    assert late['accounting']['transfer_gates'] == [True, True]
+    assert not late['accounting']['difference_gate']
+    np.testing.assert_allclose(late['accounting']['two_endpoint_bound_over_abs_window_work'],
+                               2 * np.array(late['accounting']['global_defect_over_abs_window_work']))
+    assert not result['original_gauss_gates'][0]['ordinary_gauss_over_en_eps0']
+    assert 'nonserializable' in result['observer']['claim']
+    assert result['observer']['wrapper_script_sha256'] is None
+    assert result['observer']['timing_note'] == 'Text hashing is outside native timings.'
+    assert result['donor']['reviewed_source_transition'] == ['4' * 40, '5' * 40]
+    archive = result['archive_diagnostics'][0]
+    assert len(archive['final_leaves']) == 51 and 'shape_order' not in archive['final_leaves']
+    assert archive['legacy_shape_order_default'] == 2  # The validated in-memory restart has 52 fields.
+    assert str(donor) not in json.dumps(result, allow_nan=False)
+    output = donor.parent / 'repeat.json'
+    runpy.run_path('docs/scripts/compare_replays.py', run_name='__main__',
+                   init_globals=dict(pair_repeats=paths, pair_repeat_observer=observer,
+                                     pair_repeat_donor=donor, pair_repeat_transition=('4' * 40, '5' * 40),
+                                     output=output))
+    assert json.loads(output.read_text()) == result
+
+
+@pytest.mark.parametrize('corrupt', [
+    'source', 'runtime', 'forcing', 'clock', 'energy', 'rms', 'maxima',
+    'SI_maxima', 'endpoint', 'missing_leaf', 'shape', 'initial_sha', 'observer'])
+def test_pair_repeat_rejects_changed_exact_inputs_and_ledgers(pair_repeat_records, corrupt):
+    from docs.scripts.compare_replays import pair_repeat_comparison
+    paths, _, observer = pair_repeat_records
+    path = paths[1]
+    record = json.loads((path / 'run.json').read_text())
+    if corrupt in ('source', 'runtime'):
+        record['git' if corrupt == 'source' else 'jax'] = '9' * 40
+    elif corrupt in ('initial_sha', 'shape'):
+        record['settings']['initial_state_archive_sha256' if corrupt == 'initial_sha' else 'shape_order'] = (
+            '9' * 64 if corrupt == 'initial_sha' else 5)
+    elif corrupt in ('maxima', 'SI_maxima'):
+        if corrupt == 'maxima':
+            record['results']['all_step_maxima'].pop('continuity_over_enomega0')
+        else:
+            record['results']['all_step_maxima_SI'][0] *= 2
+    elif corrupt == 'observer':
+        observed = json.loads(observer.read_text())
+        observed['compilations'][1]['same_loaded_executable_as_first'] = False
+        observer.write_text(json.dumps(observed))
+    else:
+        filename = 'initial_state.npz' if corrupt in ('forcing', 'missing_leaf') else (
+            'final_state.npz' if corrupt == 'endpoint' else 'data.npz')
+        with np.load(path / filename) as archive:
+            values = dict(archive)
+        if corrupt == 'missing_leaf':
+            values.pop('wall.collected')
+        else:
+            key = dict(forcing='dark.phase', clock='t', energy='electric', rms='rms', endpoint='u')[corrupt]
+            values[key] = values[key] + (1e-14 if corrupt == 'clock' else 1.)
+        np.savez_compressed(path / filename, **values)
+    (path / 'run.json').write_text(json.dumps(record))
+    with pytest.raises(ValueError):
+        pair_repeat_comparison(paths, observer)
+
+
+def test_pair_repeat_donor_requires_explicit_review_and_observer_text_is_not_binary(pair_repeat_records):
+    from docs.scripts.compare_replays import pair_repeat_comparison
+    paths, donor, observer = pair_repeat_records
+    with pytest.raises(ValueError, match='reviewed'):
+        pair_repeat_comparison(paths, donor=donor)
+    assert 'observer' not in pair_repeat_comparison(paths)
+    observed = json.loads(observer.read_text())
+    observed.update(script_sha256='9' * 64, timing_note='Private wrapper hashing was inside compile timing.')
+    observer.write_text(json.dumps(observed))
+    result = pair_repeat_comparison(paths, observer)
+    assert result['observer']['wrapper_script_sha256'] == '9' * 64
+    assert 'not binary identity' in result['observer']['claim']
+    assert result['observer']['timing_note'] == 'Private wrapper hashing was inside compile timing.'
+
+
+def test_pair_repeat_same_source_donor_has_no_transition_or_executable_claim(pair_repeat_records):
+    import hashlib
+    from docs.scripts.compare_replays import pair_repeat_comparison
+    paths, donor, _ = pair_repeat_records
+    for file in (donor / 'run.json', donor.parent / 'run.json'):
+        record = json.loads(file.read_text())
+        record['git'] = '5' * 40
+        file.write_text(json.dumps(record))
+    for path in paths:
+        change_settings(path, donor_git='5' * 40,
+                        donor_record_sha256=hashlib.sha256((donor / 'run.json').read_bytes()).hexdigest(),
+                        donor_control_record_sha256=hashlib.sha256(
+                            (donor.parent / 'run.json').read_bytes()).hexdigest())
+    result = pair_repeat_comparison(paths, donor=donor)
+    assert result['donor']['reviewed_source_transition'] is None
+    assert result['donor']['claim'] == 'Same producer source; donor executable identity is unobserved.'
+    with pytest.raises(ValueError, match='only for differing sources'):
+        pair_repeat_comparison(paths, donor=donor, transition=('5' * 40, '5' * 40))
+
+
+def test_pair_repeat_zero_signal_has_undefined_phase_not_false_agreement():
+    from docs.scripts.compare_replays import _pair_repeat_windows, PAIR_MAXIMA
+    time = np.array([0., 150., 160., 170.])
+    data = dict(t=time, work=time * 1e-6, electric=np.ones(4) * .01, magnetic=np.zeros(4),
+                kinetic=np.ones((4, 2)) * .01, nonzero_electric=np.ones(4) * .001,
+                mean_E=np.ones(4), rms=np.ones((4, 2)), momentum=np.zeros((4, 3)),
+                local_spread=np.ones((4, 2, 2)), local_density_rms=np.zeros((4, 2, 2)), mode_E=np.ones(4, complex))
+    source = dict(results=dict(all_step_maxima=dict.fromkeys(PAIR_MAXIMA, 0.)))
+    other = dict(data, mode_E=np.zeros(4, complex))
+    phase = _pair_repeat_windows((source, data), (source, other))[1]['mode_phase']
+    assert phase['reference_amplitude_squared_weighted_rms_rad'] is None
+    assert phase['reference_weight_fraction_with_defined_phase'] == 0 and phase['endpoint_rad'] is None
+
+
 def test_pair_native_cadence_loading_and_raw_window_contract(pair_records):
     from docs.scripts.compare_replays import _pair_load, pair_control_comparison
     result = pair_control_comparison([_pair_load(path) for path in pair_records])
