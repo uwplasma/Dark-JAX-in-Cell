@@ -283,6 +283,14 @@ The three quintic steps in the figure retain **412,000 particles**, the same phy
 
 [Simulation script](examples/dark_reservoir.py) · `study='paper', shape_order=5`, with `dt=.005`, `.0025` or `.00125`; [comparison and plot](docs/scripts/compare_replays.py) ([full inputs](docs/scripts/make_all.py)).
 
+### Spatial refinement with quintic weights
+
+The strong Figure 2 drive runs through $\omega_pt=1000$ on 2,000 and 4,000 cells, holding the same **412,000 particles**, loading and $\Delta t\omega_p=.0025$. Grid doubling reduces the largest energy/work defect **3.67 times**. Over $800\leq\omega_pt\leq1000$, local electron/ion spread increments change by less than **0.3%**, while transferred work changes **−33.52%** and mean nonzero-mode electric energy **+10.60%**. The late conversion rate therefore remains unresolved despite improved energy/work balance. This tests the published drive parameters; it does not establish agreement or a contradiction with Hook, Huang and Shalaby. [Raw norms, conservation and resolution](docs/kinetic.md#spatial-refinement-with-quintic-weights).
+
+<img src="docs/_static/figures/shape_mesh_controls/figure.png" width="800" alt="Fixed-particle quintic grid refinement: electric energy, local spread, density and energy minus external work">
+
+[Simulation script](examples/dark_reservoir.py) · `study='paper', cells=2000` or `4000`, `particles=206000, shape_order=5, dt=.0025, horizon=1000, block_horizon=100, local_moments=True`; [comparison and plot](docs/scripts/compare_replays.py) · `variant='mesh', constraints=True` ([full inputs](docs/scripts/make_all.py)).
+
 ### Three-seed late timestep pilot
 
 Quintic runs with **412,000 particles** and 2,000 cells repeat the strong Figure 2 drive at $\Delta t\omega_p=.005$ and $.0025$, through $\omega_pt=1000$. Each seed supplies one paired reduction on $800\leq\omega_pt\leq1000$; time samples are not extra realizations.

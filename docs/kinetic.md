@@ -669,6 +669,37 @@ Separate 100-step GPU probes use the same loading, grid and timestep, three call
 
 [Cost companion](scripts/benchmark_field_cost.py) · `replay=True, cells=2000, particles=206000, dt=.005, steps=100, stride=100, shape_order=2` or `5`; [quadratic record](_static/figures/shape_controls/cost_quadratic.json), [quintic record](_static/figures/shape_controls/cost_quintic.json). JAX/CUDA packages are 0.6.2, x64, on an RTX A4000. The measured particle-step cost is about 1.69 times higher with quintic weighting. Both kernels pass the independent charge reference and vary at roundoff between calls under default settings. Long-run times are retained as shared-resource observations and are not used for throughput comparisons.
 
+#### Spatial refinement with quintic weights
+
+Two runs keep the same 412,000 particles, seed 0, physical loading, quintic weights, $\Delta\tau=.0025$ and strong Figure 2 drive through $\tau=1000$. Only the mesh changes from 2,000 to 4,000 cells: $\Delta x/\lambda_{D0}=0.63246\to0.31623$, $c\Delta t/\Delta x=0.125\to0.25$, and markers per cell per species $103\to51.5$. Initial native positions, proper momenta, weights and charge-to-mass ratios match exactly; each grid has its own deposited charge and initialized field. Fixed physical Gaussian lengths $2\lambda_{D0}$ and $4\lambda_{D0}$ keep local diagnostics comparable. This isolates a mesh change at fixed loading; it is not the joint mesh/loading study recommended by [SHARP, §§6.2–6.4](https://arxiv.org/html/1702.04732v2).
+
+![Fixed-particle quintic spatial refinement](_static/figures/shape_mesh_controls/figure.png)
+
+[Simulation script](../examples/dark_reservoir.py) · `study='paper', cells=2000` or `4000`, `particles=206000, dt=.0025, shape_order=5, horizon=1000, block_horizon=100, local_moments=True`; [comparison and plot](scripts/compare_replays.py) · `variant='mesh', constraints=True` ([complete inputs](scripts/make_all.py)).
+
+| Change from 2,000 to 4,000 cells, $800\leq\tau\leq1000$ | Measured difference | Prospective bound |
+|---|---:|---:|
+| Mean total electric energy (%) | {{ shape_mesh_electric_mean_change_percent }} | 5% |
+| Mean nonzero-mode electric energy (%) | {{ shape_mesh_nonzero_mean_change_percent }} | 5% |
+| Window injected work (%) | {{ shape_mesh_work_change_percent }} | 2% |
+| Local electron-spread increment, $2\lambda_{D0}$ (%) | {{ shape_mesh_local_spread_increment_0_change_percent }} | 2% |
+| Local ion-spread increment, $2\lambda_{D0}$ (%) | {{ shape_mesh_local_spread_increment_1_change_percent }} | 2% |
+| Residual injection-rate difference ($\omega_p$) | {{ shape_mesh_injection_rate_difference }} | $10^{-5}$ |
+
+The reductions use 401 aligned raw samples. Work, nonzero-mode energy and residual rate fail their bounds. Raw late mean-field, total-electric-energy and nonzero-energy trajectory differences are **{{ shape_mesh_800_1000_mean_E_l2_percent }}% / {{ shape_mesh_800_1000_electric_l2_percent }}% / {{ shape_mesh_800_1000_nonzero_electric_l2_percent }}%**. At $4\lambda_{D0}$, electron/ion spread increments change by −0.219%/−0.175%; local-density trajectory differences span 9.34–10.51%. Similar local heating does not establish a similar field or conversion rate. The figure uses the same 13-sample trimmed energy/density average as the timestep plots; local spread and all reductions remain unsmoothed.
+
+| Native all-step maximum | 2,000 cells | 4,000 cells |
+|---|---:|---:|
+| Energy minus source work, $nm_ec^2L$ | {{ shape_dt_balance }} | {{ shape_mesh_balance }} |
+| Momentum change, $nm_ecL$ | {{ shape_dt_momentum }} | {{ shape_mesh_momentum }} |
+| Ordinary Gauss, $en/\epsilon_0$ | {{ shape_dt_gauss }} | {{ shape_mesh_gauss }} |
+
+The global work defect falls **{{ shape_mesh_ledger_reduction }} times**. Global-defect/transfer ratios are 0.145% / **{{ shape_mesh_work_budget_percent }}%**, below the 1% budget; the sum of global bounds is **{{ shape_mesh_difference_budget_percent }}%** of the work difference. A late-window ledger increment is bounded by twice the global defect. These conservative two-endpoint bounds are **{{ shape_mesh_two_endpoint_transfer_percent }}** of the respective transfers and **{{ shape_mesh_two_endpoint_difference_percent }}%** of their difference, below the 1% and 10% limits. The corresponding rate envelope is **{{ shape_mesh_two_endpoint_rate_percent }}%** of the rate difference, below its one-third limit. Particle charge is unchanged. The prescribed model has zero dark fields, so its dark Gauss and dark-sector work maxima are zero rather than a finite-reservoir validation.
+
+Independent knot-split quartic quadrature reconstructs quintic cell charge within $3.10\times10^{-14}en$; particle/field energy and momentum agree within $3.47\times10^{-18}nm_ec^2L$ and $2.42\times10^{-18}nm_ecL$. All 51 restart leaves, runtime/source and native repeated-addition clocks are checked. The original tight audit failures remain: the fine endpoint Gauss residual is $1.286\times10^{-12}>2\times10^{-13}$, and its nominal-clock error is $6.581\times10^{-9}>10^{-9}$. A diagnostic mean-preserving endpoint correction would change $E/E_\star$ by $7.94\times10^{-15}$; no fields are changed. Cross-version Gaussian reconstruction retains the earlier byte-hash mismatch, while the two native initial particle arrays are identical.
+
+Both computations use source [34ba046](https://github.com/uwplasma/Dark-JAX-in-Cell/tree/34ba046bfde32e93a50e8f8f743a47316f09a898), parent [2d693cb](https://github.com/uwplasma/JAX-in-Cell/tree/2d693cbd36f617545463132dd9af493d47600639), JAX/CUDA 0.6.2, NumPy 2.2.4 and x64. The fine run compiles in 8.49 s, advances in 2,804.94 s, uses 61.71 MiB compiler temporaries and peaks at 1,181.94 MiB process memory. These are shared-resource observations from one execution, without a throughput claim. The [record](_static/figures/shape_mesh_controls/run.json) preserves both native records, original global maxima and endpoint diagnostics; [compressed histories](_static/figures/shape_mesh_controls/data.npz) retain the raw scalars. One loading and two executions give neither statistical uncertainty nor spatial order. They leave the late rate in [Hook, Huang and Shalaby's Figure 2](https://arxiv.org/pdf/2510.13956v1) unconfirmed, without establishing a contradiction or a new physical effect.
+
 #### Three-seed late timestep pilot
 
 Six quintic runs use seeds 0, 1 and 2, $206{,}000$ particles per species, 2,000 cells, $\Delta\tau=.005/.0025$, $100/\omega_p$ blocks and $0.5/\omega_p$ scalar cadence through $\tau=1000$. Force $0.03\sqrt{.001}$, equal species temperatures $.001m_ec^2$, mass ratio 1836 and length $40c/\omega_p$ match the strong attached-v1 Figure 2 experiment. The face-centred gather remains the companion method described above. The [reduction record](_static/figures/gaussian_pilot.json) preserves all six native computation records, data/run hashes, exact loading fingerprints and raw per-seed reductions.

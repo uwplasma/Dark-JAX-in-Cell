@@ -650,12 +650,21 @@ run_example('docs/scripts/compare_replays.py', first=shape_runs[0], second=shape
             variant='shape', constraints=True, refined=shape_dt, refined_against='second',
             finer_step=shape_finer, destination=shape_folder)
 shape_record = json.loads((shape_folder / 'run.json').read_text())
+shape_mesh = ROOT / 'artifacts' / 'shape_controls' / 'late_s5_grid4000_dt0025'
+mesh_folder = EVIDENCE.parent / 'shape_mesh_controls'
+run_example('examples/dark_reservoir.py', study='paper', cells=4000, particles=206000,
+            dt=.0025, horizon=1000., block_horizon=100., local_moments=True, shape_order=5, output=shape_mesh)
+run_example('docs/scripts/compare_replays.py', first=shape_dt, second=shape_mesh,
+            variant='mesh', constraints=True, destination=mesh_folder)
+mesh_record = json.loads((mesh_folder / 'run.json').read_text())
+replay_measurements(mesh_record, (("shape_mesh", "comparison", ".4f"),))
 replay_measurements(shape_record, (("shape", "comparison", ".4f"), ("shape_dt", "refinement_comparison", ".4f"),
                                    ("shape_finer", "third_step_comparison", ".4f")))
 for label, record, key in (("late_repeat", late_record, "comparison"),
                            ("late_dt", late_record, "refinement_comparison"), ("shape", shape_record, "comparison"),
                            ("shape_dt", shape_record, "refinement_comparison"),
-                           ("shape_finer", shape_record, "third_step_comparison")):
+                           ("shape_finer", shape_record, "third_step_comparison"),
+                           ("shape_mesh", mesh_record, "comparison")):
     a, b = record['results'][key]['windows'][-1]['realization_summaries']
     for observable in ('electric_mean', 'work'):
         field = 'work_increment' if observable == 'work' else observable
@@ -667,6 +676,7 @@ for label, record, key in (("late_repeat", late_record, "comparison"),
     measured[f'{label}_injection_rate_difference'] = f"{b['injection_rate_over_wp'] - a['injection_rate_over_wp']:.3e}"
 measured['_provenance']['late_step_controls'] = provenance(late_record, late_folder.name)
 measured['_provenance']['shape_controls'] = provenance(shape_record, shape_folder.name)
+measured['_provenance']['shape_mesh_controls'] = provenance(mesh_record, mesh_folder.name)
 pilot_pairs = [(shape_runs[1], shape_dt)]
 for seed in (1, 2):
     pair = []
@@ -712,10 +722,27 @@ for order, name, native in zip((2, 5), ('quadratic', 'quintic'), shape_record['r
                         ('momentum', 'max_momentum_defect_over_nmecL'), ('gauss', 'max_ordinary_gauss_over_en_eps0')):
         measured[f'{prefix}_{suffix}'] = f'{native["results"][key]:.3e}'
     measured['_provenance'][f'shape_cost_{order}'] = provenance(cost, f'{shape_folder.name}/{saved.name}')
-for label, index in (('shape_dt', 2), ('shape_finer', 3)):
+for label, source, index in (('shape_dt', shape_record, 2), ('shape_finer', shape_record, 3),
+                             ('shape_mesh', mesh_record, 1)):
     for suffix, key in (('balance', 'max_ordinary_work_defect_over_nmc2L'),
                         ('momentum', 'max_momentum_defect_over_nmecL'), ('gauss', 'max_ordinary_gauss_over_en_eps0')):
-        measured[f'{label}_{suffix}'] = f'{shape_record["results"]["native_runs"][index]["results"][key]:.3e}'
+        measured[f'{label}_{suffix}'] = f'{source["results"]["native_runs"][index]["results"][key]:.3e}'
+mesh_comparison = mesh_record['results']['comparison']
+mesh_late = mesh_comparison['windows'][-1]['realization_summaries']
+mesh_bounds = [row['max_ordinary_work_defect_over_nmc2L'] for row in mesh_comparison['native_all_step_maxima']]
+measured['shape_mesh_ledger_reduction'] = f'{mesh_bounds[0] / mesh_bounds[1]:.3f}'
+measured['shape_mesh_work_budget_percent'] = f"{100 * mesh_bounds[1] / abs(mesh_late[1]['work_increment']):.3f}"
+measured['shape_mesh_difference_budget_percent'] = (
+    f"{100 * sum(mesh_bounds) / abs(mesh_late[1]['work_increment'] - mesh_late[0]['work_increment']):.4f}")
+measured['shape_mesh_two_endpoint_transfer_percent'] = ' / '.join(
+    f'{200 * bound / abs(summary["work_increment"]):.3f}%' for bound, summary in zip(mesh_bounds, mesh_late))
+measured['shape_mesh_two_endpoint_difference_percent'] = (
+    f"{200 * sum(mesh_bounds) / abs(mesh_late[1]['work_increment'] - mesh_late[0]['work_increment']):.4f}")
+mesh_interval = np.diff(mesh_comparison['windows'][-1]['window_omega_p'])[0]
+mesh_rates = [2 * bound / (mesh_interval * summary['plasma_mean_energy'])
+              for bound, summary in zip(mesh_bounds, mesh_late)]
+mesh_rate_difference = abs(mesh_late[1]['injection_rate_over_wp'] - mesh_late[0]['injection_rate_over_wp'])
+measured['shape_mesh_two_endpoint_rate_percent'] = f'{100 * sum(mesh_rates) / mesh_rate_difference:.3f}'
 late_summary = shape_record['results']['third_step_comparison']['windows'][-1]['realization_summaries'][1]
 late_work = late_summary['work_increment']
 late_defect = shape_record['results']['native_runs'][3]['results']['max_ordinary_work_defect_over_nmc2L']
