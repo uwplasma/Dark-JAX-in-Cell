@@ -96,20 +96,24 @@ def coupled_response(times, k, seed, eta, mass, ordinary_field, dark_field,
     return ordinary, dark, background.sol(times)
 
 
-def relativistic_response(times, k, seed, eta, mass, ordinary_field,
-                          dark_field, half_width=0.05, nodes=64, linear_end=None):
-    """Quadrature Vlasov–Proca initial value problem with a relativistic pusher.
+def relativistic_background(times, eta, mass, ordinary_field, dark_field,
+                            half_width=.05, nodes=64, rtol=2e-11, atol=2e-13,
+                            dense_output=False, method='RK45'):
+    """Warm homogeneous pair orbits; energies use total density times mec².
 
-    Initial velocities are uniform on [-vT,vT]. Linearized displacement and
-    momentum along each unperturbed orbit avoid differentiating a waterbag's
-    discontinuous edge; Gauss closes the ordinary and massive fields.
+    This continuum background has no spatial modes. Its bare D(t) can supply
+    an independent prescribed envelope; it is not the mean of a nonlinear PIC run.
     """
-    times = np.asarray(times)
+    times = np.asarray(times, dtype=float)
+    if (times.ndim != 1 or times.size < 2 or times[0] < 0 or np.any(np.diff(times) <= 0)
+            or not np.all(np.isfinite([*times, eta, mass, ordinary_field, dark_field, half_width, rtol, atol]))
+            or not 0 <= half_width < 1 or mass <= 0 or min(rtol, atol) <= 0
+            or not isinstance(nodes, (int, np.integer)) or nodes < 1):
+        raise ValueError('finite increasing times, positive mass/tolerance/nodes and subluminal waterbag are required')
     points, weights = leggauss(nodes)
     velocity = half_width * points
     momentum = velocity / np.sqrt(1 - velocity**2)
     weights = weights / 2
-    charge = np.array([-1.0, 1.0])[:, None]
 
     def mean_velocity(pump_momentum):
         orbit = momentum + pump_momentum
@@ -123,9 +127,42 @@ def relativistic_response(times, k, seed, eta, mass, ordinary_field,
 
     pump = solve_ivp(pump_rhs, (0, float(times[-1])),
                      [ordinary_field, dark_field, 0, 0], dense_output=True,
-                     rtol=2e-11, atol=2e-13)
+                     rtol=rtol, atol=atol, method=method)
     if not pump.success:
         raise RuntimeError(pump.message)
+    ordinary, dark, potential, impulse = pump.sol(times)
+    orbit = momentum[:, None] + impulse[None, :]
+    kinetic = weights @ (orbit**2 / (np.sqrt(1 + orbit**2) + 1))
+    result = dict(t=times, mean_E=ordinary, mean_D=dark, mean_A=potential, impulse=impulse,
+                  current=np.array([mean_velocity(value) for value in impulse]), kinetic=kinetic,
+                  energy=kinetic + .5 * (ordinary**2 + dark**2 + mass**2 * potential**2),
+                  initial_momentum=momentum, weights=weights, nfev=pump.nfev)
+    if dense_output:
+        result['dense'] = pump.sol
+    return result
+
+
+def relativistic_response(times, k, seed, eta, mass, ordinary_field,
+                          dark_field, half_width=0.05, nodes=64, linear_end=None, spatial_eta=None,
+                          rtol=2e-8, atol=2e-10):
+    """Quadrature Vlasov–Proca initial value problem with a relativistic pusher.
+
+    Initial velocities are uniform on [-vT,vT]. Linearized displacement and
+    momentum along each unperturbed orbit avoid differentiating a waterbag's
+    discontinuous edge; Gauss closes the ordinary and massive fields.
+    ``spatial_eta=0`` removes finite-k dark forces while preserving the coupled
+    homogeneous pump. Its default retains the original self-consistent tangent.
+    ``rtol`` and ``atol`` govern the perturbation ODE; the background keeps its
+    original tighter tolerances.
+    """
+    times = np.asarray(times)
+    background = relativistic_background(times, eta, mass, ordinary_field, dark_field,
+                                         half_width, nodes, dense_output=True)
+    momentum, weights, pump = background['initial_momentum'], background['weights'], background['dense']
+    charge = np.array([-1.0, 1.0])[:, None]
+    mixing = eta if spatial_eta is None else spatial_eta
+    if not np.isfinite(mixing):
+        raise ValueError('spatial coupling must be finite')
     start_displacement = np.zeros((2, nodes), dtype=complex)
     start_momentum = charge * seed / 2 * (1 + momentum**2)**1.5
     initial = np.r_[start_displacement.ravel(), start_momentum.ravel(), 0j, 0j]
@@ -134,29 +171,28 @@ def relativistic_response(times, k, seed, eta, mass, ordinary_field,
         displacement = state[:2 * nodes].reshape(2, nodes)
         rho = -1j * k * np.sum(charge[:, 0] * (displacement @ weights)) / 2
         ordinary = rho / (1j * k)
-        dark = (eta * rho - mass**2 * state[-1]) / (1j * k)
+        dark = (mixing * rho - mass**2 * state[-1]) / (1j * k)
         return ordinary, dark
 
     def rhs(t, state):
         displacement = state[:2 * nodes].reshape(2, nodes)
         perturbation = state[2 * nodes:4 * nodes].reshape(2, nodes)
-        p = momentum[None, :] + charge * pump.sol(t)[3]
+        p = momentum[None, :] + charge * pump(t)[3]
         speed = p / np.sqrt(1 + p**2)
         acceleration = (1 + p**2)**-1.5
         ordinary, dark = fields(state)
         next_displacement = -1j * k * speed * displacement + acceleration * perturbation
-        next_momentum = -1j * k * speed * perturbation + charge * (ordinary + eta * dark)
+        next_momentum = -1j * k * speed * perturbation + charge * (ordinary + mixing * dark)
         return np.r_[next_displacement.ravel(), next_momentum.ravel(),
                      -dark - 1j * k * state[-1], -1j * k * state[-2]]
 
     selected = times if linear_end is None else times[times <= linear_end]
     solution = solve_ivp(rhs, (0, float(selected[-1])), initial, t_eval=selected,
-                         rtol=2e-8, atol=2e-10)
+                         rtol=rtol, atol=atol)
     if not solution.success:
         raise RuntimeError(solution.message)
     coefficients = np.full((2, len(times)), np.nan + 0j)
     coefficients[:, :len(selected)] = np.array([
         fields(solution.y[:, index]) for index in range(len(selected))]).T
-    background = pump.sol(times)
-    background[3] = np.array([mean_velocity(value) for value in background[3]])
-    return coefficients[0], coefficients[1], background
+    return coefficients[0], coefficients[1], np.array([
+        background[key] for key in ('mean_E', 'mean_D', 'mean_A', 'current')])

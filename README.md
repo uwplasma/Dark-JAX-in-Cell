@@ -275,6 +275,12 @@ The [dark pair option](examples/dark_reservoir.py) puts the same neutral waterba
 
 [Companion script](examples/dark_reservoir.py) · `study="pair_dark"`, `full=True`.
 
+### Velocity resolution and pump controls
+
+The archived pair runs repeat 32 waterbag velocities per cell. Their independent free-streaming recurrence estimate is **$\omega_0t_{\rm rec}=167.2$**, close to the $170$ horizon; spatial refinement alone does not move it. Relativistic acceleration changes that estimate, so this identifies a resolution risk rather than the cause of the stored depletion. New controls distribute velocity quantiles across the full loading and compare the coupled run with its realized mean-force replay and an independent warm homogeneous envelope. They retain total dark energy separately from ordinary fields and bulk motion, refine forcing tables, and compare the early spatial response with Vlasov–Proca theory. [Equations, recurrence checks and interpretation](docs/kinetic.md#velocity-sampling-and-numerical-recurrence).
+
+[Companion script](examples/dark_reservoir.py) · `study='pair_waveform'`, `full=True`; [independent loading and reference checks](tests/test_pair_reference.py). Late depletion remains under validation.
+
 ## Conservation and long-time clocks
 
 The [source-free Proca comparison](docs/scripts/benchmark_time_integrators.py) evolves longitudinal and transverse fields to $\Omega_Dt=200$ against a matrix exponential. The explicit split bounds field-energy error at **2.37%** for $\Delta t\Omega_D=0.2$ and **0.577%** at half that step. Implicit midpoint preserves this vacuum field energy to roundoff but has **1.53** final relative state error at the larger step; DOP853 reaches **$3.0\times10^{-8}$** state error with tight tolerances. Phase accuracy and total PIC energy require separate checks: exact field-only conservation does not close the particle–field work ledger. [Methods and timings](docs/performance.md#which-clock-to-trust) and the [full record](docs/_static/figures/time_integrators/run.json) give the comparison.

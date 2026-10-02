@@ -31,39 +31,51 @@ import sys
 from jaxincell import (Domain, Simulation, Solver, Species, elementary_charge as e,
                        epsilon_0, mass_electron, mass_proton, quiet_start,
                        save_run, speed_of_light as c)
+from jaxincell._simulation import _van_der_corput
 from darkjaxincell import DarkField, DarkSimulation, PrescribedDrive, load_state, midnight, save_state
 from darkjaxincell._proca import energy as dark_energy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "docs" / "scripts"))
-from pair_reference import (coupled_response, growth, relativistic_response,
+from pair_reference import (coupled_response, growth, relativistic_background, relativistic_response,
                             seeded_response)  # noqa: E402
 from conservation import coarse_spread, elapsed_progress, measured_run, parent_revision, snapshot  # noqa: E402
 from drive_reference import forced_cold, gaussian_tangent, homogeneous  # noqa: E402
 
 
 # Inputs: the default is a small mobile-ion comparison.
-study = globals().get('study', 'mobile_ions')  # paper, pair, pair_dark or paper_pilot
+study = globals().get('study', 'mobile_ions')  # paper, pair, pair_dark, pair_waveform or paper_pilot
 full = globals().get('full', False)
 output = Path(globals().get('output', 'artifacts/dark_reservoir'))
 # Paper controls use omega_p time units and markers per species.
-cells = globals().get('cells', 1000)
+cells = globals().get('cells', (4096 if full else 512) if study == 'pair_waveform' else 1000)
 particles = globals().get('particles', 103000 if full else 20000)
-dt = globals().get('dt', 0.02)
-horizon = globals().get('horizon', 5000 if full else 40)
+dt = globals().get('dt', (0.00625 if full else 0.025) if study == 'pair_waveform' else 0.02)
+horizon = globals().get('horizon', (170 if full else 10) if study == 'pair_waveform' else (5000 if full else 40))
 seed = globals().get('seed', 0)
 drive_ratio = globals().get('drive_ratio', 0.03)
 coupling = globals().get('coupling', None)  # None selects the prescribed drive.
-block_horizon = globals().get('block_horizon', min(100, horizon))  # None preserves a single full scan.
-local_moments = globals().get('local_moments', False)
+block_horizon = globals().get('block_horizon', min(10 if study == 'pair_waveform' else 100, horizon))
+local_moments = globals().get('local_moments', full and study == 'pair_waveform')
 initial_state = globals().get('initial_state', None)
 initial_state = None if initial_state is None else Path(initial_state)
 momentum_seed = globals().get('momentum_seed', 0.)  # Electron δu / initial σe; zero keeps the paper loading.
 seed_mode = globals().get('seed_mode', 16)
 seed_phase = globals().get('seed_phase', 0.)
 shape_order = globals().get('shape_order', 2)  # 5 selects the optional parent quintic weighting.
+# Pair-waveform controls: one loading, a coupled run and two refined external-force interventions.
+particles_per_cell = globals().get('particles_per_cell', 128 if full else 8)
+pair_loading = globals().get('pair_loading', 'global' if study == 'pair_waveform' else 'cell')
+velocity_seed = globals().get('velocity_seed', 2e-4)
+eta = globals().get('eta', 0.5)
+dark_mass = globals().get('dark_mass', 1.)
+force = globals().get('force', 0.05)
+quadrature = globals().get('quadrature', 64)
+table_dt = globals().get('table_dt', 2 * dt)
+output_dt = globals().get('output_dt', 0.2)
+linear_end = globals().get('linear_end', min(20., horizon))
 
 
-def pair_plasma(cells, particles_per_cell, dtau, seed, relativistic=False):
+def pair_plasma(cells, particles_per_cell, dtau, seed, relativistic=False, shape_order=2, pair_loading='cell'):
     """Load matched neutral waterbags for ordinary and dark pair runs."""
     omega_0 = 1e9
     omega_p = omega_0 / np.sqrt(2)
@@ -71,6 +83,8 @@ def pair_plasma(cells, particles_per_cell, dtau, seed, relativistic=False):
     length = 70 * c / omega_0
     half_width = 0.05
     mode = round(0.6 * 70 / (2 * np.pi * half_width))
+    if 2 * mode >= cells:
+        raise ValueError('pair seed must lie below the mesh Nyquist mode')
     k = 2 * np.pi * mode / length
     count = cells * particles_per_cell
     cell, slot = np.divmod(np.arange(count), particles_per_cell)
@@ -78,6 +92,15 @@ def pair_plasma(cells, particles_per_cell, dtau, seed, relativistic=False):
     # A coprime permutation spreads the waterbag quantiles within every cell.
     order = (slot * (particles_per_cell - 1)) % particles_per_cell
     waterbag = half_width * c * (2 * (order + 0.5) / particles_per_cell - 1)
+    if pair_loading == 'global':
+        half_count = count // 2
+        if particles_per_cell % 2 or half_count < 1 or half_count & (half_count - 1):
+            raise ValueError('global pair loading requires even markers per cell and a power-of-two half-count')
+        rank = np.floor(_van_der_corput(half_count, 2) * half_count)
+        speed = half_width * c * (rank + .5) / half_count
+        waterbag = np.column_stack((-speed, speed)).ravel()
+    elif pair_loading != 'cell':
+        raise ValueError('pair_loading must be cell or global')
     positions = jnp.stack((jnp.asarray(x), jnp.zeros(count), jnp.zeros(count)), axis=1)
     species = []
     for name, charge in (("electrons", -1), ("positrons", 1)):
@@ -86,7 +109,11 @@ def pair_plasma(cells, particles_per_cell, dtau, seed, relativistic=False):
         species.append(Species(name, count, charge, mass_electron, density,
                                x=positions, v=velocity))
     domain = Domain(length=length, cells=cells, time_step=dtau / omega_0)
-    plasma = Simulation(domain, tuple(species), Solver(relativistic=relativistic))
+    if shape_order not in (2, 5):
+        raise ValueError('pair shape_order must be 2 or 5')
+    solver = (Solver(relativistic=relativistic) if shape_order == 2
+              else Solver(relativistic=relativistic, shape_order=5))
+    plasma = Simulation(domain, tuple(species), solver)
     return plasma, species, k, omega_0
 
 
@@ -440,6 +467,345 @@ def pair_dark_figure(folder, full=False):
                     if equal_energy is not None else {}))
         plt.close(fig)
     print("🦇 DARK PAIR:", result)
+
+
+def pair_push_table(plasma, start, history, omega, eta):
+    """Bare mean dark E actually used by each Boris push, in native SI units.
+
+    Periodic continuity closes the first half-step current to the old particle
+    current. Integer-time D and A alone would miss that source/mass half kick.
+    The end knots cover the run; only the midpoint values enter the pusher.
+    """
+    number_density, offset = [], 0
+    for species in plasma.species:
+        number_density.append(float(np.sum(np.asarray(start.w[offset:offset + species.n])))
+                              / plasma.domain.length)
+        offset += species.n
+    charge_density = np.array(number_density) * np.array([float(s.charge_si) for s in plasma.species])
+    current = np.asarray(history['mean']) @ charge_density
+    dt = plasma.domain.dt
+    if not np.allclose(np.diff(history['t']), dt, rtol=1e-8, atol=0):
+        raise ValueError('push-mean reconstruction requires every native integer-time sample')
+    push = history['mean_D'][:-1] + dt / 2 * (
+        omega**2 * history['mean_A'][:-1] - eta * current[:-1] / epsilon_0)
+    times = np.r_[history['t'][0], history['t'][:-1] + dt / 2, history['t'][-1]]
+    return times, np.r_[history['mean_D'][0], push, history['mean_D'][-1]]
+
+
+def pair_waveform_normalize(values, label, energy_scale, field_scale, wp, phase):
+    """Normalize scalar histories after native evidence has been saved."""
+    values['t'] *= wp
+    for key in ('electric', 'magnetic', 'dark', 'dark_coherent', 'kinetic', 'spread', 'balance', 'work'):
+        values[key] /= energy_scale
+    if 'local_spread' in values:
+        values['local_spread'] /= energy_scale
+    for key in ('mean', 'rms', 'max_speed'):
+        values[key] /= c
+    values['momentum'] /= energy_scale / c
+    for key in ('mean_E', 'mean_D', 'mode_E', 'dark_mode_E'):
+        values[key] /= field_scale
+    values['mean_A'] *= wp / field_scale
+    values['mode_E'] = values['mode_E'] * phase
+    values['dark_mode_E'] = values['dark_mode_E'] * phase
+    values['nonzero_electric'] = values['electric'] - .5 * values['mean_E']**2
+    values['source_work'] = (-1 if label == 'coupled' else 1) * values['work']
+
+
+def pair_waveform_windows(curves, maxima, energy_scale, horizon, local_moments, dark_depletion):
+    """Fixed raw-clock comparisons, retaining absolute norms for vanishing signals."""
+    from compare_replays import metrics, window_summary
+
+    windows = sorted(set([(0., min(20., horizon)), (max(0., horizon - 20.), horizon)]
+                         + ([(20., min(40., horizon))] if horizon > 20 else [])))
+    comparisons = {}
+    keys = ('mean_E', 'mode_E', 'electric', 'nonzero_electric', 'source_work', 'kinetic', 'spread', 'density_rms')
+    if local_moments:
+        keys += ('local_spread', 'local_density_rms')
+    for bounds in windows:
+        selected = (curves['coupled']['t'] >= bounds[0] - 1e-8) & (curves['coupled']['t'] <= bounds[1] + 1e-8)
+        reductions = {label: window_summary(values, selected, label == 'coupled')
+                      for label, values in curves.items()}
+        reductions['coupled'].update(
+            additional_dark_depletion_fraction_mean=float(np.mean(dark_depletion[selected])),
+            additional_dark_depletion_gain_mean=float(np.mean(dark_depletion[selected] - dark_depletion[0])))
+        paired = {}
+        for first, second in (('coupled', 'realized_fine'), ('coupled', 'homogeneous_fine'),
+                              ('realized_fine', 'homogeneous_fine'),
+                              ('realized_coarse', 'realized_fine'), ('homogeneous_coarse', 'homogeneous_fine')):
+            if not np.allclose(curves[first]['t'], curves[second]['t'], rtol=0, atol=1e-8):
+                raise ValueError('waveform runs do not share native scalar clocks')
+            comparison = {key: metrics(curves[first][key][selected], curves[second][key][selected]) for key in keys}
+            for key in ('reference_mean', 'comparison_mean'):
+                mean = comparison['mode_E'][key]
+                comparison['mode_E'][key] = dict(real=float(np.real(mean)), imag=float(np.imag(mean)))
+            transfer = max(abs(reductions[first]['work_increment']), abs(reductions[second]['work_increment']))
+            difference = abs(reductions[first]['plasma_mean_energy'] - reductions[second]['plasma_mean_energy'])
+            defect = max(maxima[first][0], maxima[second][0], maxima[first][8], maxima[second][8]) / energy_scale
+            comparison['balance_defect_over_window_transfer'] = float(defect / transfer) if transfer else None
+            comparison['balance_defect_over_target_energy_difference'] = (
+                float(defect / difference) if difference else None)
+            paired[first + '_vs_' + second] = comparison
+        comparisons[str(bounds)] = dict(bounds_omega0=list(bounds), samples=int(np.sum(selected)),
+                                        reductions=reductions, comparisons=paired)
+    return comparisons
+
+
+def pair_waveform_plot(curves, indices, reservoir):
+    """White paired histories at the same saved native clocks."""
+    with midnight():
+        fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout='constrained')
+        for label, display in (('coupled', 'coupled'), ('realized_fine', 'realized dark mean force'),
+                               ('homogeneous_fine', 'independent warm envelope')):
+            values = curves[label]
+            time = values['t'][indices]
+            axes[0, 0].plot(time, values['mean_E'][indices], label=display)
+            axes[0, 1].plot(time, abs(values['mode_E'][indices]), label=display)
+            sign = -1 if label == 'coupled' else 1
+            axes[1, 0].plot(time, sign * values['work'][indices] / reservoir, label=display)
+            axes[1, 1].plot(time, (values['balance'][indices] - values['balance'][0]) / reservoir, label=display)
+        axes[0, 0].set(ylabel='mean ordinary E / field scale')
+        axes[0, 1].set(ylabel='seeded ordinary |E mode| / field scale', yscale='log')
+        axes[1, 0].set(ylabel='ordinary source work / initial dark energy')
+        axes[1, 1].set(ylabel='energy balance / initial dark energy')
+        for ax in axes.flat:
+            ax.set(xlabel=r'$\omega_0 t$')
+            ax.grid(alpha=.25)
+            ax.legend(fontsize=8)
+        return fig
+
+
+def pair_waveform_linear(curves, indices, k, seed, eta, mass, force, quadrature, linear_end=20.):
+    """Early complex modes on one warm envelope; their difference can already be linear."""
+    if not np.isfinite(linear_end) or linear_end <= 0:
+        raise ValueError('linear reference horizon must be finite and positive')
+    selected = curves['coupled']['t'] <= min(20., linear_end) + 1e-8
+    times = curves['coupled']['t'][selected]
+    if len(times) < 2:
+        raise ValueError('linear comparison needs at least two native clocks')
+    saved = indices[selected[indices]]
+    args = (times, k, seed, eta, mass, 0., force / eta)
+    arrays, results, references = dict(linear_t=curves['coupled']['t'][saved]), {}, {}
+    for label, mixing in (('coupled', eta), ('homogeneous_fine', 0.)):
+        coarse = relativistic_response(*args, nodes=quadrature, spatial_eta=mixing, rtol=2e-10, atol=2e-12)[0]
+        fine = relativistic_response(*args, nodes=2 * quadrature, spatial_eta=mixing, rtol=2e-10, atol=2e-12)[0]
+        loose = relativistic_response(*args, nodes=2 * quadrature, spatial_eta=mixing)[0]
+        measured = curves[label]['mode_E'][selected]
+        norm, difference = np.linalg.norm(fine), np.linalg.norm(measured - fine)
+        results[label] = dict(absolute_l2_error=float(difference), reference_l2_norm=float(norm),
+                              relative_l2_error=float(difference / norm) if norm else None,
+                              max_absolute_error=float(np.max(abs(measured - fine))),
+                              quadrature_absolute_l2_difference=float(np.linalg.norm(fine - coarse)),
+                              tolerance_absolute_l2_difference=float(np.linalg.norm(fine - loose)))
+        arrays[f'linear_{label}_mode_E'] = fine[saved]
+        references[label] = fine
+    results.update(horizon_omega0=float(times[-1]), nodes=[quadrature, 2 * quadrature],
+                   perturbation_tolerances=[[2e-8, 2e-10], [2e-10, 2e-12]],
+                   interbranch_absolute_l2_difference=float(np.linalg.norm(
+                       references['coupled'] - references['homogeneous_fine'])),
+                   qualification='Removing finite-k dark force changes linear dynamics on the same warm envelope; '
+                   'a replay difference alone is not evidence of a nonlinear mechanism')
+    return arrays, results
+
+
+def pair_waveform_control(folder, cells, particles_per_cell, dtau, horizon,
+                          seed=2e-4, eta=.5, mass=1., force=.05, quadrature=64,
+                          table_dt=None, output_dt=.2, block_horizon=None,
+                          local_moments=False, shape_order=2, pair_loading='global', linear_end=20.):
+    """Separate finite-k dark feedback from the realized homogeneous envelope.
+
+    The coupled-mean replay removes spatial dark forces as an intervention.
+    The independent continuum-envelope replay also changes the background;
+    its difference alone cannot identify spatial feedback. Tables refine at
+    fixed native PIC clocks. Velocity-ring refinement remains a separate gate.
+    """
+    table_dt = 2 * dtau if table_dt is None else table_dt
+    if (min(dtau, horizon, table_dt, output_dt, eta, mass, force, linear_end) <= 0
+            or not np.all(np.isfinite([dtau, horizon, table_dt, output_dt, eta, mass, force, seed, linear_end]))
+            or cells < 1 or particles_per_cell < 2 or quadrature < 2 or min(20., horizon, linear_end) < dtau):
+        raise ValueError('positive finite waveform inputs and resolved particle/quadrature counts are required')
+    steps = round(horizon / dtau)
+    if steps < 2 or not np.isclose(steps * dtau, horizon, rtol=0, atol=1e-10):
+        raise ValueError('waveform horizon must contain an integer number of at least two native steps')
+    plasma, _, k, wp = pair_plasma(cells, particles_per_cell, dtau, seed, True, shape_order, pair_loading)
+    mode = round(k * plasma.domain.length / (2 * np.pi))
+    if 2 * mode >= cells:
+        raise ValueError('pair seed must lie below the mesh Nyquist mode')
+    field_scale = mass_electron * c * wp / e
+    energy_scale = epsilon_0 * plasma.domain.length * field_scale**2
+    nominal_reservoir = .5 * (force / eta)**2
+    scales = np.array([.1, .2]) * c / wp
+    sampled_scales = jnp.asarray(scales) if local_moments else None
+    model = DarkField(mass * wp, eta, initial_E=jnp.tile(
+        jnp.array([force * field_scale / eta, 0., 0.]), (cells, 1)))
+    coupled = DarkSimulation(plasma, model)
+    start, _ = coupled.initial_state(random.PRNGKey(0))
+    reservoir = float(snapshot(coupled, start)['dark']) / energy_scale
+    phase = np.exp(-1j * k * float(plasma.domain.faces[0]))
+    flags = ' '.join(token if '/' not in token and '\\' not in token
+                     else token.split('=')[0] + '=<path omitted>'
+                     for token in shlex.split(os.environ.get('XLA_FLAGS', '')))
+    initial_hashes = {key: array_fingerprint(getattr(start.ordinary, key))
+                      for key in ('x', 'u', 'w', 'E', 'B', 'rho')}
+    curves, records, maxima = {}, {}, {}
+
+    def advance(label, sim, initial):
+        with elapsed_progress(label):
+            final, values, maximum, blocks, compile_s, warm_s, memory = paper_run(
+                sim, initial, steps, 1, block_horizon, wp, sampled_scales, Path(folder) / label, mode)
+        save_compressed_state(Path(folder) / label / 'final_state.npz', final, sim)
+        endpoint = np.asarray(coarse_spread(sim, final, scales)) / energy_scale
+        initial_local = np.asarray(coarse_spread(sim, initial, scales)) / energy_scale
+        records[label] = dict(compile_s=compile_s, warm_primal_s=warm_s,
+                              compiler_temporary_MiB=memory.temp_size_in_bytes / 2**20 if memory else None,
+                              block_steps=blocks, local_spread_initial=initial_local.tolist(),
+                              local_spread_final=endpoint.tolist(),
+                              initial_ordinary_fingerprints={key: array_fingerprint(
+                                  getattr(initial.ordinary, key)) for key in initial_hashes})
+        maxima[label] = np.asarray(maximum)
+        density = sum(float(s.density) for s in plasma.species)
+        records[label]['all_step_maxima'] = dict(
+            energy_work_over_energy_scale=float(maximum[0] / energy_scale),
+            momentum_over_energy_scale_over_c=float(maximum[1] / (energy_scale / c)),
+            charge_over_enL=float(maximum[2] / (e * density * plasma.domain.length)),
+            continuity_over_enomega0=float(maximum[3] / (e * density * wp)),
+            ordinary_gauss_over_en_eps0=float(maximum[4] * epsilon_0 / (e * density)),
+            dark_gauss_over_en_eps0=float(maximum[5] * epsilon_0 / (e * density)),
+            grid_charge_over_enL=float(maximum[6] / (e * density * plasma.domain.length)),
+            dark_sector_work_over_energy_scale=float(maximum[7] / energy_scale),
+            ordinary_sector_work_over_energy_scale=float(maximum[8] / energy_scale))
+        case_settings = dict(label=label, model=type(sim.dark).__name__, parent_revision=parent_revision(),
+                             cells=cells, particles_per_cell_per_species=particles_per_cell, pair_loading=pair_loading,
+                             dt_omega0=dtau, horizon_omega0=horizon, shape_order=shape_order, seed_mode=mode,
+                             velocity_seed_over_c=seed, eta=eta, dark_mass_over_omega0=mass, force_quiver_over_c=force,
+                             block_steps=blocks, scalar_units='native SI', XLA_FLAGS=flags,
+                             initial_dark_energy_over_energy_scale=reservoir,
+                             normalization=dict(omega0_rad_s=wp, field_scale_V_m=field_scale,
+                                                energy_scale_J_m2=energy_scale))
+        save_run(Path(folder) / label, 'pair_waveform_branch', case_settings, records[label], **values)
+        np.savez_compressed(Path(folder) / label / 'data.npz', **values)
+        return final, values
+
+    _, native = advance('coupled', coupled, start)
+    knots, realized = pair_push_table(plasma, start.ordinary, native, mass * wp, eta)
+    tau = knots * wp
+    oracle_args = (tau, eta, mass, 0., force / eta)
+    loose = relativistic_background(*oracle_args, nodes=quadrature, method='DOP853', dense_output=True)
+    precise = relativistic_background(*oracle_args, nodes=quadrature, method='DOP853',
+                                      rtol=2e-13, atol=2e-15, dense_output=True)
+    oracle = relativistic_background(*oracle_args, nodes=2 * quadrature, method='DOP853',
+                                     rtol=2e-13, atol=2e-15, dense_output=True)
+    reference_checks = dict(
+        tolerance_force_error_over_initial=float(np.max(abs(loose['mean_D'] - precise['mean_D'])) / (force / eta)),
+        quadrature_force_error_over_initial=float(np.max(abs(precise['mean_D'] - oracle['mean_D'])) / (force / eta)),
+        max_energy_defect_over_homogeneous_initial_reservoir=float(
+            np.max(abs(oracle['energy'] - oracle['energy'][0])) / nominal_reservoir))
+    curves['coupled'] = native
+    cadence = max(1, round(table_dt / dtau))
+    forcing_checks = {}
+    for source, values in (('realized', realized), ('homogeneous', oracle['mean_D'] * field_scale)):
+        for resolution, every in (('coarse', cadence), ('fine', 1)):
+            selected = np.unique(np.r_[0, np.arange(1, len(knots) - 1, every), len(knots) - 1])
+            table_times, table = knots[selected], values[selected]
+            if table_times[0] > 0 or table_times[-1] < native['t'][-1]:
+                raise ValueError('prescribed table does not cover the physical run horizon')
+            label = source + '_' + resolution
+            amplitude = jnp.stack((jnp.asarray(table), jnp.zeros(len(table)), jnp.zeros(len(table))), axis=1)
+            drive = PrescribedDrive(eta, amplitude, 0., times=jnp.asarray(table_times))
+            sim = DarkSimulation(plasma, drive)
+            initial = sim.continue_with_parameters(start.replace(
+                E=None, B=None, A=None, phi=None, initial_projection_norm=jnp.zeros(())))
+            _, curves[label] = advance(label, sim, initial)
+            if records[label]['initial_ordinary_fingerprints'] != initial_hashes:
+                raise ValueError('waveform intervention changed the ordinary initial state')
+            forcing_checks[label] = dict(
+                max_midpoint_force_error_over_initial=float(np.max(abs(np.interp(
+                    knots[1:-1], table_times, table) - values[1:-1])) / (force * field_scale / eta)),
+                knots=len(table), maximum_knot_dt_omega0=float(np.max(np.diff(table_times)) * wp),
+                table_refinement='distinct coarse/fine cadence' if cadence > 1 else 'identical cadence; no refinement')
+    for label, values in curves.items():
+        pair_waveform_normalize(values, label, energy_scale, field_scale, wp, phase)
+        records[label].update(
+            max_balance_defect_over_initial_reservoir=float(maxima[label][0] / energy_scale / reservoir),
+            max_dark_sector_defect_over_initial_reservoir=float(maxima[label][7] / energy_scale / reservoir),
+            max_ordinary_sector_defect_over_initial_reservoir=float(maxima[label][8] / energy_scale / reservoir))
+    # Evaluate the independent warm background at integer clocks, not forcing-table midpoints.
+    integer_background = oracle['dense'](curves['coupled']['t'])
+    orbit = oracle['initial_momentum'][:, None] + integer_background[3]
+    homogeneous_kinetic = oracle['weights'] @ (orbit**2 / (np.sqrt(1 + orbit**2) + 1))
+    homogeneous_dark = .5 * (integer_background[1]**2 + mass**2 * integer_background[2]**2)
+    warm_excess = (curves['coupled']['kinetic'].sum(axis=1) - curves['coupled']['kinetic'][0].sum()
+                   - homogeneous_kinetic + homogeneous_kinetic[0]) / reservoir
+    dark_depletion = (homogeneous_dark - curves['coupled']['dark']) / reservoir
+    comparisons = pair_waveform_windows(curves, maxima, energy_scale, horizon, local_moments, dark_depletion)
+    distinct_velocities = cells * particles_per_cell if pair_loading == 'global' else particles_per_cell
+    delta_v = .1 / distinct_velocities
+    late = curves['coupled']['t'] >= max(0, horizon - 20) - 1e-8
+    records['coupled'].update(
+        late_total_dark_fraction=float(np.mean(curves['coupled']['dark'][late]) / reservoir),
+        late_coherent_dark_fraction=float(np.mean(curves['coupled']['dark_coherent'][late]) / reservoir),
+        late_nonzero_dark_fraction=float(np.mean(
+            curves['coupled']['dark'][late] - curves['coupled']['dark_coherent'][late]) / reservoir),
+        late_additional_dark_depletion_fraction=float(np.mean(dark_depletion[late])),
+        initial_dark_preparation_offset_fraction=float(dark_depletion[0]),
+        late_additional_dark_depletion_gain=float(np.mean(dark_depletion[late] - dark_depletion[0])),
+        late_kinetic_excess_over_warm_background=float(np.mean(warm_excess[late])))
+    settings = dict(model='seeded relativistic pair waterbag waveform interventions',
+                    parent_revision=parent_revision(), cells=cells, particles_per_cell_per_species=particles_per_cell,
+                    dt_omega0=dtau, horizon_omega0=horizon, shape_order=shape_order, seed_mode=mode,
+                    length_c_over_omega0=70., waterbag_full_width_over_c=.1,
+                    velocity_seed_over_c=seed, eta=eta, dark_mass_over_omega0=mass, force_quiver_over_c=force,
+                    quadrature_nodes=[quadrature, 2 * quadrature], reference_method='DOP853',
+                    linear_reference_horizon_omega0=min(20., horizon, linear_end),
+                    reference_tolerances=[2e-11, 2e-13], table_dt_omega0=cadence * dtau,
+                    native_diagnostic_dt_omega0=dtau, saved_output_dt_omega0=max(1, round(output_dt / dtau)) * dtau,
+                    local_spread_lengths_c_over_omega0=(scales * wp / c).tolist(), local_moments=local_moments,
+                    initial_ordinary_fingerprints=initial_hashes, delta_v_over_c=delta_v,
+                    initial_dark_energy_over_energy_scale=reservoir,
+                    homogeneous_initial_dark_energy_over_energy_scale=nominal_reservoir,
+                    pair_loading=pair_loading, distinct_unperturbed_velocities=distinct_velocities,
+                    estimated_ballistic_recurrence_omega0=2 * np.pi / (k * c / wp * delta_v),
+                    velocity_refinement_particles_per_cell=[128, 256, 512],
+                    recurrence_qualification='free-streaming estimate; driven relativistic orbits change recurrence',
+                    forcing='native first-half-kick coupled mean; separately refined homogeneous continuum envelope',
+                    intervention='finite-k dark force removed; external work replaces the closed reservoir',
+                    work_sign='work: into dark if coupled, into ordinary if prescribed; source_work: into ordinary',
+                    depletion_definition='QD = (homogeneous dark energy − coupled total dark energy) / actual UD0',
+                    depletion_gain_definition='QD(t) − QD(0); raw QD retains the initial preparation offset',
+                    kinetic_excess_definition='(PIC kinetic gain − warm homogeneous kinetic gain) / actual UD0',
+                    XLA_FLAGS=flags,
+                    unscaled_native_units=dict(charge='C/m²', grid_charge='C/m²',
+                                               ordinary_gauss='V/m²', dark_gauss='V/m²'),
+                    accuracy_targets=dict(reference_energy_over_reservoir=1e-9, quadrature_force_over_initial=1e-6,
+                                          table_force_over_initial=1e-4, primary_window_fraction=.01,
+                                          nonzero_mode_density_window_fraction=.05,
+                                          conservation_over_transfer_and_target_difference=1e-3),
+                    normalization=dict(omega0_rad_s=wp, field_scale_V_m=field_scale, energy_scale_J_m2=energy_scale))
+    results = dict(reference=reference_checks, forcing=forcing_checks, cases=records, windows=comparisons,
+                   claim='finite-time intervention; late claims require loading/grid/time and table convergence')
+    stride = max(1, round(output_dt / dtau))
+    indices = np.unique(np.r_[np.arange(0, steps + 1, stride), steps])
+    linear_arrays, results['linear_reference'] = pair_waveform_linear(
+        curves, indices, k * c / wp, seed, eta, mass, force, quadrature, linear_end)
+    saved = {f'{label}_{key}': value[indices] for label, values in curves.items() for key, value in values.items()}
+    fig = pair_waveform_plot(curves, indices, reservoir)
+    save_run(folder, 'pair_waveform_control', settings, results, fig, **saved, **linear_arrays,
+             coupled_total_dark_fraction=curves['coupled']['dark'][indices] / reservoir,
+             coupled_coherent_dark_fraction=curves['coupled']['dark_coherent'][indices] / reservoir,
+             coupled_nonzero_dark_fraction=(curves['coupled']['dark'][indices]
+                                            - curves['coupled']['dark_coherent'][indices]) / reservoir,
+             homogeneous_dark_fraction=homogeneous_dark[indices] / reservoir,
+             additional_dark_depletion_fraction=dark_depletion[indices],
+             additional_dark_depletion_gain=dark_depletion[indices] - dark_depletion[0],
+             kinetic_excess_over_warm_background=warm_excess[indices],
+             homogeneous_table_t=tau, homogeneous_table_D=oracle['mean_D'],
+             realized_table_t=tau, realized_table_D=realized / field_scale)
+    archive = np.load(Path(folder) / 'data.npz')
+    compressed = {key: archive[key] for key in archive.files}
+    archive.close()
+    np.savez_compressed(Path(folder) / 'data.npz', **compressed)
+    plt.close(fig)
+    print('🌒 WAVEFORM CONTROLS:', results['reference'], flush=True)
+    return curves, settings, results
 
 
 def cold_reference(t, initial, eta, mass_ratio, drive_amplitude=None):
@@ -976,7 +1342,7 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
     return history, settings, results
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # noqa: C901
     if study == 'paper':
         with elapsed_progress("Resonant replay"):
             paper_case(output, cells, particles, dt, horizon, seed, drive_ratio,
@@ -986,10 +1352,14 @@ if __name__ == "__main__":
         pair_figure(output, full)
     elif study == 'pair_dark':
         pair_dark_figure(output, full)
+    elif study == 'pair_waveform':
+        pair_waveform_control(output, cells, particles_per_cell, dt, horizon, velocity_seed,
+                              eta, dark_mass, force, quadrature, table_dt, output_dt,
+                              block_horizon, local_moments, shape_order, pair_loading, linear_end)
     elif study == 'paper_pilot':
         paper_geometry_pilot(output)
     elif study != 'mobile_ions':
-        raise ValueError('study must be mobile_ions, paper, pair, pair_dark or paper_pilot')
+        raise ValueError('study must be mobile_ions, paper, pair, pair_dark, pair_waveform or paper_pilot')
     else:
         presets = ((64, 4000, 0.04, 40), (128, 8000, 0.02, 40)) if full else (
             (32, 1000, 0.08, 20),)

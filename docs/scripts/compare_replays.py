@@ -294,6 +294,8 @@ def _replay_label(settings, variant, index):
     if variant in ('repeat', 'dt'):
         label = f"Δtωₚ={settings['dt_omega_p']:g}"
         return label + f', execution {index + 1}' if variant == 'repeat' and index < 2 else label
+    if variant == 'shape':
+        return f"degree {settings.get('shape_order', 2)} weighting"
     return f"{settings['cells']} cells, {settings['particles_per_species'] // 1000}k/species, seed {settings['seed']}"
 
 

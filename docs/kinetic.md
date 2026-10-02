@@ -193,6 +193,49 @@ The late coherent fraction changes to **{{ dark_pair_grid_control }}** at 2,048 
 
 The orange ordinary control has the same particles, grid, timestep and **initial force**, but one quarter of the dark case's initial field energy. Its late coherent fraction, relative to its own initial field energy, is **{{ dark_pair_force_control }}**. A second ordinary control starts with the **same initial field energy** as the dark case, so its initial force is twice as large; its late coherent fraction is **{{ dark_pair_energy_control }}**. These comparisons expose the different force and energy budgets rather than isolating a new dark kinetic mechanism. The familiar ordinary pump instability was established by [Cruz, Grismayer and Silva](https://arxiv.org/abs/2104.04490). [Corelli *et al.*](https://arxiv.org/abs/2410.16357) evolve coupled photon–dark-photon fields with a cold plasma model; their calculation does not provide this waterbag kinetic trace. The selected case has no matched prescribed-drive control or independent nonlinear 1D1V replay. Its long-time transfer is a bounded numerical result at the tested resolutions, not a priority or universality claim.
 
+### Velocity sampling and numerical recurrence
+
+The archived pair replays above repeat the same midpoint waterbag velocities in every cell. Increasing the number of spatial cells therefore increases total particles without increasing the number of distinct unperturbed velocities. This is a separate resolution limit from particle weighting and mesh spacing. For $N$ equally weighted velocities on $[-V,V]$, free streaming gives the exact discrete characteristic function
+
+$$
+F_N(k,t)=\frac{\sin(kVt)}{N\sin(kVt/N)},\qquad
+F(k,t)=\frac{\sin(kVt)}{kVt},\qquad
+t_{\rm rec}=\frac{\pi N}{kV}.
+$$
+
+Here $V=0.05c$, $L=70c/\omega_0$ and the seeded Fourier mode is 134. With 32 velocities, $\omega_0t_{\rm rec}=167.16$, close to the archived $170$ horizon. At $170$, $F_{32}=-0.5813$, versus $F=0.009693$. These are **independent free-streaming limits**, not a diagnosis of the nonlinear PIC result: relativistic acceleration and trapping change the trajectories. Even before recurrence, the relative discrete envelope differs by $z/\sin z-1$, with $z=kVt/N$. Keeping that bound below 2% through $170$ requires at least 298 velocities; 512 gives 0.67%. Through $500$, 1,024 velocities give 1.45%. Generated higher spatial harmonics impose stricter requirements.
+
+[Loading and reference companion](../examples/dark_reservoir.py) · `pair_plasma(..., pair_loading='cell')`; [independent characteristic-function and seeded-charge checks](../tests/test_pair_reference.py).
+
+The recurrence relation follows the phase aliasing described by [Einkemmer and Ostermann, §2](https://arxiv.org/html/1401.4809v1#S2). Their grid-based analysis is applied here to the deliberately discrete velocity beams, rather than to randomly sampled PIC generally. [Pezzi, Camporeale and Valentini, §§III–IV](https://arxiv.org/html/1601.05240v1) show that early linear growth and nonlinear saturation can respond differently to recurrence. Agreement of the early pair mode therefore does not validate the stored late depletion fraction.
+
+The optional `pair_loading='global'` distributes midpoint quantiles across the complete particle population using the parent's bit-reversed sequence. Neighboring particles have opposite velocities, both species share the same positions and velocities before seeding, and every cell has zero unperturbed mean current. This makes the number of distinct velocities equal to the particle count per species. Spatial and velocity coordinates remain correlated, so the checks also evaluate the **actual seeded ballistic charge functional**, including its $2k$ counterterm, against the continuum integral. Refining that functional and independently refining the PIC mesh and loading are required; a long recurrence estimate alone is insufficient. The historical cell loading remains available for matched comparisons.
+
+### Separating the pump envelope from spatial dark feedback
+
+[dark_reservoir.py](../examples/dark_reservoir.py) with `study='pair_waveform'` runs a coupled pair plasma and two prescribed-force interventions from exactly the same ordinary particle and field state. The first uses the **realized coupled mean dark field** at each Boris push; the second uses an independently integrated warm homogeneous Vlasov–Proca background. Both remove finite-wavelength dark forces. The latter also changes the pump envelope, so its difference from the coupled run includes both changes. Each external-force intervention repeats with a finer interpolation table at fixed PIC timestep. Completed branches save native scalar histories, full restarts, sector work and every-step conservation maxima before the next branch starts.
+
+The realized table reconstructs the actual first-half-kick mean,
+
+$$
+\overline D_{n+1/2}^{\rm push}
+=\overline D_n+\frac{\Delta t}{2}
+\left(\Omega_D^2\overline A_n-\frac{\eta\overline J_n}{\epsilon_0}\right).
+$$
+
+The homogeneous oracle uses velocity quadrature and DOP853 with independently refined tolerances and node count. A separate finite-$k$ linear initial-value calculation compares full spatial coupling with zero spatial dark coupling on the same background. Thus a difference already present in linear response is distinguished from a candidate nonlinear effect. DOP853 integrates the smooth independent reference; it does not replace the charge-conserving PIC step.
+
+For the closed run, the retained dark fraction and additional depletion are
+
+$$
+R_D=\frac{\langle U_D\rangle}{U_D(0)},\qquad
+Q_D=\frac{\langle U_{D,\rm hom}-U_{D,\rm PIC}\rangle}{U_D(0)}.
+$$
+
+Total, mean-mode and finite-wavelength dark energies are recorded separately, including electric, magnetic and massive-potential terms. $Q_D$ uses the independently evolved warm homogeneous plasma at identical physical clocks and the **actual initialized** dark energy. The record retains $Q_D(0)$ as the initial preparation offset and reports additional depletion gain as $Q_D(t)-Q_D(0)$. Kinetic excess subtracts that background's kinetic gain, rather than a cold-flow estimate. Prescribed branches balance ordinary energy against external work and have no evolved dark-energy budget. These are finite-time interventions; late physical claims require the time, mesh, velocity-loading, table, window and held-out controls specified below.
+
+[Companion script](../examples/dark_reservoir.py) · `study='pair_waveform', full=True`; named inputs select `cells`, `particles_per_cell`, `pair_loading`, `dt`, `horizon`, `table_dt`, `quadrature` and `output`. The quick preset checks execution and does not establish depletion or late convergence.
+
 ## Mobile ions and a finite reservoir
 
 The [mobile-ion example](../examples/dark_reservoir.py) uses co-located, exactly charge-neutral electron and proton loadings with $m_i/m_e$ at its physical value, $T_e=T_i=10^{-3}m_ec^2$, and a fixed seeded velocity mode. It compares zero drive, a prescribed longitudinal $F\cos\omega_pt$, and two dynamical Proca fields whose **initial** effective force $\eta E_D$ is the same $F=0.03m_e\omega_pv_{\rm th,e}/e$. Both Proca rest frequencies equal $\omega_p$. The small and large reservoirs set $\eta=0.2$ and $0.02$, giving initial dark energy **{{ mobile_small_energy_ratio }}** and **{{ mobile_large_energy_ratio }}** times the particles' initial longitudinal kinetic energy. Changing $\eta$ changes the reservoir size and backreaction while holding the initial force fixed.
