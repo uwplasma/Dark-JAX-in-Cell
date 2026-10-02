@@ -2149,7 +2149,8 @@ def _pair_pic_initial(folders, sources, detail, times, force, extension=None):
                   native_canonical_sha256=detail['canonical_integer_positions_sha256'],
                   note='Canonical hash is native provenance; NumPy restagger is a separate floating-point check.')
     if extension is not None:
-        result.update(fixed_force_byte_identical=False, original_force_prefix_byte_identical=True)
+        result.update(fixed_force_byte_identical=False, original_force_prefix_byte_identical=True,
+                      unchanged_leaves_except=['x', 'dark.dt', 'dark.times', 'dark.amplitude'])
     return result
 
 

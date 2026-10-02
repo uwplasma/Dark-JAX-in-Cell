@@ -1,5 +1,6 @@
 """Regenerate full-preset midnight evidence and measured MyST substitutions."""
 
+import hashlib
 import json
 import math
 import subprocess
@@ -31,6 +32,46 @@ def provenance(record, folder):
     keys = ("jaxincell", "jax", "numpy", "python", "platform", "jax_enable_x64", "backend", "git")
     run = folder if folder.endswith('.json') else f'{folder}/run.json'
     return {**{key: record[key] for key in keys}, "run": run}
+
+
+def fold_pic_finer(record, finer, folder):
+    """Append one validated step comparison, sharing its already archived donor."""
+    try:
+        from compare_replays import fingerprint
+    except ModuleNotFoundError:  # runpy from the repository root
+        from docs.scripts.compare_replays import fingerprint
+
+    for key in ('native_runs', 'native_sha256', 'scalar_histories', 'archive_diagnostics'):
+        if finer[key][0] != record[key][0]:
+            raise ValueError('finer PIC companion must share the exact archived donor')
+    if 'finer_step' in record:
+        raise ValueError('finer PIC companion is already archived')
+    history = finer['scalar_histories'][1]
+    required = {'t', 'mean_E', 'mode_E', 'electric', 'nonzero_electric', 'kinetic', 'spread', 'local_spread',
+                'rms', 'momentum', 'local_density_rms', 'density_rms', 'magnetic', 'work'}
+    if history.keys() != required:
+        raise ValueError('finer PIC companion requires all fourteen normalized scalar histories')
+    arrays = {'fixed_pic_finer_' + key: np.asarray(value['real']) + 1j * np.asarray(value['imag'])
+              if isinstance(value, dict) else np.asarray(value) for key, value in history.items()}
+    path = Path(folder) / 'data.npz'
+    with np.load(path, allow_pickle=False) as stored:
+        old = dict(stored)
+    if old.keys() & arrays.keys():
+        raise ValueError('finer PIC companion must not overwrite an archived array')
+    np.savez_compressed(path, **old, **arrays)
+    with np.load(path, allow_pickle=False) as stored:
+        if any(stored[key].dtype != value.dtype or stored[key].shape != value.shape
+               or stored[key].tobytes() != value.tobytes() for key, value in old.items()):
+            raise ValueError('finer PIC companion changed a prior native scalar array')
+    companion = {key: value for key, value in finer.items()
+                 if key not in ('native_runs', 'native_sha256', 'scalar_histories', 'archive_diagnostics')}
+    companion.update(reference_native_index=0, reference_native_sha256=record['native_sha256'][0],
+                     native_run=finer['native_runs'][1], native_sha256=finer['native_sha256'][1],
+                     archive_diagnostics=finer['archive_diagnostics'][1],
+                     scalar_histories=dict(file='data.npz', file_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                                           keys={key: 'fixed_pic_finer_' + key for key in history},
+                                           array_sha256={key: fingerprint(value) for key, value in arrays.items()}))
+    return dict(record, finer_step=companion)
 
 
 def replay_measurements(record, labels):
@@ -358,6 +399,21 @@ run_example('examples/dark_reservoir.py', study='pair_dt', samples=1, pic_dt=.00
 run_example('docs/scripts/compare_replays.py', pair_pic_steps=(pair_long_half / 'realized_fine', pair_pic_native),
             output=pair_pic_file)
 pair_pic_record = json.loads(pair_pic_file.read_text())
+if not records_only:
+    # Fresh regeneration uses one source; historical folds retain their reviewed source transitions.
+    pair_extension_native = ROOT / 'artifacts' / 'pair_force_extension' / 'late_realized_native_tail'
+    pair_finer_native = pair_pic_native.with_name('late_realized_fixed_force_dt00078125_extended')
+    run_example('examples/dark_reservoir.py', study='pair_force_extension',
+                initial_state=pair_long_half / 'realized_fine' / 'initial_state.npz', output=pair_extension_native)
+    run_example('examples/dark_reservoir.py', study='pair_dt', samples=1, pic_dt=.00078125,
+                initial_state=pair_long_half / 'realized_fine' / 'initial_state.npz',
+                force_extension=pair_extension_native, output=pair_finer_native)
+    run_example('docs/scripts/compare_replays.py',
+                pair_pic_steps=(pair_long_half / 'realized_fine', pair_finer_native), pair_pic_transition=(),
+                pair_pic_extension=pair_extension_native, output=pair_finer_native / 'comparison.json')
+    pair_pic_record = fold_pic_finer(pair_pic_record, json.loads(
+        (pair_finer_native / 'comparison.json').read_text()), pair_long)
+    pair_pic_file.write_text(json.dumps(pair_pic_record, indent=2) + '\n')
 pic_late = pair_pic_record['windows'][-1]
 for key, suffix in (('mean_E', 'mean'), ('electric', 'electric'), ('nonzero_electric', 'nonzero'), ('mode_E', 'mode')):
     measured[f'pair_fixed_pic_{suffix}_percent'] = f"{100 * pic_late['observables'][key]['relative_l2_difference']:.3f}"
@@ -377,6 +433,34 @@ measured['pair_fixed_pic_max_two_endpoint_transfer_percent'] = (
 pair_pic_provenance = dict(
     run='pair_waveform_long/pic_timestep.json', validation_source=pair_pic_record['validation_source'],
     native_git=[row['git'] for row in pair_pic_record['native_runs']])
+pair_pic_finer_provenance = {}
+if 'finer_step' in pair_pic_record:
+    finer = pair_pic_record['finer_step']
+    late, result = finer['windows'][-1], finer['native_run']['results']
+    for label, row in zip(('donor', 'finer'), late['reductions']):
+        measured[f'pair_fixed_pic_finer_{label}_work'] = f"{row['work_increment']:.9e}"
+    for key, suffix in (('work_increment', 'work'), ('injection_rate_over_wp', 'rate')):
+        a, b = (row[key] for row in late['reductions'])
+        measured[f'pair_fixed_pic_finer_{suffix}_change_percent'] = f'{100 * (b - a) / abs(a):+.3f}'
+    measured['pair_fixed_pic_finer_mode_percent'] = (
+        f"{100 * late['observables']['mode_E']['relative_l2_difference']:.3f}")
+    measured['pair_fixed_pic_finer_phase_rad'] = (
+        f"{late['mode_phase']['reference_amplitude_squared_weighted_rms_rad']:.4f}")
+    for key, suffix in (('global_defect_sum_over_abs_work_difference', 'difference'),
+                        ('two_endpoint_bound_over_abs_work_difference', 'two_endpoint_difference'),
+                        ('accounting_over_abs_rate_difference', 'rate')):
+        measured[f'pair_fixed_pic_finer_{suffix}_budget'] = f"{late['accounting'][key]:.4f}"
+    for key, suffix in (('global_defect_over_abs_window_work', 'transfer'),
+                        ('two_endpoint_bound_over_abs_window_work', 'two_endpoint_transfer')):
+        measured[f'pair_fixed_pic_finer_max_{suffix}_percent'] = f"{100 * max(late['accounting'][key]):.4f}"
+    measured['pair_fixed_pic_finer_gauss'] = f"{result['all_step_maxima']['ordinary_gauss_over_en_eps0']:.3e}"
+    for key in ('compile_s', 'warm_primal_s', 'compiler_temporary_MiB'):
+        measured[f'pair_fixed_pic_finer_{key}'] = f'{result[key]:.3f}'
+    pair_pic_finer_provenance['pair_fixed_force_pic_finer'] = dict(
+        run='pair_waveform_long/pic_timestep.json', record_key='finer_step',
+        validation_source=finer['validation_source'],
+        native_git=[pair_pic_record['native_runs'][0]['git'], finer['native_run']['git']],
+        scalar_histories=finer['scalar_histories'], native_sha256=finer['native_sha256'])
 pair_repeat_native = ROOT / 'artifacts' / 'pair_execution_repeat' / 'late_realized_fine'
 pair_repeat_file = pair_long / 'execution_repeat.json'
 run_example('examples/dark_reservoir.py', study='pair_repeat', samples=2, observe_executable=True,
@@ -489,6 +573,7 @@ measured["_provenance"] = {"cold_exchange": provenance(cold_record, "cold_exchan
                            "pair_waveform_controls": provenance(pair_control_record, "pair_waveform_controls"),
                            "pair_table_resolution": pair_table_provenance,
                            "pair_fixed_force_pic_step": pair_pic_provenance,
+                           **pair_pic_finer_provenance,
                            "pair_execution_repeat": pair_repeat_provenance,
                            "pair_sampling_cost": provenance(sampling_record,
                                                             "pair_waveform_controls/sampling_cost.json"),
