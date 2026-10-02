@@ -13,7 +13,7 @@ from ._archive import save_state
 from ._simulation import DarkField, DarkSimulation, PrescribedDrive
 
 
-def load_toml(path, *, eta=None, omega=None):
+def load_toml(path, *, eta=None, omega=None, longitudinal_gather=None):
     """Read a parent-compatible plasma file with a final ``[dark]`` table.
 
     The parent parser still validates every plasma and run key. Keeping the dark
@@ -34,7 +34,8 @@ def load_toml(path, *, eta=None, omega=None):
         raise ValueError("[dark] must be the final table")
     dark = tomllib.loads(section)["dark"]
     unknown = set(dark) - {
-        "model", "omega", "eta", "initial_E", "initial_A", "initial_phi", "amplitude", "phase", "times"}
+        "model", "omega", "eta", "initial_E", "initial_A", "initial_phi", "amplitude", "phase", "times",
+        "longitudinal_gather"}
     if unknown:
         raise ValueError(f"unknown [dark] keys: {', '.join(sorted(unknown))}")
     with tempfile.NamedTemporaryFile(mode="w", suffix=".toml") as plasma_file:
@@ -48,7 +49,8 @@ def load_toml(path, *, eta=None, omega=None):
     frequency = dark.get("omega") if omega is None else omega
     if coupling is None or frequency is None:
         raise ValueError("[dark] needs eta and omega")
-    return DarkSimulation(plasma, _dark_model(dark, plasma.domain.cells, coupling, frequency)), run
+    method = dark.get("longitudinal_gather", "average") if longitudinal_gather is None else longitudinal_gather
+    return DarkSimulation(plasma, _dark_model(dark, plasma.domain.cells, coupling, frequency), method), run
 
 
 def _dark_model(dark, cells, coupling, frequency):
@@ -81,9 +83,10 @@ def main(argv=None):
     parser.add_argument("--seed", type=int)
     parser.add_argument("--eta", type=float)
     parser.add_argument("--omega", type=float)
+    parser.add_argument("--longitudinal-gather", choices=("average", "six_face"))
     parser.add_argument("--save", type=Path, metavar="DIR")
     args = parser.parse_args(argv)
-    sim, run = load_toml(args.input, eta=args.eta, omega=args.omega)
+    sim, run = load_toml(args.input, eta=args.eta, omega=args.omega, longitudinal_gather=args.longitudinal_gather)
     settings = dict(run)
     settings["steps"] = args.steps if args.steps is not None else settings.get("steps", 100)
     settings["seed"] = args.seed if args.seed is not None else settings.get("seed", 0)
@@ -110,6 +113,8 @@ def main(argv=None):
         record = {"input": str(args.input), **settings,
                   "dark_model": "field" if isinstance(sim.dark, DarkField) else "drive",
                   "eta": float(sim.dark.eta), "omega_rad_s": float(sim.dark.omega)}
+        if sim.longitudinal_gather != "average":
+            record["longitudinal_gather"] = sim.longitudinal_gather
         save_run(args.save, "dark_cli", record, result,
                  t=out.ordinary.t, E=out.ordinary.E, B=out.ordinary.B,
                  E_dark=out.E if out.E is not None else np.empty(0),

@@ -342,6 +342,32 @@ The mean-mode limit is one and is restored explicitly. These are fundamental coe
 
 Independent cardinal-spline evaluation and four/eight-point Gauss quadrature split every half-cell knot interval. On modes 0, 1, 3 and 6, the finest ratio error is **{{ symbol_ratio_error }}**, restored-mean error is **{{ symbol_mean_error }}**, and $\max_{ij}|(DT+I-P_0)_{ij}|$ is **{{ symbol_continuity_error }}**, where $P_0$ projects onto the mean. These measured operator coefficients complement the [discrete-gradient work construction](https://arxiv.org/abs/1910.04000) and [SHARP's joint shape/grid/loading tests](https://arxiv.org/abs/1702.04732). They do not identify the cause of a particular finite-particle late error or establish a new conservation theorem.
 
+#### Experimental six-face longitudinal gather
+
+`DarkSimulation(plasma, model, longitudinal_gather="six_face")` selects an optional ordinary longitudinal reconstruction with `Solver(shape_order=5)`. The default `"average"` retains the parent's adjacent-face average. At centre $i$, the six-face operator is
+
+$$
+(R_6E)_i=\frac{37(E_i+E_{i-1})-8(E_{i+1}+E_{i-2})+E_{i+2}+E_{i-3}}{60}.
+$$
+
+Writing $R_6=C_0Q$, where $C_0$ averages adjacent faces and $Q$ is symmetric and circulant, preserves the neutral ordinary electrostatic net-force identity. The implementation filters only ordinary $E_x$ supplied to the parent gather. The stored fields, charge/current deposition, transverse gathers, Boris pusher and energy/work definitions retain their physical values. Dark $E_{D,x}$ retains $C_0$: substituting $R_6$ there would violate cancellation with the original longitudinal Proca momentum $\epsilon_0\Omega_D^2\Delta x\sum_i\phi_{D,i}(C_0A_D)_i/c^2$.
+
+For the continuous-particle fundamental of a smooth mode,
+
+$$
+\frac{F_{R_6,0}}{F_{\mathrm{EC},0}}
+=\frac{45\sin\theta-9\sin(2\theta)+\sin(3\theta)}{30\theta}
+=1-\frac{\theta^6}{140}+O(\theta^8).
+$$
+
+This is the familiar sixth-order central-difference symbol, rather than an overall sixth-order PIC method. Fractional-particle aliases and the zero response at grid Nyquist remain. Particle/current temporal work mismatch also remains, so exact energy, finite-step momentum and general 3V momentum conservation do not follow from this stencil. Uniform fields are unchanged bitwise; a nonuniform field's mean is preserved in exact arithmetic and to roundoff numerically. The existing discrete Gauss transport and mean-current response are unchanged.
+
+[Runnable companion](../examples/dark_reservoir.py): choose `study='paper', shape_order=5, longitudinal_gather='six_face'` in its input block. In TOML, set `[solver] shape_order=5` and `[dark] longitudinal_gather="six_face"`; the CLI also accepts `--longitudinal-gather six_face`. [Independent checks](../tests/test_proca.py) cover the Fourier symbol, neutral force, physical Proca momentum cancellation and its negative control, accepted kinetic/mesh work, both Gauss laws, initialized physical-objective derivatives, a cold-map Fréchet derivative and complete restart. These are algorithmic fixtures; this option has no established late Gaussian convergence or measured performance advantage.
+
+Nondefault restarts use dark format 4 and record the method. Load and continuation require matching method metadata; formats 2/3 and default outputs remain unchanged. A bare `DarkState` carries physical leaves without its originating method, so construct the same simulation when resuming through the Python API.
+
+For `study='paper_continue'`, supply the archived `initial_state` and target `horizon`. Leaving the named `longitudinal_gather=None` input infers the archived method; an explicit override must match it. For a fresh `study='paper'` run, `None` selects the default average.
+
 #### Experimental quintic implicit control
 
 [benchmark_implicit_drive.py](scripts/benchmark_implicit_drive.py) accepts `shape_order=5` with the separate [experimental parent change](https://github.com/uwplasma/JAX-in-Cell/pull/65), based on the explicit quintic [parent feature](https://github.com/uwplasma/JAX-in-Cell/pull/64). The installed dependency retains quadratic implicit PIC. The experimental accepted-orbit current, fractional-grid-phase impulse, work, complete restart and cold-objective derivatives are checked against an independent Cox–de Boor spline/orbit integral and a Cayley-map Fréchet derivative. Knot-split three-point Gauss quadrature integrates each quartic face-field piece exactly, including tiny orbits and periodic wraps. These fixtures establish local algorithm checks; GPU cost and resolved long-time Gaussian accuracy remain to be measured before method adoption.

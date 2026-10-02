@@ -46,6 +46,16 @@ def project_initial_electric(E, rho, background, phi, dx, omega, eta):
     return E.at[:, 0].set(longitudinal), correction
 
 
+def _six_face_filter(E):
+    """Periodic face filter Q: the parent's adjacent average gives six-face R6.
+
+    Its mean is unchanged in exact arithmetic; uniform fields are unchanged
+    bitwise. Only the ordinary longitudinal gather uses this experimental map.
+    """
+    return E + (-9 * ((jnp.roll(E, 1) - E) + (jnp.roll(E, -1) - E))
+                + (jnp.roll(E, 2) - E) + (jnp.roll(E, -2) - E)) / 30
+
+
 def _kinetic_species(plasma, ordinary, mass):
     """Sum each physical population using the parent's pusher-energy convention."""
     particle_energy = ordinary.w * plasma._kinetic(mass, ordinary.u)
@@ -243,19 +253,27 @@ class DarkOutput:
                      self.ordinary.dx, self.model.omega, self.model.eta)
 
 
-@pytree_dataclass(static=())
+@pytree_dataclass(static=("longitudinal_gather",))
 class DarkSimulation:
     """Periodic explicit Maxwell PIC with a dynamical Proca field or prescribed drive.
 
     All particle loading, deposits, gathers, pushers and ordinary field updates
     are imported from ``jaxincell``. Unsupported solver combinations fail early.
+    ``longitudinal_gather='six_face'`` changes only ordinary E_x interpolation
+    with quintic particles. This optional stencil is not an exact energy method
+    or a general three-velocity momentum-conservation theorem.
     """
 
     plasma: Simulation
     dark: object
+    longitudinal_gather: str = "average"
 
     def __post_init__(self):
         d, s = self.plasma.domain, self.plasma.solver
+        if self.longitudinal_gather not in ("average", "six_face"):
+            raise ValueError("longitudinal_gather must be 'average' or 'six_face'")
+        if self.longitudinal_gather == "six_face" and getattr(s, "shape_order", 2) != 5:
+            raise ValueError("six_face longitudinal_gather requires shape_order=5")
         if not isinstance(self.dark, (DarkField, PrescribedDrive)):
             raise TypeError("dark must be DarkField or PrescribedDrive")
         if (d.particle_bc != (0, 0) or d.field_bc != (0, 0) or s.algorithm != "explicit"
@@ -315,14 +333,17 @@ class DarkSimulation:
         closure = p._current_closure(charge * v[:, 0])
         rho_half, J1 = p._sources(o.x, v, charge, h, closure, o.rho)
         E, B = p._advance_fields(o.E, o.B, J1, h, rho_half, o.wall, True)
+        gather_E = E
+        if self.longitudinal_gather == "six_face":
+            gather_E = E.at[:, 0].set(_six_face_filter(E[:, 0]))
         if isinstance(model, DarkField):
             E_D, phi = kick(state.E, state.B, state.A, state.phi, J1, h, dx, model.omega, model.eta)
             B_D, A = drift(E_D, state.B, state.A, phi, h, dx)
             work1 = -model.eta * h * dx * jnp.sum(J1 * (state.E + E_D) / 2)
-            effective_E, effective_B = E + model.eta * E_D, B + model.eta * B_D
+            effective_E, effective_B = gather_E + model.eta * E_D, B + model.eta * B_D
         else:
             drive = model.at(o.time + h)
-            effective_E, effective_B = E + model.eta * drive, B
+            effective_E, effective_B = gather_E + model.eta * drive, B
         fields = p._fields_at(o.x, effective_E, effective_B, rho_half)
         u = p._accelerate(o.u, fields, o.qm, d.dt)
         v_new = p._velocity(u)

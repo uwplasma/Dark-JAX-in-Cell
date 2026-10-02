@@ -83,6 +83,13 @@ def test_physical_seed_changes_cannot_be_hidden_in_a_resolution_comparison(recor
         compare_replays(*records, windows=((0, 1),))
 
 
+@pytest.mark.parametrize('variant', ['repeat', 'dt', 'mesh', 'loading', 'seed', 'shape'])
+def test_gather_changes_cannot_be_hidden_in_a_resolution_comparison(records, variant):
+    change_settings(records[1], longitudinal_gather='six_face')
+    with pytest.raises(ValueError, match='longitudinal_gather'):
+        compare_replays(*records, variant=variant, windows=((0, 1),))
+
+
 @pytest.mark.parametrize('side', [0, 1])
 def test_matching_top_source_cannot_hide_a_continued_prefix(records, side):
     change_settings(records[side], continuation={'prefix_native_git': '9' * 40})
@@ -218,7 +225,7 @@ def test_continuation_preserves_producers_raw_windows_and_global_bounds(continue
 
 @pytest.mark.parametrize('corrupt', ['prefix', 'origin', 'boundary', 'endpoint', 'units', 'join', 'lineage',
                                      'source', 'runtime', 'phase', 'maximum', 'clock', 'background',
-                                     'initial_energy', 'qm', 'x64', 'prior', 'script_hash'])
+                                     'initial_energy', 'qm', 'x64', 'prior', 'script_hash', 'gather'])
 def test_continuation_rejects_corrupt_native_lineage(continued_records, corrupt):
     from docs.scripts.compare_replays import compare_continuations
     folders, donors, transitions = continued_records
@@ -251,11 +258,35 @@ def test_continuation_rejects_corrupt_native_lineage(continued_records, corrupt)
             record['jax_enable_x64'] = False
         elif corrupt == 'script_hash':
             record['settings']['continuation']['producer_script_sha256'] = 'unverified'
+        elif corrupt == 'gather':
+            record['settings']['longitudinal_gather'] = 'six_face'
         else:
             record['git' if corrupt == 'source' else 'jax'] = '9' * 40
         path.write_text(json.dumps(record))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='longitudinal_gather' if corrupt == 'gather' else None):
         compare_continuations(*folders, donors, transitions)
+
+
+def test_continuation_optional_gather_format_matches_record_and_archive(continued_records):
+    from docs.scripts.compare_replays import _archive, _continuation_state_checks, _load
+    folder = continued_records[0][0]
+    record, data, _, _ = _load(folder, 1e-5)
+    record['settings']['longitudinal_gather'] = 'six_face'
+    states = [_archive(folder / name) for name in ('initial_state.npz', 'final_state.npz')]
+    for state in states:
+        state.update({'dark.format': np.asarray(4), 'dark.longitudinal_gather': np.asarray('six_face')})
+    _continuation_state_checks(states, record, data)
+    for key, value in (('dark.format', np.asarray(2)), ('dark.longitudinal_gather', np.asarray('average')),
+                       ('dark.longitudinal_gather', None), ('shape_order', np.asarray(2))):
+        broken = [{name: array for name, array in state.items() if name != key} for state in states]
+        if value is not None:
+            for state in broken:
+                state[key] = value
+        with pytest.raises(ValueError, match='native model'):
+            _continuation_state_checks(broken, record, data)
+    record['settings']['longitudinal_gather'] = 'unknown'
+    with pytest.raises(ValueError, match='longitudinal_gather'):
+        _continuation_state_checks(states, record, data)
 
 
 def test_continuation_keeps_exact_join_with_reported_recompiled_boundary_roundoff(continued_records):

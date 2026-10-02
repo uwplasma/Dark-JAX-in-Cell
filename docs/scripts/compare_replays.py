@@ -191,9 +191,9 @@ def _controls(records, data, variant, tolerance):
     settings = [record['settings'] for record in records]
     if any('continuation' in setting for setting in settings):
         raise ValueError('mixed-producer continuation requires a separate lineage audit')
-    controls = [{'shape_order': 2, 'XLA_FLAGS': '', **row} for row in settings]
+    controls = [{'shape_order': 2, 'XLA_FLAGS': '', 'longitudinal_gather': 'average', **row} for row in settings]
     allowed = (VARIANTS[variant], 'shape_order' if variant == 'shape' else None)
-    for key in (*PARAMETERS, 'shape_order', 'XLA_FLAGS'):
+    for key in (*PARAMETERS, 'shape_order', 'XLA_FLAGS', 'longitudinal_gather'):
         if key not in allowed and controls[0][key] != controls[1][key]:
             raise ValueError(f'controlled comparisons must share {key}')
     for key in ('momentum_seed_over_sigma_e', 'seed_mode', 'seed_phase'):
@@ -443,8 +443,12 @@ def _continuation_state_checks(states, record, data):
     setting, n = record['settings'], record['settings']['normalization']
     cells, count = setting['cells'], setting['particles_per_species']
     wp = n['omega_p_rad_s']
+    method = setting.get('longitudinal_gather', 'average')
+    formats = {'average': 2, 'six_face': 4}
     for state, index in zip(states, (0, -1)):
-        if (int(state['format']) != 2 or int(state['dark.format']) != 2
+        if (method not in formats or int(state['format']) != 2 or int(state['dark.format']) != formats[method]
+                or str(state.get('dark.longitudinal_gather', 'average')) != method
+                or (method == 'six_face' and int(state['shape_order']) != 5)
                 or str(state['algorithm']) != 'explicit' or str(state['dark.mode']) != 'drive'
                 or float(state['dark.omega']) != wp or float(state['dark.eta']) != 1.
                 or float(state['dark.phase']) != 0 or bool(state['dark.has_external_B'])
@@ -457,7 +461,7 @@ def _continuation_state_checks(states, record, data):
                 or state['rho'].shape != (cells,) or state['B'].shape != state['E'].shape
                 or np.any(state['B']) or np.any(state['E'][:, 1:])
                 or np.any(state['u'][:, 1:]) or 'dark.times' in state):
-            raise ValueError('continuation native model/loading/longitudinal shapes disagree')
+            raise ValueError('continuation native model/loading/longitudinal shapes or longitudinal_gather disagree')
         _continuation_model(state, setting)
         if not np.array_equal(state['dark.amplitude'], [setting['force_quiver_over_c'] * n['field_scale_V_m'], 0, 0]):
             raise ValueError('continuation native forcing phase/amplitude disagree')
@@ -543,6 +547,8 @@ def _continuation_source(old, record, transitions, tolerance):
                 'block_horizon_omega_p', 'local_moments_output_dt_omega_p', 'local_spread_lengths_c_over_wp')
     if any(key not in row for row in (old['settings'], setting) for key in required):
         raise ValueError('continuation requires the complete native protocol and units')
+    if setting.get('longitudinal_gather', 'average') != old['settings'].get('longitudinal_gather', 'average'):
+        raise ValueError('continuation changed physical longitudinal_gather')
     for key in (*PARAMETERS, 'shape_order', 'XLA_FLAGS', 'recorded_mode', 'momentum_seed_over_sigma_e',
                 'seed_mode', 'seed_phase'):
         if setting.get(key) != old['settings'].get(key):

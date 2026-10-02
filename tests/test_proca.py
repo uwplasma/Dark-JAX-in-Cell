@@ -12,7 +12,7 @@ from scipy.integrate import trapezoid
 from scipy.special import wofz
 
 from jaxincell import (Domain, Simulation, Species, elementary_charge as e,
-                       epsilon_0, mass_electron, quiet_start, speed_of_light as c)
+                       epsilon_0, mass_electron, quiet_start, speed_of_light as c, Solver)
 from jaxincell._core import curl_E
 from jaxincell.theory import landau_root
 from darkjaxincell import (DarkField, DarkSimulation, PrescribedDrive, gauss,
@@ -1181,3 +1181,333 @@ def test_packet_energy_zero_mixing_and_profile_derivative():
     h = 1e-3
     finite = (objective(point + h * direction) - objective(point - h * direction)) / (2 * h)
     np.testing.assert_allclose(gradient, finite, rtol=2e-5, atol=1e-9)
+
+
+def six_face_fixture(parameters=(.09, .14, .07, 1., .2), field=False):
+    """Small neutral relativistic loading with position, weight, drive and density inputs."""
+    seed, ripple, amplitude, density, eta = parameters
+    length, count = 2 * np.pi * c / OMEGA, 16
+    base = (jnp.arange(count) + .371) * 2 * np.pi / count - np.pi
+    populations = []
+    for index, (charge, ratio) in enumerate(((-1., 1.), (1., 1836.))):
+        x = jnp.zeros((count, 3)).at[:, 0].set(
+            (base + (seed / 8 * jnp.sin(base) if index == 0 else 0)) * c / OMEGA)
+        velocity = .035 + .06 * jnp.sin(2 * base + .3) if index == 0 else -.0002 + .004 * jnp.sin(base)
+        v = jnp.zeros_like(x).at[:, 0].set(velocity * c)
+        populations.append(Species('electron' if index == 0 else 'ion', count, charge,
+                                   ratio * mass_electron, density * N_REF, x=x, v=v))
+    plasma = Simulation(Domain(length, 8, time_step=.02 / OMEGA), tuple(populations),
+                        Solver(relativistic=True, shape_order=5))
+    scale = mass_electron * c * OMEGA / e
+    angle = 2 * np.pi * jnp.arange(8) / 8
+    model = (DarkField(OMEGA, eta, initial_A=jnp.zeros((8, 3)).at[:, 0].set(
+        scale / OMEGA * ((amplitude + .04) * jnp.sin(angle + np.pi / 8 + .3) + .04)),
+        initial_phi=.08 * scale * c / OMEGA * jnp.sin(angle + .2)) if field else
+        PrescribedDrive(eta, jnp.array([amplitude * scale, 0., 0.]), OMEGA, .17))
+    sim = DarkSimulation(plasma, model, 'six_face')
+    state, extra = sim.initial_state(jax.random.PRNGKey(0))
+    weights = 1 + ripple * jnp.cos(base)
+    weights *= density * N_REF * length / jnp.sum(weights)
+    weights = jnp.tile(weights, 2)
+    from jaxincell._core import deposit, E_x_from_rho
+    from darkjaxincell._simulation import _reset_diagnostics
+    integer = state.ordinary.x[:, 0] - plasma.domain.dt / 2 * plasma._velocity(state.ordinary.u)[:, 0]
+    rho = deposit(integer, extra[1] * weights, plasma.domain.grid[0], plasma.domain.dx, 8, (0, 0), 5)
+    electric = state.ordinary.E.at[:, 0].set(E_x_from_rho(rho, plasma.domain.dx, (0, 0)) + .021 * scale)
+    state = state.replace(ordinary=state.ordinary.replace(w=weights, rho=rho, E=electric), background=-jnp.mean(rho))
+    if field:
+        dark_e, _ = project_initial_electric(state.E, rho, state.background, state.phi,
+                                             plasma.domain.dx, OMEGA, eta)
+        dark_e = dark_e.at[:, 0].add(.053 * scale - jnp.mean(dark_e[:, 0]))
+        state = state.replace(E=dark_e)
+    return sim, _reset_diagnostics(state, plasma, model, extra[0]), extra
+
+
+def six_face_basis(x, grid, length):
+    """Independent SciPy cardinal spline and its position derivative."""
+    from scipy.interpolate import BSpline
+    dx = length / len(grid)
+    coordinate = ((x[:, None] - grid + length / 2) % length - length / 2) / dx
+    basis = BSpline.basis_element(np.arange(7) - 3., extrapolate=False)
+    return np.nan_to_num(basis(coordinate)), np.nan_to_num(basis.derivative()(coordinate)) / dx
+
+
+def six_face_reconstruction(E):
+    """Independent six-face polynomial, rather than the production Q filter."""
+    return (37 * (E + np.roll(E, 1)) - 8 * (np.roll(E, -1) + np.roll(E, 2))
+            + np.roll(E, -2) + np.roll(E, 3)) / 60
+
+
+def test_six_face_symbol_uniform_field_and_static_guards():
+    from darkjaxincell._simulation import _six_face_filter
+    from jaxincell._core import to_centres
+    for mode in (0, 1, 3, 4):
+        theta = 2 * np.pi * mode / 8
+        E = jnp.exp(1j * theta * (jnp.arange(8) + .5))
+        filtered = _six_face_filter(E)
+        result = to_centres(filtered[:, None], filtered[-1:], filtered[-1:])[:, 0]
+        symbol = (37 * np.cos(theta / 2) - 8 * np.cos(3 * theta / 2) + np.cos(5 * theta / 2)) / 30
+        np.testing.assert_allclose(result, symbol * np.exp(1j * theta * np.arange(8)), atol=2e-14, rtol=0)
+        np.testing.assert_allclose(result, six_face_reconstruction(np.asarray(E)), atol=2e-14, rtol=0)
+        np.testing.assert_allclose(np.mean(filtered), np.mean(E), atol=2e-15, rtol=0)
+    for value in (0., -.031, 2e6):
+        E = jnp.full(8, value)
+        np.testing.assert_array_equal(_six_face_filter(E), E)
+    with pytest.raises(ValueError, match='longitudinal_gather'):
+        DarkSimulation(plasma(), DarkField(OMEGA, .1), 'unknown')
+    with pytest.raises(ValueError, match='shape_order=5'):
+        DarkSimulation(plasma(), DarkField(OMEGA, .1), 'six_face')
+    assert DarkSimulation(plasma(), DarkField(OMEGA, .1)).longitudinal_gather == 'average'
+
+
+def test_six_face_neutral_force_proca_potential_momentum_and_mean_work():
+    """Instantaneous 1V cancellation uses dark C0 and the original phi*C0A momentum."""
+    sim, state, extra = six_face_fixture(field=True)
+    p, d = sim.plasma, sim.plasma.domain
+    scale = mass_electron * c * OMEGA / e
+    dx, length = d.dx * OMEGA / c, d.length * OMEGA / c
+    integer = np.asarray(state.ordinary.x[:, 0] - d.dt / 2 * p._velocity(state.ordinary.u)[:, 0])
+    W, _ = six_face_basis(integer, np.asarray(d.grid), d.length)
+    amount = np.asarray(extra[1] * state.ordinary.w) / (e * N_REF * c / OMEGA)
+    E, D = np.asarray(state.ordinary.E[:, 0]) / scale, np.asarray(state.E[:, 0]) / scale
+    phi, A = np.asarray(state.phi) * OMEGA / (scale * c), np.asarray(state.A[:, 0]) * OMEGA / scale
+
+    def centre(F):
+        return (F + np.roll(F, 1)) / 2
+
+    def div(F):
+        return (F - np.roll(F, 1)) / dx
+
+    def grad(F):
+        return (np.roll(F, -1) - F) / dx
+    background = float(state.background) / (e * N_REF)
+    rho = np.asarray(state.ordinary.rho) / (e * N_REF)
+    np.testing.assert_allclose(div(E) - rho - background, 0., atol=2e-13, rtol=0)
+    np.testing.assert_allclose(div(D) + phi - sim.dark.eta * (rho + background), 0., atol=2e-13, rtol=0)
+    ordinary = amount @ W @ six_face_reconstruction(E)
+    dark = sim.dark.eta * amount @ W @ centre(D)
+    mass_rate = dx * (np.dot(-div(A), centre(A)) + np.dot(phi, centre(-D - grad(phi))))
+    reaction = -background * length * (E.mean() + sim.dark.eta * D.mean())
+    np.testing.assert_allclose((ordinary + dark + mass_rate - reaction) / length, 0., atol=2e-13, rtol=0)
+    invalid_global = ordinary + sim.dark.eta * amount @ W @ six_face_reconstruction(D) + mass_rate
+    expected = dx * np.dot(phi, six_face_reconstruction(D) - centre(D))
+    np.testing.assert_allclose(invalid_global - reaction, expected, atol=2e-13, rtol=0)
+    assert abs(expected / length) > 1e-8  # Changing dark gather is detectably incompatible.
+    mean_v = np.asarray(p._velocity(state.ordinary.u)[:, 0]) / c
+    current = amount @ mean_v / length
+    assert abs(current) > 1e-3
+    np.testing.assert_allclose(amount @ W @ np.full(8, E.mean()) / length, 0., atol=2e-13, rtol=0)
+    np.testing.assert_allclose((amount * mean_v) @ W @ np.full(8, E.mean()) / length,
+                               E.mean() * current, atol=2e-13, rtol=0)
+    out = sim.run(4, state=state, store_particles=False)
+    np.testing.assert_allclose(out.dark_gauss() * epsilon_0 / (e * N_REF), 0., atol=2e-13, rtol=0)
+    np.testing.assert_allclose(divergence(out.ordinary.E, d.dx) * epsilon_0 / (e * N_REF)
+                               - (out.ordinary.rho + out.state.background) / (e * N_REF), 0., atol=2e-13, rtol=0)
+
+
+def test_six_face_accepted_work_identity_and_transverse_gather(monkeypatch):
+    """Signed S/T use actual accepted currents and physical kinetic/field energy."""
+    sim, state, extra = six_face_fixture()
+    p, d = sim.plasma, sim.plasma.domain
+    captured = {name: [] for name in ('_sources', '_advance_fields', '_fields_at')}
+    for name in captured:
+        original = getattr(Simulation, name)
+
+        def observe(*args, _name=name, _original=original, **kwargs):
+            result = _original(*args, **kwargs)
+            captured[_name].append(result)
+            return result
+        monkeypatch.setattr(Simulation, name, observe)
+    final, _ = sim._step(state, extra)
+    Ehalf, _ = captured['_advance_fields'][0]
+    J1, J2 = (np.asarray(value[1][:, 0]) for value in captured['_sources'])
+    used = np.asarray(captured['_fields_at'][0][:, 0])
+    u0, u1 = np.asarray(state.ordinary.u[:, 0]) / c, np.asarray(final.ordinary.u[:, 0]) / c
+    sec = (u0 + u1) / (np.hypot(1., u0) + np.hypot(1., u1))
+    scale, en = mass_electron * c * OMEGA / e, e * N_REF
+    dt, dx, length = d.dt * OMEGA, d.dx * OMEGA / c, d.length * OMEGA / c
+    amount = np.asarray(extra[1] * state.ordinary.w) / (en * c / OMEGA)
+    W, slope = six_face_basis(np.asarray(state.ordinary.x[:, 0]), np.asarray(d.grid), d.length)
+    electric, j1, j2 = np.asarray(Ehalf[:, 0]) / scale, J1 / (en * c), J2 / (en * c)
+    rhodot = (amount * sec) @ (slope * c / OMEGA) / dx
+    current = -dx * np.cumsum(rhodot)
+    current += amount @ sec / length - current.mean()
+    force = float(sim.dark.eta * sim.dark.at(d.dt / 2)[0]) / scale
+    np.testing.assert_allclose(used / scale, W @ six_face_reconstruction(electric) + force, atol=2e-13, rtol=0)
+    S = dt * ((amount * sec) @ (used / scale - force) - dx * current @ electric) / length
+    T = (dt * dx * (current - (j1 + j2) / 2) @ electric
+         + dt**2 * dx / 8 * np.sum(j2**2 - j1**2)) / length
+    unit = N_REF * mass_electron * c**2 * d.length
+
+    def kinetic(o):
+        return np.sum(np.asarray(o.w) * np.asarray(extra[0]) * c**2
+                      * (np.asarray(o.u[:, 0]) / c)**2 / (np.hypot(1., np.asarray(o.u[:, 0]) / c) + 1))
+
+    def total(o):
+        return kinetic(o) + epsilon_0 * d.dx / 2 * np.sum(np.asarray(o.E)**2)
+    ledger = (total(final.ordinary) - total(state.ordinary) - float(final.work - state.work)) / unit
+    np.testing.assert_allclose(ledger, S + T, atol=2e-13, rtol=0)
+    np.testing.assert_allclose((kinetic(final.ordinary) - kinetic(state.ordinary)) / unit,
+                               dt * (amount * sec) @ (used / scale) / length, atol=2e-13, rtol=0)
+    for velocity, current_half in ((p._velocity(state.ordinary.u), j1), (p._velocity(final.ordinary.u), j2)):
+        np.testing.assert_allclose(np.mean(current_half), amount @ np.asarray(velocity[:, 0]) / (c * length),
+                                   atol=2e-13, rtol=0)
+    # The optional filter affects Ex only; the parent still gathers Ey/Ez and all B.
+    from darkjaxincell._simulation import _six_face_filter
+    ordinary = Ehalf.at[:, 1].set(jnp.sin(jnp.arange(8)) * scale).at[:, 2].set(.04 * scale)
+    dark = jnp.cos(jnp.arange(24).reshape(8, 3)) * .03 * scale
+    magnetic = jnp.sin(jnp.arange(24).reshape(8, 3)) * .03 * scale / c
+    baseline = p._fields_at(state.ordinary.x, ordinary + sim.dark.eta * dark, magnetic, state.ordinary.rho)
+    modified = ordinary.at[:, 0].set(_six_face_filter(ordinary[:, 0]))
+    result = p._fields_at(state.ordinary.x, modified + sim.dark.eta * dark, magnetic, state.ordinary.rho)
+    np.testing.assert_array_equal(result[:, 1:], baseline[:, 1:])
+
+
+@pytest.mark.parametrize('mode', ['cosine', 'waveform', 'field'])
+def test_six_face_restart_and_method_guards(tmp_path, mode):
+    sim, state, _ = six_face_fixture(field=mode == 'field')
+    if mode == 'waveform':
+        sim = sim.replace(dark=PrescribedDrive(sim.dark.eta, jnp.stack((sim.dark.amplitude, -sim.dark.amplitude)),
+                                               0., times=jnp.array([0., .2 / OMEGA])))
+    whole, first = sim.run(4, state=state), sim.run(2, state=state)
+    path = save_state(tmp_path / 'optional', first.state, sim)
+    loaded = load_state(path, sim)
+    jax.tree.map(lambda a, b: np.testing.assert_array_equal(a, b), loaded, first.state)
+    resumed = sim.run(2, state=loaded)
+    jax.tree.map(lambda a, b: np.testing.assert_array_equal(a, b), whole.state, resumed.state)
+    with np.load(path, allow_pickle=False) as data:
+        saved = dict(data)
+    assert saved['dark.format'] == 4 and str(saved['dark.longitudinal_gather']) == 'six_face'
+    for previous, following in ((sim, sim.replace(longitudinal_gather='average')),
+                                (sim.replace(longitudinal_gather='average'), sim)):
+        native = state if previous.longitudinal_gather == 'average' else first.state
+        archive = save_state(tmp_path / previous.longitudinal_gather, native, previous)
+        with pytest.raises(ValueError, match='longitudinal_gather'):
+            load_for_continuation(archive, previous, following)
+    with pytest.raises(ValueError, match='longitudinal_gather|dark.format'):
+        load_state(path, sim.replace(longitudinal_gather='average'))
+    continued = load_for_continuation(path, sim, sim.replace(dark=sim.dark.replace(eta=.25)))
+    assert float(continued.work) == float(continued.max_balance_error) == 0
+    for key, value in (('dark.longitudinal_gather', None), ('dark.longitudinal_gather', np.asarray('average')),
+                       ('dark.format', np.asarray(2))):
+        broken = {name: array for name, array in saved.items() if name != key}
+        if value is not None:
+            broken[key] = value
+        np.savez(tmp_path / 'broken.npz', **broken)
+        with pytest.raises(ValueError, match='dark.(format|longitudinal_gather)'):
+            load_state(tmp_path / 'broken.npz', sim)
+
+
+@pytest.mark.parametrize('field', [False, True])
+def test_six_face_initialized_objective_derivative(field):
+    def objective(parameters):
+        sim, state, _ = six_face_fixture(parameters, field=field)
+        out = sim.run(4, state=state, store_particles=False)
+        unit = N_REF * mass_electron * c**2 * sim.plasma.domain.length
+        return out.energy()['kinetic'][-1] / unit + .03 * jnp.mean(
+            (out.ordinary.E[-1] * e / (mass_electron * c * OMEGA))**2)
+    point, direction = np.array([.09, .14, .07, 1., .2]), np.array([.3, -.2, .1, .4, -.3])
+    value = jax.jit(objective)
+    automatic = np.dot(np.asarray(jax.grad(objective)(jnp.asarray(point))), direction)
+    for epsilon in (2e-5, 1e-5):
+        finite = (float(value(point + epsilon * direction)) - float(value(point - epsilon * direction))) / (2 * epsilon)
+        np.testing.assert_allclose(automatic, finite, atol=2e-10, rtol=2e-6)
+
+
+def test_six_face_homogeneous_density_force_frechet_derivative():
+    """Independent Frechet products of the cold explicit three-variable affine map."""
+    point = np.array([.8, .4, .03])  # total density, coupling, bare force
+    direction = np.array([.2, -.3, .1])
+    base = waveform_plasma().replace(solver=Solver(shape_order=5))
+    scale = mass_electron * c * OMEGA / e
+
+    def objective(control):
+        density, eta, amplitude = control
+        p = base.replace(species=tuple(s.replace(density=s.density * density) for s in base.species))
+        out = DarkSimulation(p, PrescribedDrive(eta, jnp.array([amplitude * scale, 0., 0.]), OMEGA), 'six_face').run(4)
+        return out.energy()['total'][-1] / (N_REF * mass_electron * c**2 * p.domain.length)
+    rho, eta, amplitude = point
+    drho, deta, damp = direction
+    y, dy, dt = np.array([0., 0., 1.]), np.zeros(3), .04
+    for step in range(4):
+        force = eta * amplitude * np.cos((step + .5) * dt)
+        dforce = (deta * amplitude + eta * damp) * np.cos((step + .5) * dt)
+        M = np.array([[1 - rho * dt**2 / 2, -dt + rho * dt**3 / 4, -rho * dt**2 * force / 2],
+                      [rho * dt, 1 - rho * dt**2 / 2, rho * dt * force], [0., 0., 1.]])
+        dM = np.array([[-drho * dt**2 / 2, drho * dt**3 / 4, -dt**2 * (drho * force + rho * dforce) / 2],
+                       [drho * dt, -drho * dt**2 / 2, dt * (drho * force + rho * dforce)], [0., 0., 0.]])
+        dy, y = dM @ y + M @ dy, M @ y
+    expected = y[0] * dy[0] + y[1] * dy[1] / rho - y[1]**2 * drho / (2 * rho**2)
+    _, derivative = jax.jvp(objective, (jnp.asarray(point),), (jnp.asarray(direction),))
+    np.testing.assert_allclose(derivative, expected, atol=2e-13, rtol=2e-10)
+    np.testing.assert_allclose(objective(point), .5 * (y[0]**2 + y[1]**2 / rho), atol=2e-13, rtol=2e-10)
+
+
+def test_six_face_toml_cli_and_record(tmp_path):
+    source = tmp_path / 'optional.toml'
+    source.write_text('''[domain]
+length = 1.0
+cells = 8
+dt_over_dx_c = 0.1
+[[species]]
+name = "electron"
+n = 16
+mass = "electron"
+charge = -1
+density = 1e14
+[solver]
+shape_order = 5
+[run]
+steps = 2
+[dark]
+model = "drive"
+omega = 1e9
+eta = 0.1
+amplitude = [1e-5, 0.0, 0.0]
+longitudinal_gather = "six_face"
+''')
+    sim, _ = load_toml(source)
+    assert sim.longitudinal_gather == 'six_face'
+    assert load_toml(source, longitudinal_gather='average')[0].longitudinal_gather == 'average'
+    target = tmp_path / 'cli'
+    assert main([str(source), '--longitudinal-gather', 'six_face', '--save', str(target)]) == 0
+    record = json.loads((target / 'run.json').read_text())
+    assert record['settings']['longitudinal_gather'] == 'six_face'
+    loaded = load_state(target / 'restart.npz', sim)
+    assert int(loaded.ordinary.steps) == 2
+
+
+def test_six_face_coupled_gather_keeps_dark_average(monkeypatch):
+    sim, state, extra = six_face_fixture(field=True)
+    p, d = sim.plasma, sim.plasma.domain
+    scale = mass_electron * c * OMEGA / e
+    angle = jnp.arange(8) * 2 * jnp.pi / 8
+    state = state.replace(E=state.E.at[:, 1].set(.03 * scale * jnp.cos(angle)),
+                          ordinary=state.ordinary.replace(E=state.ordinary.E.at[:, 2].set(.04 * scale)))
+    from darkjaxincell._simulation import _reset_diagnostics
+    state = _reset_diagnostics(state, p, sim.dark, extra[0])
+    calls = {name: [] for name in ('_sources', '_advance_fields', '_fields_at')}
+    for name in calls:
+        original = getattr(Simulation, name)
+
+        def observe(*args, _name=name, _original=original, **kwargs):
+            value = _original(*args, **kwargs)
+            calls[_name].append(value)
+            return value
+        monkeypatch.setattr(Simulation, name, observe)
+    final, _ = sim._step(state, extra)
+    J1 = calls['_sources'][0][1]
+    Ehalf = np.asarray(calls['_advance_fields'][0][0]) / scale
+    E_D, phi = kick(state.E, state.B, state.A, state.phi, J1, d.dt / 2, d.dx, OMEGA, sim.dark.eta)
+    B_D, _ = drift(E_D, state.B, state.A, phi, d.dt / 2, d.dx)
+    W, _ = six_face_basis(np.asarray(state.ordinary.x[:, 0]), np.asarray(d.grid), d.length)
+    ordinary_centre = (Ehalf + np.roll(Ehalf, 1, axis=0)) / 2
+    ordinary_centre[:, 0] = six_face_reconstruction(Ehalf[:, 0])
+    dark = np.asarray(E_D) / scale
+    expected = W @ (ordinary_centre + sim.dark.eta * (dark + np.roll(dark, 1, axis=0)) / 2)
+    np.testing.assert_allclose(np.asarray(calls['_fields_at'][0])[:, :3] / scale, expected, atol=2e-13, rtol=0)
+    Bhalf = np.asarray(calls['_advance_fields'][0][1])
+    np.testing.assert_allclose(np.asarray(calls['_fields_at'][0])[:, 3:] * c / scale,
+                               W @ ((Bhalf + sim.dark.eta * np.asarray(B_D)) * c / scale), atol=2e-13, rtol=0)
+    np.testing.assert_allclose(gauss(final.E, final.phi, final.ordinary.rho + final.background,
+                               d.dx, OMEGA, sim.dark.eta) * epsilon_0 / (e * N_REF), 0., atol=2e-13, rtol=0)

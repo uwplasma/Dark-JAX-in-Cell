@@ -33,6 +33,9 @@ def _model_metadata(simulation):
                      "dark.phase": np.asarray(model.phase)})
         if model.times is not None:
             data.update({"dark.format": np.asarray(3), "dark.times": np.asarray(model.times)})
+    if getattr(simulation, "longitudinal_gather", "average") != "average":
+        data.update({"dark.format": np.asarray(4),
+                     "dark.longitudinal_gather": np.asarray(simulation.longitudinal_gather)})
     return data
 
 
@@ -57,6 +60,9 @@ def load_state(path, simulation):
     ordinary = load_ordinary_state(path, simulation.plasma)
     with np.load(path, allow_pickle=False) as data:
         expected = _model_metadata(simulation)
+        if ("dark.longitudinal_gather" in data and not np.array_equal(
+                data["dark.longitudinal_gather"], getattr(simulation, "longitudinal_gather", "average"))):
+            raise ValueError("archive dark.longitudinal_gather does not match this simulation")
         for key, wanted in expected.items():
             if key not in data or not np.array_equal(data[key], wanted):
                 raise ValueError(f"archive {key} does not match this simulation")
@@ -87,6 +93,8 @@ def load_for_continuation(path, previous, following):
     if (tuple((s.name, s.n) for s in previous.plasma.species) != tuple((s.name, s.n) for s in following.plasma.species)
             or getattr(previous.plasma.solver, "shape_order", 2) != getattr(following.plasma.solver, "shape_order", 2)):
         raise ValueError("continuation changes particle populations or shape_order")
+    if getattr(previous, "longitudinal_gather", "average") != getattr(following, "longitudinal_gather", "average"):
+        raise ValueError("continuation changes longitudinal_gather")
     allowed = {"dark.omega", "dark.eta", "dark.amplitude", "dark.phase", "dark.times", "dark.format"}
     for key in sorted(old.keys() | new.keys()):
         if key not in allowed and (key not in old or key not in new

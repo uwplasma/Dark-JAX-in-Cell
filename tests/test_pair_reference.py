@@ -278,6 +278,65 @@ def test_waveform_named_input_dispatcher_passes_initial_archive(tmp_path, study)
         assert calls[0][0][-1] == () and calls[0][1] == {}
 
 
+@pytest.mark.parametrize('method', ['average', 'six_face'])
+def test_paper_optional_gather_dispatch_settings_and_restart(tmp_path, method):
+    """The named paper control reaches the native method and complete restart."""
+    import ast
+    from contextlib import nullcontext
+    from pathlib import Path
+    from darkjaxincell import load_state
+    from examples import dark_reservoir as example
+
+    calls = []
+    namespace = {**vars(example), '__name__': '__main__', 'study': 'paper',
+                 'longitudinal_gather': method, 'elapsed_progress': lambda *args: nullcontext(),
+                 'paper_case': lambda *args, **kwargs: calls.append(kwargs)}
+    dispatch = ast.parse(Path(example.__file__).read_text()).body[-1]
+    exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
+    assert calls == [{'longitudinal_gather': method}]
+    history, settings, _ = example.paper_case(tmp_path, 8, 32, .25, .5, 0, .03,
+                                              shape_order=5, longitudinal_gather=method)
+    assert settings.get('longitudinal_gather', 'average') == method
+    assert ('longitudinal_gather' in settings) == (method != 'average')
+    plasma, wp = example.paper_plasma(8, 32, .25, 0, shape_order=5)
+    field = .03 * np.sqrt(.001) * example.mass_electron * example.c * wp / example.e
+    sim = example.DarkSimulation(plasma, example.PrescribedDrive(1., example.jnp.array([field, 0., 0.]), wp),
+                                 longitudinal_gather=method)
+    restored = load_state(tmp_path / 'final_state.npz', sim)
+    assert int(restored.ordinary.steps) == 2 and history['t'][-1] == pytest.approx(.5)
+    origin = load_state(tmp_path / 'initial_state.npz', sim)
+    full, _, maximum, *_ = example.paper_run(sim, origin, 4, 2, .5, wp, None, tmp_path / 'whole')
+    example.save_compressed_state(tmp_path / 'whole' / 'final_state.npz', full, sim)
+    joined, continued_settings, result = example.paper_continue(
+        tmp_path / 'continued', tmp_path / 'final_state.npz', 1.)
+    assert continued_settings.get('longitudinal_gather', 'average') == method
+    np.testing.assert_array_equal(joined['t'][:len(history['t'])], history['t'])
+    np.testing.assert_array_equal(result['all_step_maxima_SI'], np.maximum(
+        np.asarray(maximum), result['reconstructed_prior_maxima_SI']))
+    with np.load(tmp_path / 'whole' / 'final_state.npz') as whole, \
+            np.load(tmp_path / 'continued' / 'final_state.npz') as continued:
+        assert whole.files == continued.files
+        for key in whole.files:
+            np.testing.assert_array_equal(whole[key], continued[key])
+    with pytest.raises(ValueError, match='cannot change longitudinal_gather'):
+        example.paper_continue(tmp_path / 'wrong', tmp_path / 'final_state.npz', 1.,
+                               longitudinal_gather='six_face' if method == 'average' else 'average')
+    if method != 'average':
+        with pytest.raises(ValueError, match='longitudinal_gather'):
+            load_state(tmp_path / 'final_state.npz', sim.replace(longitudinal_gather='average'))
+    calls.clear()
+    namespace.update(study='paper_continue', paper_continue=lambda *args, **kwargs: calls.append(kwargs))
+    exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
+    assert calls == [{'longitudinal_gather': method}]
+    calls.clear()
+    namespace.update(study='paper', longitudinal_gather=None)
+    exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
+    assert calls == [{'longitudinal_gather': 'average'}]
+    namespace.update(study='pair', longitudinal_gather='six_face')
+    with pytest.raises(ValueError, match='only by study=paper'):
+        exec(compile(ast.Module(body=[dispatch], type_ignores=[]), example.__file__, 'exec'), namespace)
+
+
 @pytest.fixture
 def prescribed_pair_archive(tmp_path, waveform_initial_archive):
     import json
