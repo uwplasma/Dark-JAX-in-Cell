@@ -44,7 +44,7 @@ from drive_reference import forced_cold, gaussian_tangent, homogeneous  # noqa: 
 
 
 # Inputs: the default is a small mobile-ion comparison.
-study = globals().get('study', 'mobile_ions')  # paper, pair, pair_dark, pair_waveform, pair_repeat or paper_pilot
+study = globals().get('study', 'mobile_ions')  # paper, paper_continue, pair, pair_dark, pair_waveform, pair_repeat
 full = globals().get('full', False)
 output = Path(globals().get('output', 'artifacts/dark_reservoir'))
 # Paper controls use omega_p time units and markers per species.
@@ -1283,14 +1283,15 @@ def paper_initial(sim, seed, initial_state):
     return start, fingerprints
 
 
-def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder, mode=1, pump=False):
+def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder, mode=1, pump=False,
+              reference=None, maxima=None):
     """Compile one fixed interval, preserving the global reference across every block."""
     if block_horizon is not None and (not np.isfinite(block_horizon) or block_horizon <= 0):
         raise ValueError('paper block horizon must be finite and positive')
     block_steps = steps if block_horizon is None else round(block_horizon / sim.plasma.domain.dt / wp)
     if block_steps < 1 or block_steps % stride or steps % block_steps:
         raise ValueError('paper blocks must divide the run and contain complete output intervals')
-    reference = snapshot(sim, start)
+    reference = snapshot(sim, start) if reference is None else reference
     save_compressed_state(Path(folder) / 'initial_state.npz', start, sim)
     print(f'🦇 Compiling {block_steps} paper steps per block', flush=True)
     before = time.perf_counter()
@@ -1299,7 +1300,7 @@ def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder, mode
     memory = executable.memory_analysis()
     print(f'🦇 Compiled in {compile_seconds:.2f} s; advancing {steps // block_steps} blocks', flush=True)
     before = time.perf_counter()
-    final, maxima, chunks = start, jnp.zeros(9), []
+    final, maxima, chunks = start, jnp.zeros(9) if maxima is None else jnp.asarray(maxima), []
     for index in range(steps // block_steps):
         final, history, block_max = executable(sim, final, reference, scales, mode)
         maxima = jnp.maximum(maxima, block_max)
@@ -1310,6 +1311,209 @@ def paper_run(sim, start, steps, stride, block_horizon, wp, scales, folder, mode
     warm_seconds = time.perf_counter() - before
     history = {key: np.concatenate([chunk[key] for chunk in chunks]) for key in chunks[0]}
     return final, history, maxima, block_steps, compile_seconds, warm_seconds, memory
+
+
+def paper_normalize(history, plasma, wp, energy_scale, field_scale, momentum_seed=0., seed_mode=1):
+    """Apply the paper's original scalar units and physical mode phase in place."""
+    history['t'] = history['t'] * wp
+    for key in ('electric', 'magnetic', 'dark', 'dark_coherent', 'kinetic', 'spread', 'balance', 'work'):
+        history[key] /= energy_scale
+    if 'local_spread' in history:
+        history['local_spread'] /= energy_scale
+    for key in ('mean', 'rms', 'max_speed'):
+        history[key] /= c
+    history['momentum'] /= energy_scale / c
+    history['mean_E'] /= field_scale
+    history['mode_E'] /= field_scale
+    history['dark_mode_E'] /= field_scale
+    phase_origin = np.exp(-2j * np.pi * seed_mode * float(plasma.domain.faces[0]) / plasma.domain.length)
+    history['mode_E'] = history['mode_E'] * (phase_origin if momentum_seed else 1)
+    history['dark_mode_E'] = history['dark_mode_E'] * (phase_origin if momentum_seed else 1)
+    history['nonzero_electric'] = history['electric'] - history['mean_E']**2 / 2
+    return history
+
+
+PAPER_MAXIMUM_KEYS = (
+    'max_energy_work_defect_over_initial_thermal', 'max_momentum_defect_over_nmecL',
+    'max_particle_charge_change_over_enL', 'max_continuity_over_enwp',
+    'max_ordinary_gauss_over_en_eps0', 'max_dark_gauss_over_en_eps0',
+    'max_grid_charge_change_over_enL', 'max_dark_work_defect_over_nmc2L',
+    'max_ordinary_work_defect_over_nmc2L')
+
+
+def paper_maximum_scales(plasma, wp, energy_scale):
+    """SI scales of the nine paper maxima in the runner's fixed order."""
+    charge = e * plasma.species[0].density
+    return np.asarray([.001 * energy_scale, energy_scale / c, charge * plasma.domain.length,
+                       charge * wp, charge / epsilon_0, charge / epsilon_0,
+                       charge * plasma.domain.length, energy_scale, energy_scale])
+
+
+def paper_accepted_clock(dt, steps, time=0.):
+    """Match repeated native clock addition without allocating a time history."""
+    for _ in range(steps):
+        time += dt
+    return time
+
+
+def paper_archived_model(path, setting, wp, field):
+    """Read unchanged model parameters; the Gaussian paper producer uses a cosine."""
+    with np.load(path, allow_pickle=False) as stored:
+        omega, eta = float(stored['dark.omega']), float(stored['dark.eta'])
+        if setting['coupling'] is None:
+            if (str(stored['dark.mode']) != 'drive' or omega != wp or eta != 1.
+                    or 'dark.times' in stored or float(stored['dark.phase']) != 0.
+                    or not np.array_equal(stored['dark.amplitude'], [setting['force_quiver_over_c'] * field, 0., 0.])):
+                raise ValueError('paper continuation drive differs from the donor experiment')
+            return PrescribedDrive(eta, jnp.asarray(stored['dark.amplitude']), omega, float(stored['dark.phase']))
+        if str(stored['dark.mode']) != 'field' or omega != wp or eta != setting['coupling']:
+            raise ValueError('paper continuation dark field differs from the donor experiment')
+        return DarkField(omega, eta)
+
+
+def paper_continuation_state(path):
+    """Restore the donor's physical model, exact t0 state and final checkpoint."""
+    from compare_replays import PAIR_RUNTIME, _load
+
+    path = Path(path)
+    record, prefix, data_hash, record_hash = _load(path.parent, 1e-8)
+    setting, runtime = dict(record['settings']), provenance()
+    if (record['example'] not in ('paper_resonant_conversion', 'paper_resonant_continuation')
+            or any(runtime[key] != record[key] for key in PAIR_RUNTIME if key != 'git')
+            or parent_revision() != setting['parent_revision'] or pair_xla_flags() != setting['XLA_FLAGS']):
+        raise ValueError('paper continuation requires the donor runtime, parent and compiler flags')
+    plasma, wp = paper_plasma(setting['cells'], setting['particles_per_species'], setting['dt_omega_p'],
+                              setting['seed'], setting.get('momentum_seed_over_sigma_e', 0.),
+                              setting.get('seed_mode') or 1, setting.get('seed_phase') or 0., setting['shape_order'])
+    field, energy = mass_electron * c * wp / e, plasma.species[0].density * mass_electron * c**2 * plasma.domain.length
+    expected = dict(omega_p_rad_s=wp, field_scale_V_m=field, energy_scale_J_m2=energy,
+                    charge_density_C_m3=e * plasma.species[0].density, epsilon0_F_m=float(epsilon_0), c_m_s=float(c))
+    if (not np.allclose([setting['normalization'][key] for key in expected], list(expected.values()),
+                        rtol=2e-12, atol=0)
+            or [setting[key] for key in ('length_c_over_omega_p', 'mass_ratio', 'T_each_over_mec2')] != [40, 1836, .001]
+            or setting['force_quiver_over_c'] != setting['drive_quiver_over_sigma'] * np.sqrt(.001)):
+        raise ValueError('paper continuation donor units or physical loading differ')
+    model = paper_archived_model(path, setting, wp, field)
+    sim = DarkSimulation(plasma, model)
+    origin, start = load_state(path.parent / 'initial_state.npz', sim), load_state(path, sim)
+    hashes = {key: array_fingerprint(getattr(origin.ordinary, key)) for key in ('x', 'u', 'w', 'E', 'B', 'rho')}
+    if isinstance(model, DarkField):
+        hashes.update({f'dark_{key}': array_fingerprint(getattr(origin, key)) for key in ('E', 'B', 'A', 'phi')})
+    loading = {key: array_fingerprint(np.concatenate([np.asarray(getattr(s, key)) for s in plasma.species]))
+               for key in ('x', 'v')}
+    if dict(state=hashes, loading=loading) != setting['initial_fingerprints']:
+        raise ValueError('paper continuation original arrays differ from the donor fingerprints')
+    if (float(origin.ordinary.time) != 0 or float(origin.ordinary.steps) != 0 or float(origin.work) != 0
+            or not np.issubdtype(np.asarray(start.ordinary.steps).dtype, np.integer)
+            or int(start.ordinary.steps) <= 0
+            or float(start.ordinary.time) != paper_accepted_clock(
+                float(plasma.domain.dt), int(start.ordinary.steps))):
+        raise ValueError('paper continuation requires exact zero-origin and native checkpoint clocks')
+    for key in ('background', 'initial_ordinary', 'initial_dark'):
+        if not np.array_equal(getattr(origin, key), getattr(start, key)):
+            raise ValueError(f'paper continuation changed the global {key} ledger')
+    if not np.array_equal(origin.ordinary.w, start.ordinary.w):
+        raise ValueError('paper continuation changed particle weights')
+    lineage = dict(prefix_native_git=record['git'], prefix_record_sha256=record_hash, prefix_data_sha256=data_hash,
+                   prefix_lineage=setting.get('continuation'),
+                   **{key: hashlib.sha256(file.read_bytes()).hexdigest() for key, file in (
+                       ('origin_archive_sha256', path.parent / 'initial_state.npz'),
+                       ('checkpoint_archive_sha256', path),
+                       ('producer_script_sha256', Path(__file__)))})
+    return sim, origin, start, prefix, setting, record['results'], lineage
+
+
+def paper_continuation_checks(sim, origin, start, prefix, setting, results, horizon):
+    """Validate prefix endpoints/cadence and recover conservative global SI bounds."""
+    plasma, normalization = sim.plasma, setting['normalization']
+    wp, energy, field = [normalization[key] for key in ('omega_p_rad_s', 'energy_scale_J_m2', 'field_scale_V_m')]
+    dtau, cadence, blocks = setting['dt_omega_p'], setting['output_dt_omega_p'], setting['block_steps']
+    if (not np.isfinite([dtau, cadence, horizon]).all() or min(dtau, cadence, horizon) <= 0
+            or type(blocks) is not int or blocks < 1):
+        raise ValueError('paper continuation needs positive finite clocks and integer blocks')
+    total, stride = round(horizon / dtau), round(cadence / dtau)
+    steps = total - int(start.ordinary.steps)
+    local = setting['local_moments_output_dt_omega_p'] is not None
+    scales = np.asarray(setting['local_spread_lengths_c_over_wp']) * c / wp
+    if (stride < 1 or steps < 1 or steps % blocks or blocks % stride or int(start.ordinary.steps) % blocks
+            or not np.allclose([total * dtau, stride * dtau, blocks * dtau],
+                               [horizon, cadence, setting['block_horizon_omega_p']], rtol=0, atol=1e-10)
+            or local != ('local_spread' in prefix) or (local and setting['local_moments_output_dt_omega_p'] != cadence)
+            or scales.shape != (2,) or not np.isfinite(scales).all() or np.any(scales <= 0)
+            or prefix['t'].shape != (int(start.ordinary.steps) // stride + 1,)
+            or prefix['t'][-1] != float(start.ordinary.time) * wp):
+        raise ValueError('paper continuation must preserve native blocks, clocks and physical moment sampling')
+    units = dict(charge=normalization['charge_density_C_m3'] * plasma.domain.length,
+                 grid_charge=normalization['charge_density_C_m3'] * plasma.domain.length,
+                 ordinary_gauss=normalization['charge_density_C_m3'] / epsilon_0,
+                 dark_gauss=normalization['charge_density_C_m3'] / epsilon_0, mean_D=field, mean_A=field / wp)
+    for state, index in ((origin, 0), (start, -1)):
+        sample = {key: np.array(value)[None]
+                  for key, value in snapshot(sim, state, mode=setting['recorded_mode']).items()}
+        paper_normalize(sample, plasma, wp, energy, field, setting.get('momentum_seed_over_sigma_e', 0.),
+                        setting.get('seed_mode') or 1)
+        mismatch = any(key not in prefix or not np.allclose(
+            value[0], prefix[key][index], rtol=2e-12, atol=2e-12 * units.get(key, 1.)) for key, value in sample.items())
+        if mismatch:
+            raise ValueError('paper continuation normalized prefix endpoints differ from complete native states')
+    maximum_scales = paper_maximum_scales(plasma, wp, energy)
+    prior = np.asarray([results[key] for key in PAPER_MAXIMUM_KEYS]) * maximum_scales
+    native = np.asarray([start.max_balance_error, start.max_ordinary_gauss, start.max_dark_gauss])
+    if (not np.isfinite(prior).all() or np.any(prior < 0)
+            or np.any(abs(prior[[0, 4, 5]] - native) > 32 * np.finfo(float).eps * np.asarray(
+                [energy, units['ordinary_gauss'], units['dark_gauss']]))):
+        raise ValueError('paper continuation measured maxima disagree with the complete native ledger')
+    prior[[0, 4, 5]] = np.maximum(prior[[0, 4, 5]], native)
+    prior = np.where(prior > 0, np.nextafter(prior, np.inf), 0.)
+    return steps, stride, scales if local else None, prior
+
+
+def paper_continue(folder, initial_state, horizon):
+    """Extend a native Gaussian replay with its original global reference and prefix."""
+    if initial_state is None or Path(folder).resolve() == Path(initial_state).parent.resolve():
+        raise ValueError('paper continuation needs a donor final archive and a distinct output folder')
+    sim, origin, start, prefix, setting, old_results, lineage = paper_continuation_state(initial_state)
+    steps, stride, scales, prior = paper_continuation_checks(
+        sim, origin, start, prefix, setting, old_results, horizon)
+    normalization = setting['normalization']
+    wp, energy, field = [normalization[key] for key in ('omega_p_rad_s', 'energy_scale_J_m2', 'field_scale_V_m')]
+    with elapsed_progress('Global paper continuation'):
+        final, history, maxima, _, compile_s, warm_s, memory = paper_run(
+            sim, start, steps, stride, setting['block_horizon_omega_p'], wp,
+            None if scales is None else jnp.asarray(scales), folder, setting['recorded_mode'],
+            reference=snapshot(sim, origin), maxima=prior)
+    folder = Path(folder)
+    (folder / 'initial_state.npz').replace(folder / 'segment_initial_state.npz')
+    save_compressed_state(folder / 'initial_state.npz', origin, sim)
+    save_compressed_state(folder / 'final_state.npz', final, sim)
+    (folder / 'prefix_data.npz').write_bytes((Path(initial_state).parent / 'data.npz').read_bytes())
+    (folder / 'prefix_run.json').write_bytes((Path(initial_state).parent / 'run.json').read_bytes())
+    np.savez_compressed(folder / 'segment_data.npz', **history)
+    paper_normalize(history, sim.plasma, wp, energy, field, setting.get('momentum_seed_over_sigma_e', 0.),
+                    setting.get('seed_mode') or 1)
+    if any(key not in prefix or prefix[key].shape[1:] != value.shape[1:] for key, value in history.items()):
+        raise ValueError('paper continuation scalar schema differs from the original normalized prefix')
+    joined = {key: np.concatenate((prefix[key], value[1:])) for key, value in history.items()}
+    results = dict(zip(PAPER_MAXIMUM_KEYS,
+                       (np.asarray(maxima) / paper_maximum_scales(sim.plasma, wp, energy)).tolist()))
+    results.update(all_step_maxima_SI=np.asarray(maxima).tolist(), reconstructed_prior_maxima_SI=prior.tolist(),
+                   prior_maxima_note='SI bounds reconstructed from normalized donor maxima and rounded upward; '
+                                     'exact native energy/Gauss maxima are cross-checked and retained.',
+                   compile_s=compile_s, warm_primal_s=warm_s,
+                   compiler_temporary_MiB=memory.temp_size_in_bytes / 2**20 if memory else None,
+                   claim='Mixed-producer continuation at fixed physics; late convergence remains unverified.')
+    lineage.update(start_step=int(start.ordinary.steps), end_step=int(final.ordinary.steps),
+                   start_time_omega_p=float(history['t'][0]), end_time_omega_p=float(history['t'][-1]),
+                   target_time_omega_p=horizon, segment_steps=steps,
+                   lineage_note='Prefix retains its producer lineage; the segment has the current producer. '
+                                'Original reference curves remain prefix-only.')
+    setting.update(horizon_omega_p=float(joined['t'][-1]), initial_state_source='complete original zero-time archive',
+                   timing='Continuation segment only; prefix timings belong to its separate native producer.',
+                   continuation=lineage)
+    save_run(folder, 'paper_resonant_continuation', setting, results, **joined)
+    np.savez_compressed(folder / 'data.npz', **joined)
+    print('🌘 GLOBAL PAPER CONTINUATION:', results, flush=True)
+    return joined, setting, results
 
 
 def seed_reference(history, amplitude, coupling, seed, mode, phase):
@@ -1361,22 +1565,8 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
     momentum_scale = energy_scale / c
     coarse_initial = np.asarray(coarse_spread(sim, start, scales)) / energy_scale
     coarse_final = np.asarray(coarse_spread(sim, final, scales)) / energy_scale
-    t = history['t'] * wp
-    history['t'] = t
-    for key in ('electric', 'magnetic', 'dark', 'dark_coherent', 'kinetic', 'spread', 'balance', 'work'):
-        history[key] /= energy_scale
-    if local_moments:
-        history['local_spread'] /= energy_scale
-    for key in ('mean', 'rms', 'max_speed'):
-        history[key] /= c
-    history['momentum'] /= momentum_scale
-    history['mean_E'] /= field_scale
-    history['mode_E'] /= field_scale
-    history['dark_mode_E'] /= field_scale
-    phase_origin = np.exp(-2j * np.pi * seed_mode * float(plasma.domain.faces[0]) / plasma.domain.length)
-    history['mode_E'] = history['mode_E'] * (phase_origin if momentum_seed else 1)
-    history['dark_mode_E'] = history['dark_mode_E'] * (phase_origin if momentum_seed else 1)
-    history['nonzero_electric'] = history['electric'] - history['mean_E']**2 / 2
+    paper_normalize(history, plasma, wp, energy_scale, field_scale, momentum_seed, seed_mode)
+    t = history['t']
     maxima = np.asarray(maxima)
     # Spatially homogeneous kinetic orbits separate relativistic detuning from density waves.
     cold = forced_cold(t, amplitude)
@@ -1499,6 +1689,8 @@ if __name__ == "__main__":  # noqa: C901
             paper_case(output, cells, particles, dt, horizon, seed, drive_ratio,
                        coupling, block_horizon, local_moments, initial_state,
                        momentum_seed, seed_mode, seed_phase, shape_order)
+    elif study == 'paper_continue':
+        paper_continue(output, initial_state, horizon)
     elif study == 'pair':
         pair_figure(output, full)
     elif study == 'pair_dark':
@@ -1513,7 +1705,8 @@ if __name__ == "__main__":  # noqa: C901
     elif study == 'paper_pilot':
         paper_geometry_pilot(output)
     elif study != 'mobile_ions':
-        raise ValueError('study must be mobile_ions, paper, pair, pair_dark, pair_waveform, pair_repeat or paper_pilot')
+        raise ValueError('study must be mobile_ions, paper, paper_continue, pair, pair_dark, pair_waveform, '
+                         'pair_repeat or paper_pilot')
     else:
         presets = ((64, 4000, 0.04, 40), (128, 8000, 0.02, 40)) if full else (
             (32, 1000, 0.08, 20),)

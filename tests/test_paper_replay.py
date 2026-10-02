@@ -199,3 +199,138 @@ def test_paper_archive_reuses_exact_initial_arrays_and_rejects_wrong_loading(tmp
     other, _ = paper_plasma(8, 16, .02, 1)
     with pytest.raises(AssertionError):
         paper_initial(DarkSimulation(other, sim.dark), 1, path)
+
+
+@pytest.fixture(scope='module', params=[None, .1])
+def paper_checkpoint(tmp_path_factory, request):
+    """Four native steps, with a deliberately inherited global diagnostic bound."""
+    from examples import dark_reservoir as example
+    from darkjaxincell import DarkField
+
+    folder = tmp_path_factory.mktemp('paper_checkpoint')
+    plasma, wp = paper_plasma(8, 16, .125, 0, shape_order=5)
+    field, energy = mass_electron * c * wp / e, plasma.species[0].density * mass_electron * c**2 * plasma.domain.length
+    amplitude = .03 * np.sqrt(.001)
+    coupling = request.param
+    model = (PrescribedDrive(1., jnp.array([amplitude * field, 0., 0.]), wp) if coupling is None
+             else DarkField(wp, coupling, initial_E=jnp.tile(
+                 jnp.array([amplitude * field / coupling, 0., 0.]), (8, 1))))
+    sim = DarkSimulation(plasma, model)
+    origin, fingerprints = paper_initial(sim, 0, None)
+    origin = origin.replace(max_balance_error=jnp.asarray(1e-4 * energy))
+    inherited = jnp.array([1e-4 * energy, 0., 0., 0., 0., 0., 0., 0., 0.])
+    scales = jnp.array([2., 4.]) * np.sqrt(.001) * c / wp
+    final, history, maximum, *_ = example.paper_run(sim, origin, 4, 2, .5, wp, scales, folder, maxima=inherited)
+    save_compressed_state(folder / 'final_state.npz', final, sim)
+    example.paper_normalize(history, plasma, wp, energy, field)
+    settings = dict(cells=8, particles_per_species=16, dt_omega_p=.125, horizon_omega_p=float(history['t'][-1]),
+                    seed=0, length_c_over_omega_p=40, mass_ratio=1836, T_each_over_mec2=.001,
+                    drive_quiver_over_sigma=.03, force_quiver_over_c=amplitude, coupling=coupling,
+                    output_dt_omega_p=.25, block_steps=4, block_horizon_omega_p=.5,
+                    local_moments_output_dt_omega_p=.25,
+                    local_spread_lengths_c_over_wp=(np.array([2., 4.]) * np.sqrt(.001)).tolist(),
+                    normalization=dict(omega_p_rad_s=wp, field_scale_V_m=field, energy_scale_J_m2=energy,
+                                       charge_density_C_m3=e * plasma.species[0].density,
+                                       epsilon0_F_m=float(epsilon_0), c_m_s=float(c)),
+                    initial_fingerprints=fingerprints, shape_order=5, recorded_mode=1,
+                    momentum_seed_over_sigma_e=0., seed_mode=None, seed_phase=None,
+                    XLA_FLAGS=example.pair_xla_flags(), parent_revision=example.parent_revision())
+    results = dict(zip(example.PAPER_MAXIMUM_KEYS,
+                       (np.asarray(maximum) / example.paper_maximum_scales(plasma, wp, energy)).tolist()))
+    # Reference arrays are prefix evidence; they must not acquire a fictitious longer time axis.
+    example.save_run(folder, 'paper_resonant_conversion', settings, results, **history,
+                     homogeneous_mean_E=np.zeros(len(history['t'])))
+    return folder, sim, origin, inherited, scales
+
+
+def test_paper_continuation_matches_uninterrupted_native_ledgers_and_prefix(tmp_path, paper_checkpoint):
+    import json
+    from examples import dark_reservoir as example
+
+    donor, sim, origin, inherited, scales = paper_checkpoint
+    setting = json.loads((donor / 'run.json').read_text())['settings']
+    normalization = setting['normalization']
+    wp, energy, field = [normalization[key] for key in ('omega_p_rad_s', 'energy_scale_J_m2', 'field_scale_V_m')]
+    full, full_history, full_maximum, *_ = example.paper_run(
+        sim, origin, 8, 2, .5, wp, scales, tmp_path / 'full', maxima=inherited)
+    save_compressed_state(tmp_path / 'full' / 'final_state.npz', full, sim)
+    example.paper_normalize(full_history, sim.plasma, wp, energy, field)
+    joined, metadata, result = example.paper_continue(tmp_path / 'continued', donor / 'final_state.npz', 1.)
+    with np.load(tmp_path / 'full' / 'final_state.npz') as whole, \
+            np.load(tmp_path / 'continued' / 'final_state.npz') as restarted:
+        assert whole.files == restarted.files
+        for key in whole.files:
+            np.testing.assert_array_equal(whole[key], restarted[key])
+    for key in joined:
+        np.testing.assert_array_equal(joined[key], full_history[key])
+    with np.load(donor / 'data.npz') as prefix, np.load(tmp_path / 'continued' / 'data.npz') as merged:
+        for key in joined:
+            np.testing.assert_array_equal(merged[key][:len(prefix['t'])], prefix[key])
+        assert 'homogeneous_mean_E' not in merged
+        # Resetting the reference would conceal the nonzero defect already accumulated at the boundary.
+        global_defect = joined['balance'][-1] - joined['balance'][0]
+        segment_defect = joined['balance'][-1] - prefix['balance'][-1]
+        assert abs(global_defect - segment_defect) > 1e-14
+    assert (tmp_path / 'continued' / 'prefix_data.npz').read_bytes() == (donor / 'data.npz').read_bytes()
+    assert (tmp_path / 'continued' / 'prefix_run.json').read_bytes() == (donor / 'run.json').read_bytes()
+    with np.load(tmp_path / 'continued' / 'segment_data.npz') as segment:
+        np.testing.assert_equal(segment['t'][0] * wp, joined['t'][2])
+        np.testing.assert_equal(segment['work'][-1] / energy, joined['work'][-1])
+    for old, new in (('initial_state.npz', 'initial_state.npz'), ('final_state.npz', 'segment_initial_state.npz')):
+        with np.load(donor / old) as a, np.load(tmp_path / 'continued' / new) as b:
+            for key in a.files:
+                np.testing.assert_array_equal(a[key], b[key])
+    np.testing.assert_array_equal(result['all_step_maxima_SI'], np.maximum(
+        np.asarray(full_maximum), np.asarray(result['reconstructed_prior_maxima_SI'])))
+    assert result['reconstructed_prior_maxima_SI'][0] >= float(inherited[0])
+    assert metadata['continuation']['start_step'] == 4 and metadata['continuation']['end_step'] == 8
+    assert metadata['continuation']['prefix_native_git']
+    assert str(donor) not in json.dumps(metadata)
+
+
+@pytest.mark.parametrize('change', ['clock', 'steps', 'work', 'background', 'model', 'dt', 'runtime',
+                                    'blocks', 'cadence', 'maximum', 'horizon'])
+def test_paper_continuation_rejects_inconsistent_checkpoint_metadata(tmp_path, paper_checkpoint, change):
+    import json
+    import shutil
+    from examples import dark_reservoir as example
+
+    original = paper_checkpoint[0]
+    donor = tmp_path / 'donor'
+    shutil.copytree(original, donor)
+    path = donor / 'final_state.npz'
+    if change in ('clock', 'steps', 'work', 'background', 'model', 'dt'):
+        with np.load(path) as stored:
+            arrays = dict(stored)
+        key = dict(clock='time', steps='steps', work='dark.work', background='dark.background',
+                   model='dark.omega', dt='dark.dt')[change]
+        arrays[key] = np.asarray(.5) if change == 'steps' else arrays[key] + (1. if change != 'clock' else 1e-12)
+        np.savez_compressed(path, **arrays)
+    else:
+        record = json.loads((donor / 'run.json').read_text())
+        if change == 'runtime':
+            record['jax'] = 'unsupported'
+        elif change == 'blocks':
+            record['settings']['block_steps'] = 4.
+        elif change == 'cadence':
+            record['settings']['local_moments_output_dt_omega_p'] = .125
+        elif change == 'maximum':
+            record['results']['max_energy_work_defect_over_initial_thermal'] = 0.
+        (donor / 'run.json').write_text(json.dumps(record))
+    with pytest.raises(ValueError):
+        example.paper_continue(tmp_path / 'continued', path, .5 if change == 'horizon' else 1.)
+
+
+def test_paper_continuation_named_input_dispatch():
+    """Exercise the named mode without launching a second physics fixture."""
+    import ast
+    from pathlib import Path
+    from examples import dark_reservoir as example
+
+    tree = ast.parse(Path(example.__file__).read_text())
+    dispatcher = next(node for node in tree.body if isinstance(node, ast.If))
+    calls = []
+    namespace = dict(__name__='__main__', study='paper_continue', output='out', initial_state='donor/final_state.npz',
+                     horizon=5000, paper_continue=lambda *args: calls.append(args))
+    exec(compile(ast.Module(body=[dispatcher], type_ignores=[]), example.__file__, 'exec'), namespace)
+    assert calls == [('out', 'donor/final_state.npz', 5000)]

@@ -173,6 +173,8 @@ def window_summary(data, selected, coupled=False):
 def _controls(records, data, variant, tolerance):
     """Equal horizons/cadences preserve sampling and compile-allocation controls."""
     settings = [record['settings'] for record in records]
+    if any('continuation' in setting for setting in settings):
+        raise ValueError('mixed-producer continuation requires a separate lineage audit')
     controls = [{'shape_order': 2, 'XLA_FLAGS': '', **row} for row in settings]
     allowed = (VARIANTS[variant], 'shape_order' if variant == 'shape' else None)
     for key in (*PARAMETERS, 'shape_order', 'XLA_FLAGS'):

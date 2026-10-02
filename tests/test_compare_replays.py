@@ -81,6 +81,13 @@ def test_physical_seed_changes_cannot_be_hidden_in_a_resolution_comparison(recor
         compare_replays(*records, windows=((0, 1),))
 
 
+@pytest.mark.parametrize('side', [0, 1])
+def test_matching_top_source_cannot_hide_a_continued_prefix(records, side):
+    change_settings(records[side], continuation={'prefix_native_git': '9' * 40})
+    with pytest.raises(ValueError, match='mixed-producer continuation'):
+        compare_replays(*records, windows=((0, 1),))
+
+
 def test_particle_loading_repeat_keeps_raw_arrays_and_incomplete_endpoint_scope(records, monkeypatch):
     from docs.scripts import compare_replays as renderer
     loading = records[0].parent / 'loading'
