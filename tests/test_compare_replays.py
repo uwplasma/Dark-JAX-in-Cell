@@ -372,6 +372,80 @@ def test_refined_shape_run_requires_its_matching_anchor(records, monkeypatch):
     assert labels[0] != labels[1] and all('degree 5' in label for label in labels)
 
 
+def test_third_timestep_preserves_shape_comparison_and_raw_contraction(records, monkeypatch):
+    import hashlib
+    from docs.scripts import compare_replays as renderer
+    change_settings(records[1], shape='quintic', shape_order=5)
+    refined, finer = [records[0].parent / name for name in ('refined', 'finer')]
+    for path, dt, blocks in ((refined, .005, 100), (finer, .0025, 200)):
+        copytree(records[1], path)
+        change_settings(path, dt_omega_p=dt, block_steps=blocks)
+    for path in (records[1], refined, finer):
+        dt = json.loads((path / 'run.json').read_text())['settings']['dt_omega_p']
+        with np.load(path / 'data.npz') as archive:
+            data = dict(archive)
+        data['mean_E'] *= 1 + dt**2
+        data['electric'] = .5 * data['mean_E']**2 + data['nonzero_electric']
+        data['work'] = data['electric'].copy()
+        np.savez_compressed(path / 'data.npz', **data)
+    original = renderer.compare_replays
+    monkeypatch.setattr(renderer, 'compare_replays',
+                        lambda *args, **kwargs: original(*args, **kwargs, windows=((0, 1),)))
+    comparison = original(*records, variant='shape', windows=((0, 1),))
+    folder = records[0].parent / 'publication'
+    renderer.publish(*records, folder, comparison, refined=refined, refined_against='second', finer_step=finer)
+    result = json.loads((folder / 'run.json').read_text())['results']
+    assert result['comparison'] == comparison and result['refined_against'] == 'second'
+    assert result['refinement_comparison'] == original(records[1], refined, 'dt', windows=((0, 1),))
+    assert result['third_step_comparison'] == original(refined, finer, 'dt', windows=((0, 1),))
+    contraction = result['norm_contraction'][0]
+    assert contraction['mean_E']['coarse_to_fine_contraction'] == pytest.approx(4., rel=2e-11)
+    assert contraction['nonzero_electric']['coarse_to_fine_contraction'] is None
+    assert 'do not certify temporal order' in result['norm_contraction_note']
+    assert len(result['native_runs']) == 4
+    assert result['third_step_comparison']['sources'][1]['data_sha256'] == hashlib.sha256(
+        (finer / 'data.npz').read_bytes()).hexdigest()
+    with np.load(folder / 'data.npz') as data, np.load(finer / 'data.npz') as native:
+        np.testing.assert_array_equal(data['finer_electric'], native['electric'])
+        assert {'first_t', 'second_t', 'refined_t', 'finer_t'} <= set(data.files)
+
+
+@pytest.mark.parametrize('corrupt', ['physics', 'clock', 'source', 'missing_refined', 'variant', 'loading', 'repeat'])
+def test_third_timestep_rejects_confounded_publication(records, corrupt):
+    from docs.scripts import compare_replays as renderer
+    refined, finer = [records[0].parent / name for name in ('refined', 'finer')]
+    for path, dt, blocks in ((refined, .005, 100), (finer, .0025, 200)):
+        copytree(records[1], path)
+        change_settings(path, dt_omega_p=dt, block_steps=blocks)
+    kwargs = dict(refined=refined, finer_step=finer)
+    if corrupt == 'physics':
+        change_settings(finer, force_quiver_over_c=.03)
+    elif corrupt == 'source':
+        record = json.loads((finer / 'run.json').read_text())
+        record['git'] = '9' * 40
+        (finer / 'run.json').write_text(json.dumps(record))
+    elif corrupt == 'clock':
+        with np.load(finer / 'data.npz') as archive:
+            data = dict(archive)
+        data['t'][-1] += .1
+        np.savez_compressed(finer / 'data.npz', **data)
+    else:
+        kwargs.update({'missing_refined': dict(refined=None), 'variant': dict(refined_variant='shape'),
+                       'loading': dict(loading_refined=records[1]), 'repeat': dict(loading_repeat=records[1])}[corrupt])
+    folder = records[0].parent / 'publication'
+    with pytest.raises(ValueError):
+        renderer.publish(*records, folder, {}, **kwargs)
+    assert not folder.exists()
+
+
+def test_contraction_rejects_unequal_timestep_ratios():
+    from docs.scripts.compare_replays import _step_contraction
+    first = dict(variant='dt', sources=[dict(varied_parameter=.01), dict(varied_parameter=.005)])
+    second = dict(variant='dt', sources=[dict(varied_parameter=.005), dict(varied_parameter=.002)])
+    with pytest.raises(ValueError, match='consecutive timestep halvings'):
+        _step_contraction(first, second)
+
+
 @pytest.fixture
 def seed_pairs(records):
     pairs = []

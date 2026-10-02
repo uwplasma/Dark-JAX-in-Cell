@@ -28,6 +28,7 @@ constraints = globals().get('constraints', False)
 legacy = globals().get('legacy', False)
 refined = globals().get('refined', None)
 refined_against = globals().get('refined_against', 'first')
+finer_step = globals().get('finer_step', None)  # Third timestep at fixed physics; keeps four plotted controls.
 finer_mesh = globals().get('finer_mesh', None)
 refined_variant = globals().get('refined_variant', 'dt')
 loading_refined = globals().get('loading_refined', None)
@@ -831,10 +832,38 @@ def _refined_source(first, second, against):
     return first if against == 'first' else second
 
 
+def _step_contraction(first, second):
+    """Raw adjacent differences; a ratio does not establish temporal order or convergence."""
+    if any(row['variant'] != 'dt' or not np.isclose(row['sources'][0]['varied_parameter'],
+               2 * row['sources'][1]['varied_parameter'], rtol=2e-12, atol=0) for row in (first, second)):
+        raise ValueError('adjacent contractions require two consecutive timestep halvings')
+    if [row['window_omega_p'] for row in first['windows']] != [row['window_omega_p'] for row in second['windows']]:
+        raise ValueError('adjacent timestep contractions require the same native comparison windows')
+    result = []
+    for a, b in zip(first['windows'], second['windows']):
+        row = dict(window=a['window_omega_p'])
+        for key in ('mean_E', 'electric', 'nonzero_electric', 'local_spread'):
+            if key in a['observables'] and key in b['observables']:
+                norms = [float(np.linalg.norm(x['observables'][key]['l2_difference'])) for x in (a, b)]
+                row[key] = dict(adjacent_l2=norms, coarse_to_fine_contraction=norms[0] / norms[1] if norms[1] else None)
+        result.append(row)
+    return result
+
+
+def _finer_comparison(refined, finer, variant, loading, repeat, constraints):
+    if finer is None:
+        return None
+    if refined is None or variant != 'dt' or loading is not None or repeat is not None:
+        raise ValueError('finer_step requires a dt refinement and excludes loading controls')
+    return compare_replays(refined, finer, 'dt', constraints=constraints)
+
+
 def publish(first, second, folder, comparison, refined=None, refined_variant='dt', loading_refined=None,
-            loading_repeat=None, refined_against='first'):
+            loading_repeat=None, refined_against='first', finer_step=None):
     """Render saved scalars through the parent figure/provenance path; no dynamics."""
     anchor = _refined_source(first, second, refined_against)
+    third_step = _finer_comparison(refined, finer_step, refined_variant, loading_refined, loading_repeat,
+                                   'endpoint_constraints' in comparison)
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -847,6 +876,7 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
         refinement = compare_replays(anchor, refined, variant=refined_variant,
                                      constraints='endpoint_constraints' in comparison)
         sources.append(_load(refined, 1e-5))
+    sources += [_load(finer_step, 1e-5)] if finer_step is not None else []
     loading = None
     if loading_refined is not None:
         loading = compare_replays(second, loading_refined, variant='loading',
@@ -891,6 +921,7 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
             axis.grid(alpha=.25)
             axis.legend(fontsize=8)
         names = ['first', 'second'] + (['refined'] if refined is not None else [])
+        names += ['finer'] if finer_step is not None else []
         names += ['loading'] if loading_refined is not None else []
         arrays = {f'{name}_{key}': value for name, source in zip(names, sources)
                   for key, value in source[1].items()}
@@ -904,6 +935,11 @@ def publish(first, second, folder, comparison, refined=None, refined_variant='dt
         if refinement is not None:
             result['refined_against'] = refined_against
             result['refinement_comparison'] = refinement
+        result.update(dict(third_step_comparison=third_step,
+                           norm_contraction=_step_contraction(refinement, third_step),
+                           norm_contraction_note='Raw adjacent differences from one loading and separate executions; '
+                                                 'ratios do not certify temporal order, convergence or uncertainty.')
+                      if third_step is not None else {})
         if loading is not None:
             result['loading_comparison'] = loading
         repeated, repeated_arrays = _loading_repeat(loading_repeat, loading_refined)
@@ -2025,8 +2061,11 @@ if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
         raise ValueError('select one comparison mode')
     if (pair_repeat_observer or pair_repeat_donor or pair_repeat_transition) and not pair_repeats:
         raise ValueError('pair repeat observer/donor inputs require pair_repeats')
-    if (refined or loading_refined or loading_repeat) and destination is None:
+    if (refined or finer_step or loading_refined or loading_repeat) and destination is None:
         raise ValueError('refinements require a publish folder')
+    if finer_step and (implicit or picard or method_controls or phase_controls or pair_controls or pair_repeats
+                       or ensemble or continuation):
+        raise ValueError('finer_step extends only the native explicit replay publisher')
     if loading_repeat and loading_refined is None:
         raise ValueError('a loading repeat requires its first record')
     if finer_mesh and not method_controls or orbit_audits and not (picard or phase_controls):
@@ -2085,7 +2124,7 @@ if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
         result = compare_replays(first, second, variant, legacy=legacy, constraints=constraints)
         if destination is not None:
             publish(first, second, destination, result, refined, refined_variant, loading_refined, loading_repeat,
-                    refined_against=refined_against)
+                    refined_against=refined_against, finer_step=finer_step)
         else:
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(json.dumps(result, indent=2))
