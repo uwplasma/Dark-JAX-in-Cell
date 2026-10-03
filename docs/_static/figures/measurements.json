@@ -594,6 +594,17 @@
       "backend": "cpu",
       "git": "529a8380a5683eb9616058cae7f969a33ab3d142",
       "run": "implicit_grid_phase/run.json"
+    },
+    "resonant_integrators": {
+      "jaxincell": "unknown",
+      "jax": "0.10.2",
+      "numpy": "2.2.2",
+      "python": "3.11.14",
+      "platform": "Darwin arm64",
+      "jax_enable_x64": true,
+      "backend": "cpu",
+      "git": "ba945277d8b280e04459d85fce042cf0940537f4-dirty",
+      "run": "resonant_integrators/run.json"
     }
   },
   "drive_wave_error": "7.488e-05",
@@ -1555,5 +1566,14 @@
   "phase_warm_min": "65.50",
   "phase_warm_max": "69.57",
   "phase_temp_mib": "81.84",
-  "phase_rss_mib": "1074.86"
+  "phase_rss_mib": "1074.86",
+  "resonant_cn_phase_coarse": "8.383e-01",
+  "resonant_cn_transfer_coarse": "6.757e-03",
+  "resonant_cn_phase_fine": "8.199e-04",
+  "resonant_cn_transfer_fine": "5.121e-06",
+  "resonant_hybrid_phase_coarse": "5.352e-01",
+  "resonant_hybrid_transfer_coarse": "3.767e-02",
+  "resonant_hybrid_phase_fine": "4.888e-04",
+  "resonant_hybrid_transfer_fine": "3.293e-06",
+  "resonant_energy_max": "1.633e-11"
 }

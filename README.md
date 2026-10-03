@@ -421,6 +421,16 @@ The [source-free Proca comparison](docs/scripts/benchmark_time_integrators.py) e
 
 Long prescribed-drive runs can use the experimental `clock='anchored'` option to evaluate timestamps and forcing phase from a retained origin and step counter. Complete restarts preserve both anchors. [Clock algorithm and independent derivative checks](docs/performance.md#anchored-timestamps); [simulation script](examples/dark_reservoir.py) · `study='paper', clock='anchored'`. Field accuracy and Gauss conservation remain separate checks.
 
+### Resonant phase and energy transfer
+
+The homogeneous cold limit has two frequencies, $\omega_\pm/\omega_p=\sqrt{1+\eta^2/4}\pm\eta/2$, at $\Omega_D=\omega_p$. A [collective-current benchmark](docs/performance.md#cold-resonant-integrators) follows this limit to $\omega_pt=1000$ with $\eta=.005$ and compares fully coupled midpoint with an exact-dark/ordinary-midpoint hybrid.
+
+<img src="docs/_static/figures/resonant_integrators/figure.png" width="900" alt="Cold resonant integrators: small endpoint energy errors alongside much larger phase and conversion errors">
+
+[Companion script](docs/scripts/benchmark_time_integrators.py) · `study='resonant', quick=False, eta=.005`.
+
+At $\Delta t\omega_p=.1$, midpoint's largest mode-phase error is **0.838 rad** and its ordinary-energy transfer-fraction error is **0.00676**; the hybrid transfer error is **0.0377**. At `.003125`, transfer errors fall to **$5.12\times10^{-6}$ / $3.29\times10^{-6}$**. Both one-step maps preserve the cold quadratic energy; saved matrix powers have energy defects below $1.64\times10^{-11}$, exceeding the strict $2\times10^{-13}$ bound. The hybrid also splits the zero-coupling resonance. This verifies a linear analytical limit and guides timestep selection; late kinetic conversion remains unconfirmed.
+
 ## Differentiate and optimize a physical objective
 
 JAX derivatives pass through particle loading and weights, fields, the PIC run and the measured objective. The [density calibration](examples/optimize_dark_photon.py) maximizes coherent electric plus cold bulk energy on one fixed physical interval, with $p=n/n_{\rm ref}$:

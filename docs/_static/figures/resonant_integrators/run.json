@@ -1,0 +1,1421 @@
+{
+  "jaxincell": "unknown",
+  "jax": "0.10.2",
+  "numpy": "2.2.2",
+  "python": "3.11.14",
+  "platform": "Darwin arm64",
+  "jax_enable_x64": true,
+  "backend": "cpu",
+  "git": "ba945277d8b280e04459d85fce042cf0940537f4-dirty",
+  "example": "time_integrators_resonant",
+  "settings": {
+    "preset": "full",
+    "study": "resonant",
+    "eta": 0.005,
+    "horizon_omega_p": 1000.0,
+    "steps": [
+      0.1,
+      0.05,
+      0.025,
+      0.0125,
+      0.00625,
+      0.003125
+    ],
+    "state_order": [
+      "E",
+      "D",
+      "A",
+      "j"
+    ],
+    "initial": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+    ],
+    "normalized_units": "wp=Omega_D=epsilon_0=1",
+    "scope": "cold linear collective4x4; no PIC or nonlinear validation"
+  },
+  "results": {
+    "methods": [
+      {
+        "method": "cn",
+        "h": 0.1,
+        "energy_error": 5.198064201294983e-13,
+        "unaligned_phase_error": [
+          0.8258744357291868,
+          0.8383433670486563
+        ],
+        "transfer_fraction": 0.3638152312038776,
+        "transfer_error": 0.006757125357022192,
+        "historical_row": {
+          "eta": 0.005,
+          "h": 0.1,
+          "method": "cn",
+          "tau": 1000.0,
+          "equivalent_discrete_updates": 10000,
+          "state": [
+            -0.08692706498715069,
+            -0.7892977848898075,
+            0.1148641613611715,
+            0.5968742887548409
+          ],
+          "frequencies": [
+            0.9966772505593872,
+            1.0016647816280682
+          ],
+          "physical_frequencies": [
+            0.9975031249951172,
+            1.0025031249951173
+          ],
+          "checks": {
+            "current_closure": 9.280770596475918e-17,
+            "ordinary": 1.214306433183765e-17,
+            "dark": 9.94432264676277e-17,
+            "kinetic": 1.1275702593849246e-16,
+            "metric": 2.220446049250313e-16,
+            "reversal": 2.220446049250313e-16
+          },
+          "unaligned_H_state_error": 0.8083397466255241,
+          "transfer_fraction": 0.3638152312038776,
+          "reference_transfer_fraction": 0.357058105846801,
+          "transfer_error": 0.006757125357076621,
+          "energy_drift": 5.198064201294983e-13,
+          "power_metric_defect": 1.0396128402589966e-12,
+          "arithmetic_envelope_observational": 1.4432899321168474e-10,
+          "phase_error": [
+            0.8258744357293033,
+            0.8383433670488861
+          ],
+          "modal_radius_error": [
+            3.808064974464287e-13,
+            3.544942117628125e-13
+          ],
+          "phase_resolved": [
+            true,
+            true
+          ],
+          "phase_uncertainty": [
+            2.0243086185248188e-11,
+            2.0192541729330668e-11
+          ],
+          "accumulated_spectral_bias": 0.8383433670491325,
+          "artificial_detuning_to_physical_gap": 0.16641711222895594,
+          "reference_valid": false,
+          "endpoint_comparison_status": "UNRESOLVED_REFERENCE"
+        }
+      },
+      {
+        "method": "cn",
+        "h": 0.05,
+        "energy_error": 9.063860773039778e-13,
+        "unaligned_phase_error": [
+          0.20669955944157345,
+          0.20982263352905495
+        ],
+        "transfer_fraction": 0.3584687796724408,
+        "transfer_error": 0.001410673825585379,
+        "historical_row": {
+          "eta": 0.005,
+          "h": 0.05,
+          "method": "cn",
+          "tau": 1000.0,
+          "equivalent_discrete_updates": 20000,
+          "state": [
+            -0.4167972291042514,
+            -0.5764104453852634,
+            0.5561314761605467,
+            0.429824207651755
+          ],
+          "frequencies": [
+            0.997296425435676,
+            1.0022933023615883
+          ],
+          "physical_frequencies": [
+            0.9975031249951172,
+            1.0025031249951173
+          ],
+          "checks": {
+            "current_closure": 7.654467337747661e-17,
+            "ordinary": 3.924811864397526e-17,
+            "dark": 1.5056490133689888e-16,
+            "kinetic": 6.852157730108388e-17,
+            "metric": 3.3306690738754696e-16,
+            "reversal": 3.3306690738754696e-16
+          },
+          "unaligned_H_state_error": 0.2078945525450839,
+          "transfer_fraction": 0.3584687796724408,
+          "reference_transfer_fraction": 0.357058105846801,
+          "transfer_error": 0.0014106738256398077,
+          "energy_drift": -9.063860773039778e-13,
+          "power_metric_defect": 2.773559160118566e-12,
+          "arithmetic_envelope_observational": 2.9087843249409396e-10,
+          "phase_error": [
+            0.20669955944168986,
+            0.20982263352928496
+          ],
+          "modal_radius_error": [
+            6.439293542825908e-13,
+            6.376010830422274e-13
+          ],
+          "phase_resolved": [
+            true,
+            true
+          ],
+          "phase_uncertainty": [
+            2.0243086185266644e-11,
+            2.0192541729348853e-11
+          ],
+          "accumulated_spectral_bias": 0.20982263352897768,
+          "artificial_detuning_to_physical_gap": 0.04165104863873559,
+          "reference_valid": false,
+          "endpoint_comparison_status": "UNRESOLVED_REFERENCE"
+        }
+      },
+      {
+        "method": "cn",
+        "h": 0.025,
+        "energy_error": 1.290523243824282e-12,
+        "unaligned_phase_error": [
+          0.05168934830401664,
+          0.052470482759819664
+        ],
+        "transfer_fraction": 0.3573918256533257,
+        "transfer_error": 0.0003337198064703173,
+        "historical_row": {
+          "eta": 0.005,
+          "h": 0.025,
+          "method": "cn",
+          "tau": 1000.0,
+          "equivalent_discrete_updates": 40000,
+          "state": [
+            -0.47804968792568586,
+            -0.4834781613634981,
+            0.6394193004818235,
+            0.35897119874368766
+          ],
+          "frequencies": [
+            0.9974514356468142,
+            1.002450654512355
+          ],
+          "physical_frequencies": [
+            0.9975031249951172,
+            1.0025031249951173
+          ],
+          "checks": {
+            "current_closure": 1.0543866127421531e-16,
+            "ordinary": 3.312237636943216e-17,
+            "dark": 7.795700297141178e-17,
+            "kinetic": 1.2002118049414534e-16,
+            "metric": 2.220446049250313e-16,
+            "reversal": 2.220446049250313e-16
+          },
+          "unaligned_H_state_error": 0.05207646872503772,
+          "transfer_fraction": 0.3573918256533257,
+          "reference_transfer_fraction": 0.357058105846801,
+          "transfer_error": 0.000333719806524746,
+          "energy_drift": -1.290523243824282e-12,
+          "power_metric_defect": 3.4368063950296346e-12,
+          "arithmetic_envelope_observational": 5.773159729717242e-10,
+          "phase_error": [
+            0.051689348304133145,
+            0.0524704827600497
+          ],
+          "modal_radius_error": [
+            9.183764859699295e-13,
+            9.064970996064403e-13
+          ],
+          "phase_resolved": [
+            true,
+            true
+          ],
+          "phase_uncertainty": [
+            2.0243086185274512e-11,
+            2.0192541729356524e-11
+          ],
+          "accumulated_spectral_bias": 0.05247048276224575,
+          "artificial_detuning_to_physical_gap": 0.01041569021313915,
+          "reference_valid": false,
+          "endpoint_comparison_status": "UNRESOLVED_REFERENCE"
+        }
+      },
+      {
+        "method": "cn",
+        "h": 0.0125,
+        "energy_error": 1.6284751325201796e-12,
+        "unaligned_phase_error": [
+          0.012923241105520266,
+          0.013118547602623645
+        ],
+        "transfer_fraction": 0.35714039031793177,
+        "transfer_error": 8.228447107636039e-05,
+        "historical_row": {
+          "eta": 0.005,
+          "h": 0.0125,
+          "method": "cn",
+          "tau": 1000.0,
+          "equivalent_discrete_updates": 80000,
+          "state": [
+            -0.49157226351122346,
+            -0.4582753550036879,
+            0.6579082828795887,
+            0.3398486428755955
+          ],
+          "frequencies": [
+            0.9974902017540168,
+            1.0024900064475135
+          ],
+          "physical_frequencies": [
+            0.9975031249951172,
+            1.0025031249951173
+          ],
+          "checks": {
+            "current_closure": 1.3873722049667636e-16,
+            "ordinary": 2.793175846865781e-17,
+            "dark": 8.649004248526244e-17,
+            "kinetic": 1.3557948166931233e-16,
+            "metric": 2.220446049250313e-16,
+            "reversal": 2.220446049250313e-16
+          },
+          "unaligned_H_state_error": 0.01302141264181978,
+          "transfer_fraction": 0.35714039031793177,
+          "reference_transfer_fraction": 0.357058105846801,
+          "transfer_error": 8.228447113078907e-05,
+          "energy_drift": 1.6284751325201796e-12,
+          "power_metric_defect": 3.2569502650403592e-12,
+          "arithmetic_envelope_observational": 1.154631946276742e-09,
+          "phase_error": [
+            0.0129232411056368,
+            0.013118547602853678
+          ],
+          "modal_radius_error": [
+            1.1536327448880002e-12,
+            1.149524919696887e-12
+          ],
+          "phase_resolved": [
+            true,
+            true
+          ],
+          "phase_uncertainty": [
+            2.0243086185248188e-11,
+            2.0192541729330668e-11
+          ],
+          "accumulated_spectral_bias": 0.013118547603774289,
+          "artificial_detuning_to_physical_gap": 0.0026041056332193335,
+          "reference_valid": false,
+          "endpoint_comparison_status": "UNRESOLVED_REFERENCE"
+        }
+      },
+      {
+        "method": "cn",
+        "h": 0.00625,
+        "energy_error": 5.149713988572557e-12,
+        "unaligned_phase_error": [
+          0.003230866783368484,
+          0.003279694839306231
+        ],
+        "transfer_fraction": 0.3570786062196415,
+        "transfer_error": 2.0500372786086407e-05,
+        "historical_row": {
+          "eta": 0.005,
+          "h": 0.00625,
+          "method": "cn",
+          "tau": 1000.0,
+          "equivalent_discrete_updates": 160000,
+          "state": [
+            -0.4948351424291141,
+            -0.45186157948543626,
+            0.6623764086642774,
+            0.3349877431142816
+          ],
+          "frequencies": [
+            0.9974998941283231,
+            1.002499845300297
+          ],
+          "physical_frequencies": [
+            0.9975031249951172,
+            1.0025031249951173
+          ],
+          "checks": {
+            "current_closure": 3.5284004450825135e-17,
+            "ordinary": 2.294104034343547e-17,
+            "dark": 2.2943249355796996e-17,
+            "kinetic": 8.809142651444724e-18,
+            "metric": 1.1102230246251565e-16,
+            "reversal": 1.1102230246251565e-16
+          },
+          "unaligned_H_state_error": 0.003255431955395534,
+          "transfer_fraction": 0.3570786062196415,
+          "reference_transfer_fraction": 0.357058105846801,
+          "transfer_error": 2.050037284051509e-05,
+          "energy_drift": -5.149713988572557e-12,
+          "power_metric_defect": 1.0299427977145115e-11,
+          "arithmetic_envelope_observational": 2.2915003254517935e-09,
+          "phase_error": [
+            0.0032308667834849473,
+            0.0032796948395362505
+          ],
+          "modal_radius_error": [
+            3.6286529336848616e-12,
+            3.654077040948778e-12
+          ],
+          "phase_resolved": [
+            true,
+            true
+          ],
+          "phase_uncertainty": [
+            2.02430861853522e-11,
+            2.0192541729434887e-11
+          ],
+          "accumulated_spectral_bias": 0.0032796948203905885,
+          "artificial_detuning_to_physical_gap": 0.0006510378519841709,
+          "reference_valid": false,
+          "endpoint_comparison_status": "UNRESOLVED_REFERENCE"
+        }
+      },
+      {
+        "method": "cn",
+        "h": 0.003125,
+        "energy_error": 1.1391387833015187e-11,
+        "unaligned_phase_error": [
+          0.0008077202273337425,
+          0.0008199273303857573
+        ],
+        "transfer_fraction": 0.35706322652555433,
+        "transfer_error": 5.120678698927739e-06,
+        "historical_row": {
+          "eta": 0.005,
+          "h": 0.003125,
+          "method": "cn",
+          "tau": 1000.0,
+          "equivalent_discrete_updates": 320000,
+          "state": [
+            -0.49564341672757334,
+            -0.4502512320507405,
+            0.6634836859248712,
+            0.33376762871820176
+          ],
+          "frequencies": [
+            0.9975023172748946,
+            1.0025023050678006
+          ],
+          "physical_frequencies": [
+            0.9975031249951172,
+            1.0025031249951173
+          ],
+          "checks": {
+            "current_closure": 3.392451657048198e-17,
+            "ordinary": 3.078795356679931e-17,
+            "dark": 8.023507405961627e-17,
+            "kinetic": 3.690353144597536e-17,
+            "metric": 2.220446049250313e-16,
+            "reversal": 2.220446049250313e-16
+          },
+          "unaligned_H_state_error": 0.000813861902342073,
+          "transfer_fraction": 0.35706322652555433,
+          "reference_transfer_fraction": 0.357058105846801,
+          "transfer_error": 5.120678753356422e-06,
+          "energy_drift": -1.1391387833015187e-11,
+          "power_metric_defect": 2.3068880139476278e-11,
+          "arithmetic_envelope_observational": 4.618527793106018e-09,
+          "phase_error": [
+            0.000807720227450128,
+            0.000819927330615816
+          ],
+          "modal_radius_error": [
+            8.037348564471358e-12,
+            8.07232058974705e-12
+          ],
+          "phase_resolved": [
+            true,
+            true
+          ],
+          "phase_uncertainty": [
+            2.024308618547857e-11,
+            2.01925417295609e-11
+          ],
+          "accumulated_spectral_bias": 0.0008199273167086574,
+          "artificial_detuning_to_physical_gap": 0.0001627601782461241,
+          "reference_valid": false,
+          "endpoint_comparison_status": "UNRESOLVED_REFERENCE"
+        }
+      },
+      {
+        "method": "hybrid",
+        "h": 0.1,
+        "energy_error": 5.6710192097853e-13,
+        "unaligned_phase_error": [
+          0.5352154561595148,
+          0.45303432832425783
+        ],
+        "transfer_fraction": 0.319386323235147,
+        "transfer_error": 0.03767178261170842,
+        "historical_row": {
+          "eta": 0.005,
+          "h": 0.1,
+          "method": "hybrid",
+          "tau": 1000.0,
+          "equivalent_discrete_updates": 10000,
+          "state": [
+            -0.30088230627902185,
+            -0.7444812873005573,
+            0.3554733318060477,
+            0.478389131359988
+          ],
+          "frequencies": [
+            0.9970567837627016,
+            1.0021173417100324
+          ],
+          "physical_frequencies": [
+            0.9975031249951172,
+            1.0025031249951173
+          ],
+          "checks": {
+            "current_closure": 1.9949319973733282e-16,
+            "ordinary": 6.765421556309548e-17,
+            "dark": 6.984731621243487e-17,
+            "kinetic": 1.726049858596923e-16,
+            "metric": 4.440892098500626e-16,
+            "reversal": 4.440892098500626e-16
+          },
+          "unaligned_H_state_error": 0.49097367728643604,
+          "transfer_fraction": 0.319386323235147,
+          "reference_transfer_fraction": 0.357058105846801,
+          "transfer_error": 0.03767178261165399,
+          "energy_drift": 5.6710192097853e-13,
+          "power_metric_defect": 1.13420384195706e-12,
+          "arithmetic_envelope_observational": 1.4654943926125796e-10,
+          "phase_error": [
+            0.5352154561596315,
+            0.4530343283244874
+          ],
+          "modal_radius_error": [
+            0.038880058014800545,
+            0.03676103542283693
+          ],
+          "phase_resolved": [
+            true,
+            true
+          ],
+          "phase_uncertainty": [
+            2.1422469505998054e-11,
+            2.0192541729330668e-11
+          ],
+          "accumulated_spectral_bias": 0.44634123241560353,
+          "artificial_detuning_to_physical_gap": 0.16641711222895594,
+          "reference_valid": false,
+          "endpoint_comparison_status": "UNRESOLVED_REFERENCE"
+        }
+      },
+      {
+        "method": "hybrid",
+        "h": 0.05,
+        "energy_error": 9.761080832504376e-13,
+        "unaligned_phase_error": [
+          0.1259853523136418,
+          0.12220644401082578
+        ],
+        "transfer_fraction": 0.3552480672460212,
+        "transfer_error": 0.0018100386008342018,
+        "historical_row": {
+          "eta": 0.005,
+          "h": 0.05,
+          "method": "hybrid",
+          "tau": 1000.0,
+          "equivalent_discrete_updates": 20000,
+          "state": [
+            -0.4572660203051829,
+            -0.5356809522963848,
+            0.5981620600663078,
+            0.3823033532684239
+          ],
+          "frequencies": [
+            0.9973978652431973,
+            1.0024001197448404
+          ],
+          "physical_frequencies": [
+            0.9975031249951172,
+            1.0025031249951173
+          ],
+          "checks": {
+            "current_closure": 4.4885969940899884e-17,
+            "ordinary": 6.591949208711867e-17,
+            "dark": 8.508414809234445e-17,
+            "kinetic": 1.9949319973733282e-17,
+            "metric": 2.220446049250313e-16,
+            "reversal": 2.220446049250313e-16
+          },
+          "unaligned_H_state_error": 0.12487765931872191,
+          "transfer_fraction": 0.3552480672460212,
+          "reference_transfer_fraction": 0.357058105846801,
+          "transfer_error": 0.001810038600779773,
+          "energy_drift": 9.761080832504376e-13,
+          "power_metric_defect": 2.3643309532417334e-12,
+          "arithmetic_envelope_observational": 2.8865798644420036e-10,
+          "phase_error": [
+            0.12598535231375838,
+            0.12220644401105565
+          ],
+          "modal_radius_error": [
+            0.01059461672082218,
+            0.010412326057035903
+          ],
+          "phase_resolved": [
+            true,
+            true
+          ],
+          "phase_uncertainty": [
+            2.0551394393696373e-11,
+            2.0192541729330668e-11
+          ],
+          "accumulated_spectral_bias": 0.1052597519198839,
+          "artificial_detuning_to_physical_gap": 0.04165104863873559,
+          "reference_valid": false,
+          "endpoint_comparison_status": "UNRESOLVED_REFERENCE"
+        }
+      },
+      {
+        "method": "hybrid",
+        "h": 0.025,
+        "energy_error": 3.0709323972644142e-12,
+        "unaligned_phase_error": [
+          0.030967723227646668,
+          0.03110292515103959
+        ],
+        "transfer_fraction": 0.3571046486486673,
+        "transfer_error": 4.654280181190518e-05,
+        "historical_row": {
+          "eta": 0.005,
+          "h": 0.025,
+          "method": "hybrid",
+          "tau": 1000.0,
+          "equivalent_discrete_updates": 40000,
+          "state": [
+            -0.4870632184331268,
+            -0.4718551914461016,
+            0.6482654006273616,
+            0.34622834935665153
+          ],
+          "frequencies": [
+            0.9974772093218293,
+            1.002476959776345
+          ],
+          "physical_frequencies": [
+            0.9975031249951172,
+            1.0025031249951173
+          ],
+          "checks": {
+            "current_closure": 3.112744437205883e-16,
+            "ordinary": 1.702197410802242e-17,
+            "dark": 2.921518526727494e-17,
+            "kinetic": 3.0249240612345574e-16,
+            "metric": 6.661338147750939e-16,
+            "reversal": 6.661338147750939e-16
+          },
+          "unaligned_H_state_error": 0.031258031289044405,
+          "transfer_fraction": 0.3571046486486673,
+          "reference_transfer_fraction": 0.357058105846801,
+          "transfer_error": 4.654280186633386e-05,
+          "energy_drift": -3.0709323972644142e-12,
+          "power_metric_defect": 6.141975816831291e-12,
+          "arithmetic_envelope_observational": 5.950795413761393e-10,
+          "phase_error": [
+            0.030967723227763113,
+            0.03110292515126959
+          ],
+          "modal_radius_error": [
+            0.0026470041917066034,
+            0.0026305597296831795
+          ],
+          "phase_resolved": [
+            true,
+            true
+          ],
+          "phase_uncertainty": [
+            2.0319245099152668e-11,
+            2.0192541729330668e-11
+          ],
+          "accumulated_spectral_bias": 0.02616521877230049,
+          "artificial_detuning_to_physical_gap": 0.01041569021313915,
+          "reference_valid": false,
+          "endpoint_comparison_status": "UNRESOLVED_REFERENCE"
+        }
+      },
+      {
+        "method": "hybrid",
+        "h": 0.0125,
+        "energy_error": 7.307709992687705e-12,
+        "unaligned_phase_error": [
+          0.007708516249211602,
+          0.007809929016999098
+        ],
+        "transfer_fraction": 0.35710101977967385,
+        "transfer_error": 4.291393281843914e-05,
+        "historical_row": {
+          "eta": 0.005,
+          "h": 0.0125,
+          "method": "hybrid",
+          "tau": 1000.0,
+          "equivalent_discrete_updates": 80000,
+          "state": [
+            -0.49375305380009354,
+            -0.45528766277057964,
+            0.6600091850602114,
+            0.3366139356039137
+          ],
+          "frequencies": [
+            0.9974966710521623,
+            1.0024965577995797
+          ],
+          "physical_frequencies": [
+            0.9975031249951172,
+            1.0025031249951173
+          ],
+          "checks": {
+            "current_closure": 2.5734893816659055e-16,
+            "ordinary": 2.9910427433443854e-17,
+            "dark": 5.4657821471883087e-17,
+            "kinetic": 2.5022030888249835e-16,
+            "metric": 4.440892098500626e-16,
+            "reversal": 4.440892098500626e-16
+          },
+          "unaligned_H_state_error": 0.007815416743323696,
+          "transfer_fraction": 0.35710101977967385,
+          "reference_transfer_fraction": 0.357058105846801,
+          "transfer_error": 4.291393287286782e-05,
+          "energy_drift": 7.307709992687705e-12,
+          "power_metric_defect": 1.461541998537541e-11,
+          "arithmetic_envelope_observational": 1.1723955146914122e-09,
+          "phase_error": [
+            0.007708516249328066,
+            0.007809929017229152
+          ],
+          "modal_radius_error": [
+            0.0006607747054300228,
+            0.0006585102456633241
+          ],
+          "phase_resolved": [
+            true,
+            true
+          ],
+          "phase_uncertainty": [
+            2.0262044302908684e-11,
+            2.0192541729330668e-11
+          ],
+          "accumulated_spectral_bias": 0.006567195537598991,
+          "artificial_detuning_to_physical_gap": 0.0026041056332193335,
+          "reference_valid": false,
+          "endpoint_comparison_status": "UNRESOLVED_REFERENCE"
+        }
+      },
+      {
+        "method": "hybrid",
+        "h": 0.00625,
+        "energy_error": 3.126665593100597e-12,
+        "unaligned_phase_error": [
+          0.001925035558234081,
+          0.001954614834501838
+        ],
+        "transfer_fraction": 0.3570707894542533,
+        "transfer_error": 1.2683607397895313e-05,
+        "historical_row": {
+          "eta": 0.005,
+          "h": 0.00625,
+          "method": "hybrid",
+          "tau": 1000.0,
+          "equivalent_discrete_updates": 160000,
+          "state": [
+            -0.49537575070452966,
+            -0.4511096667929331,
+            0.6628946213882432,
+            0.3341760839260897
+          ],
+          "frequencies": [
+            0.9975015130705343,
+            1.0025014815778766
+          ],
+          "physical_frequencies": [
+            0.9975031249951172,
+            1.0025031249951173
+          ],
+          "checks": {
+            "current_closure": 3.490114555866619e-17,
+            "ordinary": 2.2910547157334316e-17,
+            "dark": 6.463885747049188e-17,
+            "kinetic": 6.131502098584429e-17,
+            "metric": 1.1102230246251565e-16,
+            "reversal": 1.1102230246251565e-16
+          },
+          "unaligned_H_state_error": 0.0019538874394255746,
+          "transfer_fraction": 0.3570707894542533,
+          "reference_transfer_fraction": 0.357058105846801,
+          "transfer_error": 1.2683607452323997e-05,
+          "energy_drift": -3.126665593100597e-12,
+          "power_metric_defect": 8.414158259029136e-12,
+          "arithmetic_envelope_observational": 2.2915003254517935e-09,
+          "phase_error": [
+            0.0019250355583505512,
+            0.001954614834731864
+          ],
+          "modal_radius_error": [
+            0.00016511918123640612,
+            0.00016466849033303088
+          ],
+          "phase_resolved": [
+            true,
+            true
+          ],
+          "phase_uncertainty": [
+            2.0247820251671165e-11,
+            2.0192541729330668e-11
+          ],
+          "accumulated_spectral_bias": 0.0016434172407375769,
+          "artificial_detuning_to_physical_gap": 0.0006510378519841709,
+          "reference_valid": false,
+          "endpoint_comparison_status": "UNRESOLVED_REFERENCE"
+        }
+      },
+      {
+        "method": "hybrid",
+        "h": 0.003125,
+        "energy_error": 1.6333989716343922e-11,
+        "unaligned_phase_error": [
+          0.0004811279660113352,
+          0.0004887869196570753
+        ],
+        "transfer_fraction": 0.3570613989349092,
+        "transfer_error": 3.2930880537740403e-06,
+        "historical_row": {
+          "eta": 0.005,
+          "h": 0.003125,
+          "method": "hybrid",
+          "tau": 1000.0,
+          "equivalent_discrete_updates": 320000,
+          "state": [
+            -0.495778281164425,
+            -0.4500629441099686,
+            0.6636127992824506,
+            0.33356452878050075
+          ],
+          "frequencies": [
+            0.9975027221115588,
+            1.0025027140396467
+          ],
+          "physical_frequencies": [
+            0.9975031249951172,
+            1.0025031249951173
+          ],
+          "checks": {
+            "current_closure": 1.683122228830075e-16,
+            "ordinary": 3.0787106533852054e-17,
+            "dark": 1.6139532557274445e-17,
+            "kinetic": 1.712929318243954e-16,
+            "metric": 3.3306690738754696e-16,
+            "reversal": 3.3306690738754696e-16
+          },
+          "unaligned_H_state_error": 0.0004884735700090798,
+          "transfer_fraction": 0.3570613989349092,
+          "reference_transfer_fraction": 0.357058105846801,
+          "transfer_error": 3.293088108202724e-06,
+          "energy_drift": -1.6333989716343922e-11,
+          "power_metric_defect": 3.2667979432687844e-11,
+          "arithmetic_envelope_observational": 4.654054930058735e-09,
+          "phase_error": [
+            0.00048112796612786573,
+            0.0004887869198870524
+          ],
+          "modal_radius_error": [
+            4.127494026728851e-05,
+            4.116945869381272e-05
+          ],
+          "phase_resolved": [
+            true,
+            true
+          ],
+          "phase_uncertainty": [
+            2.0244269355125938e-11,
+            2.0192541729330668e-11
+          ],
+          "accumulated_spectral_bias": 0.00041095547054226245,
+          "artificial_detuning_to_physical_gap": 0.0001627601782461241,
+          "reference_valid": false,
+          "endpoint_comparison_status": "UNRESOLVED_REFERENCE"
+        }
+      }
+    ],
+    "oracle": "closed carrier/beat formula and analytic electric mode vectors",
+    "producer_sha256": "9c3e0ccb819b9f5c6e5d7720457e978ed23d7a9fb452107f7623ecea1ca1dbc3",
+    "decimal_controls": [
+      {
+        "eta": 0.01,
+        "tau": 100,
+        "error": 1.948603393920494e-15,
+        "passed": true
+      },
+      {
+        "eta": 0.01,
+        "tau": 1000,
+        "error": 6.55594371246398e-14,
+        "passed": true
+      },
+      {
+        "eta": 0.005,
+        "tau": 100,
+        "error": 1.2702539511642203e-14,
+        "passed": true
+      },
+      {
+        "eta": 0.005,
+        "tau": 1000,
+        "error": 9.78654478723429e-14,
+        "passed": true
+      }
+    ],
+    "archive_provenance": {
+      "run.json": "0657f736d2f29ec3e49e2c0af82f0a825f5790002a4faaeb2b901a4e5e2257f9",
+      "raw.npz": "61506bdd05f5d2162be8967c9823e69823cada249b91fe543c8b2c17218d267d",
+      "decimal_reference_sha256": "48ae8b0850faec5da00e7acd97e56b1fdc62fade82348c77681527ff1dab1952"
+    },
+    "archived_endpoints_used": true,
+    "new_discrete_endpoints": 0,
+    "historical_gates": {
+      "eta0.01.physical_skew_metric": true,
+      "eta0.01.tau100.0.continuous_reference": true,
+      "eta0.01.tau1000.0.continuous_reference": false,
+      "eta0.005.physical_skew_metric": true,
+      "eta0.005.tau100.0.continuous_reference": true,
+      "eta0.005.tau1000.0.continuous_reference": false,
+      "0.0.0.4.cn.current_closure": true,
+      "0.0.0.4.cn.ordinary": true,
+      "0.0.0.4.cn.dark": true,
+      "0.0.0.4.cn.kinetic": true,
+      "0.0.0.4.cn.metric": true,
+      "0.0.0.4.cn.reversal": true,
+      "0.4.cn.declared_eta0_gap_formula": true,
+      "0.0.0.4.hybrid.current_closure": true,
+      "0.0.0.4.hybrid.ordinary": true,
+      "0.0.0.4.hybrid.dark": true,
+      "0.0.0.4.hybrid.kinetic": true,
+      "0.0.0.4.hybrid.metric": true,
+      "0.0.0.4.hybrid.reversal": true,
+      "0.4.hybrid.declared_eta0_gap_formula": true,
+      "0.0.0.2.cn.current_closure": true,
+      "0.0.0.2.cn.ordinary": true,
+      "0.0.0.2.cn.dark": true,
+      "0.0.0.2.cn.kinetic": true,
+      "0.0.0.2.cn.metric": true,
+      "0.0.0.2.cn.reversal": true,
+      "0.2.cn.declared_eta0_gap_formula": true,
+      "0.0.0.2.hybrid.current_closure": true,
+      "0.0.0.2.hybrid.ordinary": true,
+      "0.0.0.2.hybrid.dark": true,
+      "0.0.0.2.hybrid.kinetic": true,
+      "0.0.0.2.hybrid.metric": true,
+      "0.0.0.2.hybrid.reversal": true,
+      "0.2.hybrid.declared_eta0_gap_formula": true,
+      "0.0.0.1.cn.current_closure": true,
+      "0.0.0.1.cn.ordinary": true,
+      "0.0.0.1.cn.dark": true,
+      "0.0.0.1.cn.kinetic": true,
+      "0.0.0.1.cn.metric": true,
+      "0.0.0.1.cn.reversal": true,
+      "0.1.cn.declared_eta0_gap_formula": true,
+      "0.0.0.1.hybrid.current_closure": true,
+      "0.0.0.1.hybrid.ordinary": true,
+      "0.0.0.1.hybrid.dark": true,
+      "0.0.0.1.hybrid.kinetic": true,
+      "0.0.0.1.hybrid.metric": true,
+      "0.0.0.1.hybrid.reversal": true,
+      "0.1.hybrid.declared_eta0_gap_formula": true,
+      "0.0.0.05.cn.current_closure": true,
+      "0.0.0.05.cn.ordinary": true,
+      "0.0.0.05.cn.dark": true,
+      "0.0.0.05.cn.kinetic": true,
+      "0.0.0.05.cn.metric": true,
+      "0.0.0.05.cn.reversal": true,
+      "0.05.cn.declared_eta0_gap_formula": true,
+      "0.0.0.05.hybrid.current_closure": true,
+      "0.0.0.05.hybrid.ordinary": true,
+      "0.0.0.05.hybrid.dark": true,
+      "0.0.0.05.hybrid.kinetic": true,
+      "0.0.0.05.hybrid.metric": true,
+      "0.0.0.05.hybrid.reversal": true,
+      "0.05.hybrid.declared_eta0_gap_formula": true,
+      "0.0.0.025.cn.current_closure": true,
+      "0.0.0.025.cn.ordinary": true,
+      "0.0.0.025.cn.dark": true,
+      "0.0.0.025.cn.kinetic": true,
+      "0.0.0.025.cn.metric": true,
+      "0.0.0.025.cn.reversal": true,
+      "0.025.cn.declared_eta0_gap_formula": true,
+      "0.0.0.025.hybrid.current_closure": true,
+      "0.0.0.025.hybrid.ordinary": true,
+      "0.0.0.025.hybrid.dark": true,
+      "0.0.0.025.hybrid.kinetic": true,
+      "0.0.0.025.hybrid.metric": true,
+      "0.0.0.025.hybrid.reversal": true,
+      "0.025.hybrid.declared_eta0_gap_formula": true,
+      "0.0.0.0125.cn.current_closure": true,
+      "0.0.0.0125.cn.ordinary": true,
+      "0.0.0.0125.cn.dark": true,
+      "0.0.0.0125.cn.kinetic": true,
+      "0.0.0.0125.cn.metric": true,
+      "0.0.0.0125.cn.reversal": true,
+      "0.0125.cn.declared_eta0_gap_formula": true,
+      "0.0.0.0125.hybrid.current_closure": true,
+      "0.0.0.0125.hybrid.ordinary": true,
+      "0.0.0.0125.hybrid.dark": true,
+      "0.0.0.0125.hybrid.kinetic": true,
+      "0.0.0.0125.hybrid.metric": true,
+      "0.0.0.0125.hybrid.reversal": true,
+      "0.0125.hybrid.declared_eta0_gap_formula": true,
+      "0.0.0.00625.cn.current_closure": true,
+      "0.0.0.00625.cn.ordinary": true,
+      "0.0.0.00625.cn.dark": true,
+      "0.0.0.00625.cn.kinetic": true,
+      "0.0.0.00625.cn.metric": true,
+      "0.0.0.00625.cn.reversal": true,
+      "0.00625.cn.declared_eta0_gap_formula": true,
+      "0.0.0.00625.hybrid.current_closure": true,
+      "0.0.0.00625.hybrid.ordinary": true,
+      "0.0.0.00625.hybrid.dark": true,
+      "0.0.0.00625.hybrid.kinetic": true,
+      "0.0.0.00625.hybrid.metric": true,
+      "0.0.0.00625.hybrid.reversal": true,
+      "0.00625.hybrid.declared_eta0_gap_formula": true,
+      "0.0.0.003125.cn.current_closure": true,
+      "0.0.0.003125.cn.ordinary": true,
+      "0.0.0.003125.cn.dark": true,
+      "0.0.0.003125.cn.kinetic": true,
+      "0.0.0.003125.cn.metric": true,
+      "0.0.0.003125.cn.reversal": true,
+      "0.003125.cn.declared_eta0_gap_formula": true,
+      "0.0.0.003125.hybrid.current_closure": true,
+      "0.0.0.003125.hybrid.ordinary": true,
+      "0.0.0.003125.hybrid.dark": true,
+      "0.0.0.003125.hybrid.kinetic": true,
+      "0.0.0.003125.hybrid.metric": true,
+      "0.0.0.003125.hybrid.reversal": true,
+      "0.003125.hybrid.declared_eta0_gap_formula": true,
+      "0.01.0.4.cn.current_closure": true,
+      "0.01.0.4.cn.ordinary": true,
+      "0.01.0.4.cn.dark": true,
+      "0.01.0.4.cn.kinetic": true,
+      "0.01.0.4.cn.metric": true,
+      "0.01.0.4.cn.reversal": true,
+      "0.01.0.4.cn.physical_frequency_formula": true,
+      "0.01.0.4.cn.tau100.0.power_metric": true,
+      "0.01.0.4.cn.tau100.0.power_energy": true,
+      "0.01.0.4.cn.tau1000.0.power_metric": true,
+      "0.01.0.4.cn.tau1000.0.power_energy": true,
+      "0.01.0.4.hybrid.current_closure": true,
+      "0.01.0.4.hybrid.ordinary": true,
+      "0.01.0.4.hybrid.dark": true,
+      "0.01.0.4.hybrid.kinetic": true,
+      "0.01.0.4.hybrid.metric": true,
+      "0.01.0.4.hybrid.reversal": true,
+      "0.01.0.4.hybrid.physical_frequency_formula": true,
+      "0.01.0.4.hybrid.tau100.0.power_metric": true,
+      "0.01.0.4.hybrid.tau100.0.power_energy": true,
+      "0.01.0.4.hybrid.tau1000.0.power_metric": false,
+      "0.01.0.4.hybrid.tau1000.0.power_energy": true,
+      "0.01.0.2.cn.current_closure": true,
+      "0.01.0.2.cn.ordinary": true,
+      "0.01.0.2.cn.dark": true,
+      "0.01.0.2.cn.kinetic": true,
+      "0.01.0.2.cn.metric": true,
+      "0.01.0.2.cn.reversal": true,
+      "0.01.0.2.cn.physical_frequency_formula": true,
+      "0.01.0.2.cn.tau100.0.power_metric": true,
+      "0.01.0.2.cn.tau100.0.power_energy": true,
+      "0.01.0.2.cn.tau1000.0.power_metric": true,
+      "0.01.0.2.cn.tau1000.0.power_energy": true,
+      "0.01.0.2.hybrid.current_closure": true,
+      "0.01.0.2.hybrid.ordinary": true,
+      "0.01.0.2.hybrid.dark": true,
+      "0.01.0.2.hybrid.kinetic": true,
+      "0.01.0.2.hybrid.metric": true,
+      "0.01.0.2.hybrid.reversal": true,
+      "0.01.0.2.hybrid.physical_frequency_formula": true,
+      "0.01.0.2.hybrid.tau100.0.power_metric": true,
+      "0.01.0.2.hybrid.tau100.0.power_energy": true,
+      "0.01.0.2.hybrid.tau1000.0.power_metric": false,
+      "0.01.0.2.hybrid.tau1000.0.power_energy": false,
+      "0.01.0.1.cn.current_closure": true,
+      "0.01.0.1.cn.ordinary": true,
+      "0.01.0.1.cn.dark": true,
+      "0.01.0.1.cn.kinetic": true,
+      "0.01.0.1.cn.metric": true,
+      "0.01.0.1.cn.reversal": true,
+      "0.01.0.1.cn.physical_frequency_formula": true,
+      "0.01.0.1.cn.tau100.0.power_metric": true,
+      "0.01.0.1.cn.tau100.0.power_energy": true,
+      "0.01.0.1.cn.tau1000.0.power_metric": false,
+      "0.01.0.1.cn.tau1000.0.power_energy": false,
+      "0.01.0.1.hybrid.current_closure": true,
+      "0.01.0.1.hybrid.ordinary": true,
+      "0.01.0.1.hybrid.dark": true,
+      "0.01.0.1.hybrid.kinetic": true,
+      "0.01.0.1.hybrid.metric": true,
+      "0.01.0.1.hybrid.reversal": true,
+      "0.01.0.1.hybrid.physical_frequency_formula": true,
+      "0.01.0.1.hybrid.tau100.0.power_metric": true,
+      "0.01.0.1.hybrid.tau100.0.power_energy": true,
+      "0.01.0.1.hybrid.tau1000.0.power_metric": false,
+      "0.01.0.1.hybrid.tau1000.0.power_energy": false,
+      "0.01.0.05.cn.current_closure": true,
+      "0.01.0.05.cn.ordinary": true,
+      "0.01.0.05.cn.dark": true,
+      "0.01.0.05.cn.kinetic": true,
+      "0.01.0.05.cn.metric": true,
+      "0.01.0.05.cn.reversal": true,
+      "0.01.0.05.cn.physical_frequency_formula": true,
+      "0.01.0.05.cn.tau100.0.power_metric": true,
+      "0.01.0.05.cn.tau100.0.power_energy": true,
+      "0.01.0.05.cn.tau1000.0.power_metric": false,
+      "0.01.0.05.cn.tau1000.0.power_energy": true,
+      "0.01.0.05.hybrid.current_closure": true,
+      "0.01.0.05.hybrid.ordinary": true,
+      "0.01.0.05.hybrid.dark": true,
+      "0.01.0.05.hybrid.kinetic": true,
+      "0.01.0.05.hybrid.metric": true,
+      "0.01.0.05.hybrid.reversal": true,
+      "0.01.0.05.hybrid.physical_frequency_formula": true,
+      "0.01.0.05.hybrid.tau100.0.power_metric": false,
+      "0.01.0.05.hybrid.tau100.0.power_energy": true,
+      "0.01.0.05.hybrid.tau1000.0.power_metric": false,
+      "0.01.0.05.hybrid.tau1000.0.power_energy": false,
+      "0.01.0.025.cn.current_closure": true,
+      "0.01.0.025.cn.ordinary": true,
+      "0.01.0.025.cn.dark": true,
+      "0.01.0.025.cn.kinetic": true,
+      "0.01.0.025.cn.metric": true,
+      "0.01.0.025.cn.reversal": true,
+      "0.01.0.025.cn.physical_frequency_formula": true,
+      "0.01.0.025.cn.tau100.0.power_metric": false,
+      "0.01.0.025.cn.tau100.0.power_energy": true,
+      "0.01.0.025.cn.tau1000.0.power_metric": false,
+      "0.01.0.025.cn.tau1000.0.power_energy": false,
+      "0.01.0.025.hybrid.current_closure": true,
+      "0.01.0.025.hybrid.ordinary": true,
+      "0.01.0.025.hybrid.dark": true,
+      "0.01.0.025.hybrid.kinetic": true,
+      "0.01.0.025.hybrid.metric": true,
+      "0.01.0.025.hybrid.reversal": true,
+      "0.01.0.025.hybrid.physical_frequency_formula": true,
+      "0.01.0.025.hybrid.tau100.0.power_metric": false,
+      "0.01.0.025.hybrid.tau100.0.power_energy": false,
+      "0.01.0.025.hybrid.tau1000.0.power_metric": false,
+      "0.01.0.025.hybrid.tau1000.0.power_energy": true,
+      "0.01.0.0125.cn.current_closure": true,
+      "0.01.0.0125.cn.ordinary": true,
+      "0.01.0.0125.cn.dark": true,
+      "0.01.0.0125.cn.kinetic": true,
+      "0.01.0.0125.cn.metric": true,
+      "0.01.0.0125.cn.reversal": true,
+      "0.01.0.0125.cn.physical_frequency_formula": true,
+      "0.01.0.0125.cn.tau100.0.power_metric": false,
+      "0.01.0.0125.cn.tau100.0.power_energy": true,
+      "0.01.0.0125.cn.tau1000.0.power_metric": false,
+      "0.01.0.0125.cn.tau1000.0.power_energy": false,
+      "0.01.0.0125.hybrid.current_closure": true,
+      "0.01.0.0125.hybrid.ordinary": true,
+      "0.01.0.0125.hybrid.dark": true,
+      "0.01.0.0125.hybrid.kinetic": true,
+      "0.01.0.0125.hybrid.metric": true,
+      "0.01.0.0125.hybrid.reversal": true,
+      "0.01.0.0125.hybrid.physical_frequency_formula": true,
+      "0.01.0.0125.hybrid.tau100.0.power_metric": false,
+      "0.01.0.0125.hybrid.tau100.0.power_energy": false,
+      "0.01.0.0125.hybrid.tau1000.0.power_metric": false,
+      "0.01.0.0125.hybrid.tau1000.0.power_energy": false,
+      "0.01.0.00625.cn.current_closure": true,
+      "0.01.0.00625.cn.ordinary": true,
+      "0.01.0.00625.cn.dark": true,
+      "0.01.0.00625.cn.kinetic": true,
+      "0.01.0.00625.cn.metric": true,
+      "0.01.0.00625.cn.reversal": true,
+      "0.01.0.00625.cn.physical_frequency_formula": true,
+      "0.01.0.00625.cn.tau100.0.power_metric": false,
+      "0.01.0.00625.cn.tau100.0.power_energy": false,
+      "0.01.0.00625.cn.tau1000.0.power_metric": false,
+      "0.01.0.00625.cn.tau1000.0.power_energy": false,
+      "0.01.0.00625.hybrid.current_closure": true,
+      "0.01.0.00625.hybrid.ordinary": true,
+      "0.01.0.00625.hybrid.dark": true,
+      "0.01.0.00625.hybrid.kinetic": true,
+      "0.01.0.00625.hybrid.metric": true,
+      "0.01.0.00625.hybrid.reversal": true,
+      "0.01.0.00625.hybrid.physical_frequency_formula": true,
+      "0.01.0.00625.hybrid.tau100.0.power_metric": false,
+      "0.01.0.00625.hybrid.tau100.0.power_energy": false,
+      "0.01.0.00625.hybrid.tau1000.0.power_metric": false,
+      "0.01.0.00625.hybrid.tau1000.0.power_energy": false,
+      "0.01.0.003125.cn.current_closure": true,
+      "0.01.0.003125.cn.ordinary": true,
+      "0.01.0.003125.cn.dark": true,
+      "0.01.0.003125.cn.kinetic": true,
+      "0.01.0.003125.cn.metric": true,
+      "0.01.0.003125.cn.reversal": true,
+      "0.01.0.003125.cn.physical_frequency_formula": true,
+      "0.01.0.003125.cn.tau100.0.power_metric": false,
+      "0.01.0.003125.cn.tau100.0.power_energy": false,
+      "0.01.0.003125.cn.tau1000.0.power_metric": false,
+      "0.01.0.003125.cn.tau1000.0.power_energy": false,
+      "0.01.0.003125.hybrid.current_closure": true,
+      "0.01.0.003125.hybrid.ordinary": true,
+      "0.01.0.003125.hybrid.dark": true,
+      "0.01.0.003125.hybrid.kinetic": true,
+      "0.01.0.003125.hybrid.metric": true,
+      "0.01.0.003125.hybrid.reversal": true,
+      "0.01.0.003125.hybrid.physical_frequency_formula": true,
+      "0.01.0.003125.hybrid.tau100.0.power_metric": false,
+      "0.01.0.003125.hybrid.tau100.0.power_energy": false,
+      "0.01.0.003125.hybrid.tau1000.0.power_metric": false,
+      "0.01.0.003125.hybrid.tau1000.0.power_energy": false,
+      "0.005.0.4.cn.current_closure": true,
+      "0.005.0.4.cn.ordinary": true,
+      "0.005.0.4.cn.dark": true,
+      "0.005.0.4.cn.kinetic": true,
+      "0.005.0.4.cn.metric": true,
+      "0.005.0.4.cn.reversal": true,
+      "0.005.0.4.cn.physical_frequency_formula": true,
+      "0.005.0.4.cn.tau100.0.power_metric": true,
+      "0.005.0.4.cn.tau100.0.power_energy": true,
+      "0.005.0.4.cn.tau1000.0.power_metric": true,
+      "0.005.0.4.cn.tau1000.0.power_energy": true,
+      "0.005.0.4.hybrid.current_closure": true,
+      "0.005.0.4.hybrid.ordinary": true,
+      "0.005.0.4.hybrid.dark": true,
+      "0.005.0.4.hybrid.kinetic": true,
+      "0.005.0.4.hybrid.metric": true,
+      "0.005.0.4.hybrid.reversal": true,
+      "0.005.0.4.hybrid.physical_frequency_formula": true,
+      "0.005.0.4.hybrid.tau100.0.power_metric": true,
+      "0.005.0.4.hybrid.tau100.0.power_energy": true,
+      "0.005.0.4.hybrid.tau1000.0.power_metric": false,
+      "0.005.0.4.hybrid.tau1000.0.power_energy": true,
+      "0.005.0.2.cn.current_closure": true,
+      "0.005.0.2.cn.ordinary": true,
+      "0.005.0.2.cn.dark": true,
+      "0.005.0.2.cn.kinetic": true,
+      "0.005.0.2.cn.metric": true,
+      "0.005.0.2.cn.reversal": true,
+      "0.005.0.2.cn.physical_frequency_formula": true,
+      "0.005.0.2.cn.tau100.0.power_metric": true,
+      "0.005.0.2.cn.tau100.0.power_energy": true,
+      "0.005.0.2.cn.tau1000.0.power_metric": false,
+      "0.005.0.2.cn.tau1000.0.power_energy": false,
+      "0.005.0.2.hybrid.current_closure": true,
+      "0.005.0.2.hybrid.ordinary": true,
+      "0.005.0.2.hybrid.dark": true,
+      "0.005.0.2.hybrid.kinetic": true,
+      "0.005.0.2.hybrid.metric": true,
+      "0.005.0.2.hybrid.reversal": true,
+      "0.005.0.2.hybrid.physical_frequency_formula": true,
+      "0.005.0.2.hybrid.tau100.0.power_metric": true,
+      "0.005.0.2.hybrid.tau100.0.power_energy": true,
+      "0.005.0.2.hybrid.tau1000.0.power_metric": false,
+      "0.005.0.2.hybrid.tau1000.0.power_energy": false,
+      "0.005.0.1.cn.current_closure": true,
+      "0.005.0.1.cn.ordinary": true,
+      "0.005.0.1.cn.dark": true,
+      "0.005.0.1.cn.kinetic": true,
+      "0.005.0.1.cn.metric": true,
+      "0.005.0.1.cn.reversal": true,
+      "0.005.0.1.cn.physical_frequency_formula": true,
+      "0.005.0.1.cn.tau100.0.power_metric": true,
+      "0.005.0.1.cn.tau100.0.power_energy": true,
+      "0.005.0.1.cn.tau1000.0.power_metric": false,
+      "0.005.0.1.cn.tau1000.0.power_energy": false,
+      "0.005.0.1.hybrid.current_closure": true,
+      "0.005.0.1.hybrid.ordinary": true,
+      "0.005.0.1.hybrid.dark": true,
+      "0.005.0.1.hybrid.kinetic": true,
+      "0.005.0.1.hybrid.metric": true,
+      "0.005.0.1.hybrid.reversal": true,
+      "0.005.0.1.hybrid.physical_frequency_formula": true,
+      "0.005.0.1.hybrid.tau100.0.power_metric": true,
+      "0.005.0.1.hybrid.tau100.0.power_energy": true,
+      "0.005.0.1.hybrid.tau1000.0.power_metric": false,
+      "0.005.0.1.hybrid.tau1000.0.power_energy": false,
+      "0.005.0.05.cn.current_closure": true,
+      "0.005.0.05.cn.ordinary": true,
+      "0.005.0.05.cn.dark": true,
+      "0.005.0.05.cn.kinetic": true,
+      "0.005.0.05.cn.metric": true,
+      "0.005.0.05.cn.reversal": true,
+      "0.005.0.05.cn.physical_frequency_formula": true,
+      "0.005.0.05.cn.tau100.0.power_metric": false,
+      "0.005.0.05.cn.tau100.0.power_energy": false,
+      "0.005.0.05.cn.tau1000.0.power_metric": false,
+      "0.005.0.05.cn.tau1000.0.power_energy": false,
+      "0.005.0.05.hybrid.current_closure": true,
+      "0.005.0.05.hybrid.ordinary": true,
+      "0.005.0.05.hybrid.dark": true,
+      "0.005.0.05.hybrid.kinetic": true,
+      "0.005.0.05.hybrid.metric": true,
+      "0.005.0.05.hybrid.reversal": true,
+      "0.005.0.05.hybrid.physical_frequency_formula": true,
+      "0.005.0.05.hybrid.tau100.0.power_metric": false,
+      "0.005.0.05.hybrid.tau100.0.power_energy": true,
+      "0.005.0.05.hybrid.tau1000.0.power_metric": false,
+      "0.005.0.05.hybrid.tau1000.0.power_energy": false,
+      "0.005.0.025.cn.current_closure": true,
+      "0.005.0.025.cn.ordinary": true,
+      "0.005.0.025.cn.dark": true,
+      "0.005.0.025.cn.kinetic": true,
+      "0.005.0.025.cn.metric": true,
+      "0.005.0.025.cn.reversal": true,
+      "0.005.0.025.cn.physical_frequency_formula": true,
+      "0.005.0.025.cn.tau100.0.power_metric": false,
+      "0.005.0.025.cn.tau100.0.power_energy": false,
+      "0.005.0.025.cn.tau1000.0.power_metric": false,
+      "0.005.0.025.cn.tau1000.0.power_energy": false,
+      "0.005.0.025.hybrid.current_closure": true,
+      "0.005.0.025.hybrid.ordinary": true,
+      "0.005.0.025.hybrid.dark": true,
+      "0.005.0.025.hybrid.kinetic": true,
+      "0.005.0.025.hybrid.metric": true,
+      "0.005.0.025.hybrid.reversal": true,
+      "0.005.0.025.hybrid.physical_frequency_formula": true,
+      "0.005.0.025.hybrid.tau100.0.power_metric": false,
+      "0.005.0.025.hybrid.tau100.0.power_energy": true,
+      "0.005.0.025.hybrid.tau1000.0.power_metric": false,
+      "0.005.0.025.hybrid.tau1000.0.power_energy": false,
+      "0.005.0.0125.cn.current_closure": true,
+      "0.005.0.0125.cn.ordinary": true,
+      "0.005.0.0125.cn.dark": true,
+      "0.005.0.0125.cn.kinetic": true,
+      "0.005.0.0125.cn.metric": true,
+      "0.005.0.0125.cn.reversal": true,
+      "0.005.0.0125.cn.physical_frequency_formula": true,
+      "0.005.0.0125.cn.tau100.0.power_metric": false,
+      "0.005.0.0125.cn.tau100.0.power_energy": false,
+      "0.005.0.0125.cn.tau1000.0.power_metric": false,
+      "0.005.0.0125.cn.tau1000.0.power_energy": false,
+      "0.005.0.0125.hybrid.current_closure": true,
+      "0.005.0.0125.hybrid.ordinary": true,
+      "0.005.0.0125.hybrid.dark": true,
+      "0.005.0.0125.hybrid.kinetic": true,
+      "0.005.0.0125.hybrid.metric": true,
+      "0.005.0.0125.hybrid.reversal": true,
+      "0.005.0.0125.hybrid.physical_frequency_formula": true,
+      "0.005.0.0125.hybrid.tau100.0.power_metric": false,
+      "0.005.0.0125.hybrid.tau100.0.power_energy": false,
+      "0.005.0.0125.hybrid.tau1000.0.power_metric": false,
+      "0.005.0.0125.hybrid.tau1000.0.power_energy": false,
+      "0.005.0.00625.cn.current_closure": true,
+      "0.005.0.00625.cn.ordinary": true,
+      "0.005.0.00625.cn.dark": true,
+      "0.005.0.00625.cn.kinetic": true,
+      "0.005.0.00625.cn.metric": true,
+      "0.005.0.00625.cn.reversal": true,
+      "0.005.0.00625.cn.physical_frequency_formula": true,
+      "0.005.0.00625.cn.tau100.0.power_metric": false,
+      "0.005.0.00625.cn.tau100.0.power_energy": true,
+      "0.005.0.00625.cn.tau1000.0.power_metric": false,
+      "0.005.0.00625.cn.tau1000.0.power_energy": false,
+      "0.005.0.00625.hybrid.current_closure": true,
+      "0.005.0.00625.hybrid.ordinary": true,
+      "0.005.0.00625.hybrid.dark": true,
+      "0.005.0.00625.hybrid.kinetic": true,
+      "0.005.0.00625.hybrid.metric": true,
+      "0.005.0.00625.hybrid.reversal": true,
+      "0.005.0.00625.hybrid.physical_frequency_formula": true,
+      "0.005.0.00625.hybrid.tau100.0.power_metric": false,
+      "0.005.0.00625.hybrid.tau100.0.power_energy": false,
+      "0.005.0.00625.hybrid.tau1000.0.power_metric": false,
+      "0.005.0.00625.hybrid.tau1000.0.power_energy": false,
+      "0.005.0.003125.cn.current_closure": true,
+      "0.005.0.003125.cn.ordinary": true,
+      "0.005.0.003125.cn.dark": true,
+      "0.005.0.003125.cn.kinetic": true,
+      "0.005.0.003125.cn.metric": true,
+      "0.005.0.003125.cn.reversal": true,
+      "0.005.0.003125.cn.physical_frequency_formula": true,
+      "0.005.0.003125.cn.tau100.0.power_metric": false,
+      "0.005.0.003125.cn.tau100.0.power_energy": false,
+      "0.005.0.003125.cn.tau1000.0.power_metric": false,
+      "0.005.0.003125.cn.tau1000.0.power_energy": false,
+      "0.005.0.003125.hybrid.current_closure": true,
+      "0.005.0.003125.hybrid.ordinary": true,
+      "0.005.0.003125.hybrid.dark": true,
+      "0.005.0.003125.hybrid.kinetic": true,
+      "0.005.0.003125.hybrid.metric": true,
+      "0.005.0.003125.hybrid.reversal": true,
+      "0.005.0.003125.hybrid.physical_frequency_formula": true,
+      "0.005.0.003125.hybrid.tau100.0.power_metric": false,
+      "0.005.0.003125.hybrid.tau100.0.power_energy": false,
+      "0.005.0.003125.hybrid.tau1000.0.power_metric": false,
+      "0.005.0.003125.hybrid.tau1000.0.power_energy": false,
+      "0.01.100.0.cn.0.2.0.phase_refinement": true,
+      "0.01.100.0.cn.0.2.1.phase_refinement": true,
+      "0.01.100.0.cn.0.1.0.phase_refinement": true,
+      "0.01.100.0.cn.0.1.1.phase_refinement": true,
+      "0.01.100.0.cn.0.05.0.phase_refinement": true,
+      "0.01.100.0.cn.0.05.1.phase_refinement": true,
+      "0.01.100.0.cn.0.025.0.phase_refinement": true,
+      "0.01.100.0.cn.0.025.1.phase_refinement": true,
+      "0.01.100.0.cn.0.0125.0.phase_refinement": true,
+      "0.01.100.0.cn.0.0125.1.phase_refinement": true,
+      "0.01.100.0.cn.0.00625.0.phase_refinement": true,
+      "0.01.100.0.cn.0.00625.1.phase_refinement": true,
+      "0.01.100.0.hybrid.0.1.0.phase_refinement": true,
+      "0.01.100.0.hybrid.0.1.1.phase_refinement": true,
+      "0.01.100.0.hybrid.0.05.0.phase_refinement": true,
+      "0.01.100.0.hybrid.0.05.1.phase_refinement": true,
+      "0.01.100.0.hybrid.0.025.0.phase_refinement": true,
+      "0.01.100.0.hybrid.0.025.1.phase_refinement": true,
+      "0.01.100.0.hybrid.0.0125.0.phase_refinement": true,
+      "0.01.100.0.hybrid.0.0125.1.phase_refinement": true,
+      "0.01.100.0.hybrid.0.00625.0.phase_refinement": true,
+      "0.01.100.0.hybrid.0.00625.1.phase_refinement": true,
+      "0.005.100.0.cn.0.2.0.phase_refinement": true,
+      "0.005.100.0.cn.0.2.1.phase_refinement": true,
+      "0.005.100.0.cn.0.1.0.phase_refinement": true,
+      "0.005.100.0.cn.0.1.1.phase_refinement": true,
+      "0.005.100.0.cn.0.05.0.phase_refinement": true,
+      "0.005.100.0.cn.0.05.1.phase_refinement": true,
+      "0.005.100.0.cn.0.025.0.phase_refinement": true,
+      "0.005.100.0.cn.0.025.1.phase_refinement": true,
+      "0.005.100.0.cn.0.0125.0.phase_refinement": true,
+      "0.005.100.0.cn.0.0125.1.phase_refinement": true,
+      "0.005.100.0.cn.0.00625.0.phase_refinement": true,
+      "0.005.100.0.cn.0.00625.1.phase_refinement": true,
+      "0.005.100.0.hybrid.0.05.0.phase_refinement": true,
+      "0.005.100.0.hybrid.0.05.1.phase_refinement": true,
+      "0.005.100.0.hybrid.0.025.0.phase_refinement": true,
+      "0.005.100.0.hybrid.0.025.1.phase_refinement": true,
+      "0.005.100.0.hybrid.0.0125.0.phase_refinement": true,
+      "0.005.100.0.hybrid.0.0125.1.phase_refinement": true,
+      "0.005.100.0.hybrid.0.00625.0.phase_refinement": true,
+      "0.005.100.0.hybrid.0.00625.1.phase_refinement": true
+    },
+    "historical_eta0_accuracy": {
+      "0.4.cn.physical_degeneracy": true,
+      "0.4.hybrid.physical_degeneracy": false,
+      "0.2.cn.physical_degeneracy": true,
+      "0.2.hybrid.physical_degeneracy": false,
+      "0.1.cn.physical_degeneracy": true,
+      "0.1.hybrid.physical_degeneracy": false,
+      "0.05.cn.physical_degeneracy": true,
+      "0.05.hybrid.physical_degeneracy": false,
+      "0.025.cn.physical_degeneracy": true,
+      "0.025.hybrid.physical_degeneracy": false,
+      "0.0125.cn.physical_degeneracy": true,
+      "0.0125.hybrid.physical_degeneracy": false,
+      "0.00625.cn.physical_degeneracy": true,
+      "0.00625.hybrid.physical_degeneracy": false,
+      "0.003125.cn.physical_degeneracy": true,
+      "0.003125.hybrid.physical_degeneracy": false
+    },
+    "historical_scientific_acceptance": false,
+    "scientific_acceptance": false,
+    "no_phase_alignment": true,
+    "no_energy_renormalization": true,
+    "no_PIC_adoption": true,
+    "companion_sha256": "347e80d9e46976729e110e944d219d473fd874ec1a853ab6a5ca83aa6ca3f3cc",
+    "source_refactor": "Companion factoring/formatting preserves both reference formulas, mode projection and literal maps; generation producer hash remains separately recorded."
+  }
+}

@@ -1058,6 +1058,17 @@ measured['phase_warm_min'], measured['phase_warm_max'] = f'{min(warm):.2f}', f'{
 measured['phase_temp_mib'] = f"{max(r['compiler_temporary_bytes'] for r in phase_results) / 2**20:.2f}"
 measured['phase_rss_mib'] = f"{max(r['peak_rss_bytes'] for r in phase_results) / 2**20:.2f}"
 measured['_provenance']['implicit_grid_phase'] = provenance(phase_record, phase_folder.name)
+resonant_folder = EVIDENCE.parent / 'resonant_integrators'
+run_example('docs/scripts/benchmark_time_integrators.py', study='resonant', quick=False,
+            eta=.005, end=1000., output=resonant_folder)
+resonant_record = json.loads((resonant_folder / 'run.json').read_text())
+for method in ('cn', 'hybrid'):
+    for label, step in (('coarse', .1), ('fine', .003125)):
+        row = next(r for r in resonant_record['results']['methods'] if r['method'] == method and r['h'] == step)
+        measured[f'resonant_{method}_phase_{label}'] = f"{max(row['unaligned_phase_error']):.3e}"
+        measured[f'resonant_{method}_transfer_{label}'] = f"{row['transfer_error']:.3e}"
+measured['resonant_energy_max'] = f"{max(r['energy_error'] for r in resonant_record['results']['methods']):.3e}"
+measured['_provenance']['resonant_integrators'] = provenance(resonant_record, resonant_folder.name)
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")
 
 print("Saved measured documentation substitutions", flush=True)

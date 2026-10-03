@@ -102,6 +102,48 @@ The relativistic [pair-reservoir replay](_static/figures/oscillating_dark_pair/r
 
 The present tests favour keeping the explicit coupled step while improving spatial convergence. The $\omega_pt=200$ first-mode difference reverses sign between 128 and 256 cells at fixed timestep even as the finest closed-energy drift falls to **{{ saturation_long_fine_drift_percent }}%**. Further grid refinement and a warm, seeded ensemble should precede a production change to interpolation order. An implicit or IMEX mass solve becomes worth revisiting for $\Omega_D\Delta t$ near the explicit stability limit, with a charge-conserving current and full PIC work balance. An adaptive DOP853 field clock would require synchronized particle trajectories and current integration at its internal stages; applying it to frozen deposits would test another model. None of these source-free timings establishes a faster or more accurate nonlinear PIC solver.
 
+### Cold resonant integrators
+
+At matched cold plasma and dark frequencies, use $\tau=\omega_pt$ and normalized ordinary electric field $E$, dark electric field $D$, dark potential $A$ and plasma current $j$. The homogeneous collective system is
+
+$$
+E'=-j,\qquad D'=A-\eta j,\qquad A'=-D,\qquad j'=E+\eta D,
+$$
+
+with $H=(E^2+D^2+A^2+j^2)/2$ and initial state $(0,1,0,0)$. The ordinary transfer fraction is $f=(E^2+j^2)/(2H_0)=E^2+j^2$. This cold current closes the particles' bulk response; it includes no velocity spread, spatial modes or trapping.
+
+The two physical frequencies are $\omega_\pm=\sqrt{1+\eta^2/4}\pm\eta/2$. Writing $s=\sqrt{1+\eta^2/4}$ and $d=\eta/2$ gives a stable independent reference:
+
+$$
+\begin{aligned}
+E&=-\sin(s\tau)\sin(d\tau)/s,\\
+D&=\cos(s\tau)\cos(d\tau)-(d/s)\sin(s\tau)\sin(d\tau),\\
+A&=-\sin(s\tau)\cos(d\tau)/s,\\
+j&=\cos(s\tau)\sin(d\tau)+(d/s)\sin(s\tau)\cos(d\tau).
+\end{aligned}
+$$
+
+![Cold resonance: endpoint energy, unaligned phase and transfer errors](_static/figures/resonant_integrators/figure.png)
+
+[Companion benchmark](scripts/benchmark_time_integrators.py) · `study='resonant', quick=False, eta=.005, end=1000`; [complete measurements](_static/figures/resonant_integrators/run.json) and [endpoints](_static/figures/resonant_integrators/data.npz). The default quick horizon is 100. `archive` regenerates media from complete saved endpoint records with no new matrix powers; a fresh run evaluates the same literal maps. [Measured substitutions](scripts/make_all.py) follow the existing records/full convention.
+
+| Method at $\eta=.005$, $\tau=1000$ | $h=\omega_p\Delta t$ | Largest unaligned mode-phase error (rad) | Absolute transfer-fraction error |
+|---|---:|---:|---:|
+| Fully coupled Crank–Nicolson | .1 | {{ resonant_cn_phase_coarse }} | {{ resonant_cn_transfer_coarse }} |
+| Fully coupled Crank–Nicolson | .003125 | {{ resonant_cn_phase_fine }} | {{ resonant_cn_transfer_fine }} |
+| Exact dark field / ordinary Crank–Nicolson | .1 | {{ resonant_hybrid_phase_coarse }} | {{ resonant_hybrid_transfer_coarse }} |
+| Exact dark field / ordinary Crank–Nicolson | .003125 | {{ resonant_hybrid_phase_fine }} | {{ resonant_hybrid_transfer_fine }} |
+
+Both maps satisfy their one-step energy identity. Their saved long powers have endpoint energy defects up to **{{ resonant_energy_max }}**, and the original $2\times10^{-13}$ energy and full-metric failures remain failures. The displayed endpoints are unchanged. A separate 80/100-digit generator-projector calculation verifies the new carrier/beat formula at $\eta=.01/.005$, $\tau=100/1000$, within $9.79\times10^{-14}$ in state norm. It also identifies about $9.7\times10^{-12}$ error in the earlier long-time analytic reference. Those historical reference failures remain recorded separately from the new comparisons. Precision agreement is a numerical control, not a certified interval bound.
+
+For midpoint, $\omega_{\rm num}=2\arctan(h\omega/2)/h$: carrier-phase error accumulates as $\tau h^2$ even though the one-step energy is conserved. The hybrid integrates the dark oscillator exactly with the accepted constant midpoint current and uses its time-averaged electric force. Its ordinary oscillator still has the midpoint clock. At $\eta=0$ the artificial frequency gap is
+
+$$
+1-\frac{2}{h}\arctan(h/2)=\frac{h^2}{12}+O(h^4).
+$$
+
+This gap must be small relative to the physical splitting $|\eta|$ and the accumulated-phase budget. The 1,000-unit comparison confirms the derived cold frequencies and transfer solution. Hook–Huang–Shalaby's nonlinear Figure 2 remains unconfirmed by these homogeneous checks. It supports keeping phase, transfer and conservation gates separate. Compatible particle/current integration is additionally required for PIC, as in [Chen, Chacón and Barnes, §§3.2–3.5](https://arxiv.org/abs/1101.3701) and [Kormann and Sonnendrücker, §§5.2–5.3](https://arxiv.org/abs/1910.04000). The constant-skew energy result of [Li and Wu, Eq. (7) and Theorem 2.3](https://arxiv.org/abs/2012.13064) does not establish accuracy for a spatial Maxwell–Proca particle solve. No method adoption, new physical effect or late conversion claim follows from this cold benchmark.
+
 ## Coupled kinetic methods
 
 The pinned parent provides an ordinary Crank–Nicolson PIC method with fixed Picard iterations and particle substeps. Its longitudinal force is the discrete gradient conjugate to the trajectory continuity current; transverse current is the transpose of the field gather. Once the particle orbit and fields converge together, particle work cancels mesh work. This is the mechanism of [Chen, Chacón and Barnes](https://arxiv.org/abs/1101.3701) and the discrete-gradient construction of [Kormann and Sonnendrücker](https://arxiv.org/abs/1910.04000). Energy and Gauss can be conserved together while momentum has a finite error. The coupled Proca method uses the explicit compatible split described in [the equations](physics.md).

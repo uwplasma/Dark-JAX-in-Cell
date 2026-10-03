@@ -29,7 +29,8 @@ from examples.dark_instabilities import (cold_screened_growth, two_stream_growth
                                          weibel_cutoff_squared, weibel_growth)
 from examples.dark_profile import (build_design, cold_scattering, packet, profile,
                                    slab_basis, transmitted_fraction, make_simulation)
-from docs.scripts.benchmark_time_integrators import system as vacuum_system
+from docs.scripts.benchmark_time_integrators import (
+    resonant_exact, resonant_map, resonant_modes, system as vacuum_system)
 from docs.scripts.make_movies import _marker_indices
 
 
@@ -392,6 +393,23 @@ def test_compatible_kick_drift_and_continuity():
     B1, A1 = drift(E1, B, A, phi1, h, dx)
     np.testing.assert_allclose(B1, curl_E(A1, B1, dx, (0, 0)), atol=2e-14)
     np.testing.assert_allclose(curl_E(gradient(phi, dx), B, dx, (0, 0)), 0, atol=2e-13)
+
+
+@pytest.mark.parametrize('eta', [0., .005, .3])
+def test_collective_resonance_reference_and_energy(eta):
+    generator = np.array([[0., 0., 0., -1.], [0., 0., 1., -eta],
+                          [0., -1., 0., 0.], [1., eta, 0., 0.]])
+    initial = np.array([0., 1., 0., 0.])
+    exact = resonant_exact(eta, 3.7)
+    np.testing.assert_allclose(exact, expm(3.7 * generator) @ initial, rtol=0, atol=2e-14)
+    assert abs(np.sum(abs(resonant_modes(exact, eta))**2) - exact @ exact) < 2e-14
+    for method in ('cn', 'hybrid'):
+        step = resonant_map(eta, .1, method)
+        np.testing.assert_allclose(step.T @ step, np.eye(4), rtol=0, atol=2e-14)
+    if eta == 0:
+        # The hybrid's exact dark clock and CN plasma clock split at zero coupling.
+        frequencies = np.sort(np.angle(np.linalg.eigvals(resonant_map(0., .1, 'hybrid'))))[-2:] / .1
+        np.testing.assert_allclose(frequencies, [2 * np.arctan(.05) / .1, 1.], rtol=0, atol=2e-14)
 
 
 def test_independent_vacuum_clock_matches_production_split():
