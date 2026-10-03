@@ -288,6 +288,34 @@ def test_paper_continuation_matches_uninterrupted_native_ledgers_and_prefix(tmp_
     assert str(donor) not in json.dumps(metadata)
 
 
+def test_paper_fork_reports_recipe_mismatch_but_requires_exact_native_state(tmp_path, paper_checkpoint):
+    import json
+    import shutil
+    from examples import dark_reservoir as example
+
+    original, sim, origin, _, _ = paper_checkpoint
+    donor = tmp_path / 'donor'
+    shutil.copytree(original, donor)
+    record = json.loads((donor / 'run.json').read_text())
+    fingerprints = record['settings']['initial_fingerprints']
+    fingerprints['loading']['v'] = '0' * 64
+    (donor / 'run.json').write_text(json.dumps(record))
+    with pytest.raises(ValueError, match='original arrays'):
+        example.paper_continuation_state(donor / 'final_state.npz')
+    restored = example.paper_continuation_state(donor / 'final_state.npz', archived_fork=True)
+    validation = restored[-1]['recipe_loading_validation']
+    assert validation['passed'] is False and validation['original_fingerprints'] == fingerprints['loading']
+    assert validation['regenerated_fingerprints']['v'] != fingerprints['loading']['v']
+    for expected, actual in ((origin, restored[1]), (load_state(original / 'final_state.npz', sim), restored[2])):
+        assert jax.tree_util.tree_structure(expected) == jax.tree_util.tree_structure(actual)
+        assert [array_fingerprint(x) for x in jax.tree_util.tree_leaves(expected)] == [
+            array_fingerprint(x) for x in jax.tree_util.tree_leaves(actual)]
+    fingerprints['state']['dark_A' if 'dark_A' in fingerprints['state'] else 'E'] = '0' * 64
+    (donor / 'run.json').write_text(json.dumps(record))
+    with pytest.raises(ValueError, match='original arrays'):
+        example.paper_continuation_state(donor / 'final_state.npz', archived_fork=True)
+
+
 @pytest.mark.parametrize('change', ['clock', 'steps', 'work', 'background', 'model', 'dt', 'runtime',
                                     'blocks', 'cadence', 'maximum', 'horizon'])
 def test_paper_continuation_rejects_inconsistent_checkpoint_metadata(tmp_path, paper_checkpoint, change):

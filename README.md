@@ -293,6 +293,22 @@ The strong Figure 2 drive runs through $\omega_pt=1000$ at $\Delta t\omega_p=.00
 
 [Simulation script](examples/dark_reservoir.py) · `study='paper', cells=2000` or `4000`, `particles=206000, shape_order=5, dt=.0025, horizon=1000, block_horizon=100, local_moments=True`; joint control: `cells=4000, particles=824000` per species. [Comparison and plot](docs/scripts/compare_replays.py) ([full inputs](docs/scripts/make_all.py)).
 
+### A smaller step at 1.65 million particles
+
+On 4,000 cells, halving $\Delta t\omega_p$ from .0025 to .00125 retains the **1,648,000-particle archived microstate**, the strong Figure 2 drive and the initial energy reference. Positions are restaggered for the new step. The comparison uses raw samples on $800\leq\omega_pt\leq1000$:
+
+| Observable | Change | Accuracy bound | Check |
+|---|---:|---:|:---:|
+| Transferred work | +37.39% | 2% | ❌ |
+| Mean electric / nonzero-mode energy | +22.00% / +26.53% | 5% | ❌ |
+| Local electron-spread increment, $2\lambda_{D0}$ / $4\lambda_{D0}$ | +0.649% / +0.657% | 2% | ✅ |
+| Local ion-spread increment, $2\lambda_{D0}$ / $4\lambda_{D0}$ | +0.306% / +0.350% | 2% | ✅ |
+| Residual injection rate | $+6.38\times10^{-5}\omega_p$ | $10^{-5}\omega_p$ | ❌ |
+
+[Simulation script](examples/dark_reservoir.py) · `study='paper_dt', dt=.00125`, with the donor's `initial_state.npz`; [comparison script](docs/scripts/compare_replays.py) · `timestep_fork=(donor, fork)` ([full inputs](docs/scripts/make_all.py)).
+
+The fine run's largest energy-minus-work defect is $6.51\times10^{-7}nm_ec^2L$. The two-endpoint accounting bound is **1.26% of the work difference**, too small to explain it. Local broadening passes its four bounds; field energy, transfer and rate do not. These results leave late conversion unconverged and establish no disagreement with the paper. [Native conservation, phase, lineage and limits](docs/kinetic.md#higher-count-timestep-fork).
+
 ### Three-seed late timestep pilot
 
 Quintic runs with **412,000 particles** and 2,000 cells repeat the strong Figure 2 drive at $\Delta t\omega_p=.005$ and $.0025$, through $\omega_pt=1000$. Each seed supplies one paired reduction on $800\leq\omega_pt\leq1000$; time samples are not extra realizations.

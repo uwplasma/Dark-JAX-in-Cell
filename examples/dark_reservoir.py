@@ -60,6 +60,7 @@ block_horizon = globals().get('block_horizon', min(10 if study == 'pair_waveform
 local_moments = globals().get('local_moments', full and study == 'pair_waveform')
 initial_state = globals().get('initial_state', None)
 initial_state = None if initial_state is None else Path(initial_state)
+paper_dt_transition = globals().get('paper_dt_transition', ())  # Reviewed donor → fresh producer SHAs.
 samples = globals().get('samples', 1)  # pair_repeat executions reuse one exact archived state/table.
 table_every = globals().get('table_every', 1)  # pair_table retains every nth archived midpoint.
 pic_dt = globals().get('pic_dt', None)  # pair_dt changes PIC dt in omega0 units, preserving the SI force table.
@@ -1599,7 +1600,7 @@ def paper_archived_model(path, setting, wp, field):
         return DarkField(omega, eta)
 
 
-def paper_continuation_state(path):
+def paper_continuation_state(path, *, archived_fork=False):
     """Restore the donor's physical model, exact t0 state and final checkpoint."""
     from compare_replays import PAIR_RUNTIME, _load
 
@@ -1630,7 +1631,8 @@ def paper_continuation_state(path):
         hashes.update({f'dark_{key}': array_fingerprint(getattr(origin, key)) for key in ('E', 'B', 'A', 'phi')})
     loading = {key: array_fingerprint(np.concatenate([np.asarray(getattr(s, key)) for s in plasma.species]))
                for key in ('x', 'v')}
-    if dict(state=hashes, loading=loading) != setting['initial_fingerprints']:
+    if (dict(state=hashes, loading=loading) != setting['initial_fingerprints']
+            and (not archived_fork or hashes != setting['initial_fingerprints']['state'])):
         raise ValueError('paper continuation original arrays differ from the donor fingerprints')
     native_time = (int(start.ordinary.steps) * float(plasma.domain.dt) if sim.clock == 'anchored'
                    else paper_accepted_clock(float(plasma.domain.dt), int(start.ordinary.steps)))
@@ -1653,6 +1655,11 @@ def paper_continuation_state(path):
                        ('origin_archive_sha256', path.parent / 'initial_state.npz'),
                        ('checkpoint_archive_sha256', path),
                        ('producer_script_sha256', Path(__file__)))})
+    if archived_fork:
+        lineage['recipe_loading_validation'] = dict(
+            original_fingerprints=setting['initial_fingerprints']['loading'], regenerated_fingerprints=loading,
+            passed=loading == setting['initial_fingerprints']['loading'],
+            scope='Recipe-byte validation; the timestep fork uses the exact archived canonical microstate')
     return sim, origin, start, prefix, setting, record['results'], lineage
 
 
@@ -1773,10 +1780,62 @@ def seed_reference(history, amplitude, coupling, seed, mode, phase):
     return curves, results
 
 
+def paper_dt(folder, initial_state, dtau, transition=()):
+    """Fork a complete zero-time Hook microstate, changing only dt and its stagger."""
+    from compare_replays import _archive, _paper_fork_positions, _paper_native_hash
+
+    path = Path(initial_state) if initial_state is not None else None
+    if path is None or path.name != 'initial_state.npz' or Path(folder).resolve() == path.parent.resolve():
+        raise ValueError('paper_dt requires a donor initial archive and a distinct output folder')
+    sim, origin, _, _, setting, _, binding = paper_continuation_state(
+        path.parent / 'final_state.npz', archived_fork=True)
+    actual, donor = provenance()['git'], binding['prefix_native_git']
+    if (len(actual) != 40 or not set(actual) <= set('0123456789abcdef')
+            or tuple(transition) != (() if actual == donor else (donor, actual))):
+        raise ValueError('paper_dt requires clean source and an explicit reviewed source transition')
+    state = _archive(path)
+    if (not np.isfinite(dtau) or dtau <= 0 or 2 * dtau != setting['dt_omega_p'] or len(state) != 51
+            or setting['shape_order'] != 5 or setting['coupling'] is not None
+            or setting.get('momentum_seed_over_sigma_e', 0.) != 0.
+            or sim.clock != 'accumulated' or sim.longitudinal_gather != 'average'
+            or any(np.any(state[key]) for key in ('B', 'sigma', *[k for k in state if k.startswith('wall.')]))
+            or any(np.any(state[key][:, 1:]) for key in ('E', 'u', 'x'))):
+        raise ValueError('paper_dt requires a longitudinal quintic prescribed state and a distinct positive step')
+    wp = setting['normalization']['omega_p_rad_s']
+    if any(abs(round(value / dtau) * dtau - value) > 1e-10 for value in (
+            .5, setting['block_horizon_omega_p'], round(setting['horizon_omega_p']))):
+        raise ValueError('paper_dt must preserve the scalar cadence, horizon and block duration')
+    x, integer, velocity = _paper_fork_positions(state, dtau / wp, setting['normalization']['c_m_s'])
+    start = origin.replace(ordinary=origin.ordinary.replace(x=jnp.asarray(x)))
+    following_sim = DarkSimulation(sim.plasma.replace(domain=sim.plasma.domain.replace(time_step=dtau / wp)), sim.dark)
+    restored = {key: _paper_native_hash(value) for key, value in state.items()}
+    following = dict(restored, x=_paper_native_hash(x), **{'dark.dt': _paper_native_hash(np.asarray(dtau / wp))})
+    lineage = dict(source=actual, parent=setting['parent_revision'], donor=dict(
+        source=donor, parent=setting['parent_revision'], initial_archive_sha256=binding['origin_archive_sha256'],
+        record_sha256=binding['prefix_record_sha256'], data_sha256=binding['prefix_data_sha256'], leaf_count=51),
+        producer_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), source_transition=list(transition),
+        clock='accumulated', longitudinal_gather='average', changed_native_leaves=['x', 'dark.dt'],
+        original_recipe_loading_fingerprints=setting['initial_fingerprints']['loading'],
+        recipe_loading_validation=binding['recipe_loading_validation'],
+        restored_leaf_fingerprints=restored, expected_fork_leaf_fingerprints=following,
+        actual_canonical_loading=dict(x=_paper_native_hash(integer), v=_paper_native_hash(velocity)),
+        claim='Archived microstate timestep fork; separate executable, no isolated truncation or convergence claim')
+    fingerprints = dict(loading=lineage['actual_canonical_loading'],
+                        state={key: following[key] for key in ('x', 'u', 'w', 'E', 'B', 'rho')})
+    Path(folder).mkdir(parents=True, exist_ok=True)
+    (Path(folder) / 'fork_lineage.json').write_text(json.dumps(lineage, indent=2) + '\n')
+    with elapsed_progress('Archived-microstate timestep fork'):
+        return paper_case(folder, setting['cells'], setting['particles_per_species'], dtau,
+                          round(setting['horizon_omega_p']), setting['seed'], setting['drive_quiver_over_sigma'],
+                          block_horizon=setting['block_horizon_omega_p'],
+                          local_moments=setting['local_moments_output_dt_omega_p'] is not None,
+                          shape_order=5, fork=(following_sim, start, fingerprints, lineage))
+
+
 def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
                block_horizon=None, local_moments=False, initial_state=None,
                momentum_seed=0., seed_mode=16, seed_phase=0., shape_order=2, longitudinal_gather='average',
-               clock='accumulated'):
+               clock='accumulated', fork=None):
     """Hook Fig. 2 drive with reduced moments, work and both constraint ledgers."""
     if not np.isfinite(horizon) or horizon <= 0 or not np.isfinite(ratio) or ratio < 0:
         raise ValueError("paper horizon must be positive and drive ratio nonnegative, both finite")
@@ -1790,7 +1849,8 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
              else DarkField(wp, eta, initial_E=jnp.tile(
                  jnp.array([force / eta, 0., 0.]), (cells, 1))))
     sim = DarkSimulation(plasma, model, longitudinal_gather=longitudinal_gather, clock=clock)
-    start, fingerprints = paper_initial(sim, seed, initial_state)
+    sim, start, fingerprints = (sim, *paper_initial(sim, seed, initial_state)) if fork is None else fork[:3]
+    plasma = sim.plasma
     seed_diagnostics = seed_noise(plasma, start.ordinary, momentum_seed, seed_mode, seed_phase) if momentum_seed else {}
     stride = max(1, round(0.5 / dtau))
     steps = stride * max(1, round(horizon / (stride * dtau)))
@@ -1885,6 +1945,9 @@ def paper_case(folder, cells, particles, dtau, horizon, seed, ratio, eta=None,
         settings['longitudinal_gather'] = longitudinal_gather
     if clock != 'accumulated':
         settings['clock'] = clock
+    if fork is not None:
+        settings.update(timestep_fork=fork[3],
+                        initial_state_source='explicit archived canonical-microstate timestep fork')
     with midnight():
         fig, axes = plt.subplots(2, 2, figsize=(10, 7), layout='constrained')
         axes[0, 0].plot(t, history['electric'] - history['electric'][0], label='electric change')
@@ -1941,6 +2004,8 @@ if __name__ == "__main__":  # noqa: C901
         paper_continue(output, initial_state, horizon, **(
             {} if globals().get('longitudinal_gather') is None else dict(longitudinal_gather=longitudinal_gather)),
             **({} if globals().get('clock') is None else dict(clock=clock)))
+    elif study == 'paper_dt':
+        paper_dt(output, initial_state, dt, paper_dt_transition)
     elif study == 'pair':
         pair_figure(output, full)
     elif study == 'pair_dark':
@@ -1964,7 +2029,7 @@ if __name__ == "__main__":  # noqa: C901
     elif study == 'paper_pilot':
         paper_geometry_pilot(output)
     elif study != 'mobile_ions':
-        raise ValueError('study must be mobile_ions, paper, paper_continue, pair, pair_dark, pair_waveform, '
+        raise ValueError('study must be mobile_ions, paper, paper_continue, paper_dt, pair, pair_dark, pair_waveform, '
                          'pair_repeat, pair_table, pair_dt, pair_force_extension or paper_pilot')
     else:
         presets = ((64, 4000, 0.04, 40), (128, 8000, 0.02, 40)) if full else (

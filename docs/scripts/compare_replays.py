@@ -29,6 +29,9 @@ ensemble_window = globals().get('ensemble_window', (800, 1000))
 continuation = globals().get('continuation', False)  # Explicit timestep-only lineage audit.
 continuation_donors = globals().get('continuation_donors', ((), ()))  # Oldest-first folders for each arm.
 continuation_transitions = globals().get('continuation_transitions', ())  # Reviewed (old SHA, new SHA) pairs.
+timestep_fork = globals().get('timestep_fork', ())  # Complete Hook donor/fork folders; JSON only.
+timestep_fork_transition = globals().get('timestep_fork_transition', ())
+timestep_fork_audit = globals().get('timestep_fork_audit', None)  # SHA-bound independent failed-result witness.
 constraints = globals().get('constraints', False)
 legacy = globals().get('legacy', False)
 refined = globals().get('refined', None)
@@ -187,7 +190,7 @@ def window_summary(data, selected, coupled=False):
     return result
 
 
-def _controls(records, data, variant, tolerance):
+def _controls(records, data, variant, tolerance, source_transition=()):
     """Equal horizons/cadences preserve sampling and compile-allocation controls."""
     settings = [record['settings'] for record in records]
     if any('continuation' in setting for setting in settings):
@@ -206,6 +209,8 @@ def _controls(records, data, variant, tolerance):
     runtime = ('git', 'jax', 'jaxincell', 'numpy', 'jax_enable_x64', 'backend')
     runtime += ('python', 'platform') if variant == 'resolution' else ()
     for key in runtime:
+        if key == 'git' and tuple(source_transition) == tuple(record[key] for record in records):
+            continue
         if records[0][key] != records[1][key]:
             raise ValueError(f'controlled comparisons must share runtime/source {key}')
     if (data[0]['t'].shape != data[1]['t'].shape
@@ -288,8 +293,16 @@ def compare_replays(first, second, variant='repeat', windows=WINDOWS, legacy=Fal
         raise ValueError('unknown comparison variant')
     a, b = [_load(folder, tolerance) for folder in (first, second)]
     records, data = [a[0], b[0]], [a[1], b[1]]
+    if any('timestep_fork' in record['settings'] for record in records):
+        raise ValueError('timestep forks require an explicit complete-microstate lineage audit')
     settings = _controls(records, data, variant, tolerance)
     initial = _initial(*settings, variant, legacy)
+    return _replay_reduction(first, second, a, b, settings, initial, variant, windows, tolerance, constraints)
+
+
+def _replay_reduction(first, second, a, b, settings, initial, variant, windows, tolerance, constraints):
+    """Shared raw reductions, called only after each producer's strict loading audit."""
+    records, data = [a[0], b[0]], [a[1], b[1]]
     time = data[0]['t']
     selected_windows = []
     for start, end in windows:
@@ -385,6 +398,152 @@ def _accepted_ticks(dt, steps, stride):
         if step % stride == 0:
             ticks.append(time)
     return np.asarray(ticks)
+
+
+def _paper_native_hash(value):
+    """Historical paper hashes promote scalar arrays to contiguous shape (1,)."""
+    return _pair_native_hash(np.ascontiguousarray(value))
+
+
+def _paper_fork_positions(state, dt, speed):
+    """Undo and restore longitudinal staggering with the literal periodic wrap."""
+    length = float(state['dark.length'])
+
+    def wrap(x):
+        x = np.where(x < -length / 2, (x + length / 2) % length - length / 2, x)
+        return np.where(x > length / 2, (x + length / 2) % length - length / 2, x)
+
+    velocity = state['u'] / np.sqrt(1 + np.sum((state['u'] / speed)**2, axis=1))[:, None]
+    integer = state['x'].copy()
+    integer[:, 0] = wrap(integer[:, 0] - float(state['dark.dt']) * velocity[:, 0] / 2)
+    x = integer.copy()
+    x[:, 0] = wrap(x[:, 0] + dt * velocity[:, 0] / 2)
+    if np.max(abs(wrap(wrap(x[:, 0] - dt * velocity[:, 0] / 2) - integer[:, 0]))) / length > 2e-13:
+        raise ValueError('canonical timestep restagger exceeds the fixed position bound')
+    return x, integer, velocity
+
+
+def compare_timestep_fork(folders, transition=(), audit=None):
+    """Publish a deliberate archived-microstate fork while preserving scientific failures."""
+    if len(folders) != 2:
+        raise ValueError('timestep_fork needs one donor and one fork')
+    sources = [_load(folder, 1e-5) for folder in folders]
+    records, data = [source[0] for source in sources], [source[1] for source in sources]
+    revisions = tuple(record['git'] for record in records)
+    if (any(len(value) != 40 or not set(value) <= set('0123456789abcdef') for value in revisions)
+            or tuple(transition) != (() if revisions[0] == revisions[1] else revisions)):
+        raise ValueError('timestep fork needs its explicit reviewed source transition')
+    settings = _controls(records, data, 'dt', 1e-5, transition)
+    if any(record.get(key) is None or record[key] != records[0][key]
+           for record in records for key in PAIR_RUNTIME if key != 'git'):
+        raise ValueError('timestep fork runtime differs')
+    states = [[_archive(Path(folder) / name) for name in ('initial_state.npz', 'final_state.npz')]
+              for folder in folders]
+    lineage = settings[1]['timestep_fork']
+    saved = json.loads((Path(folders[1]) / 'fork_lineage.json').read_text())
+    if ({k: v for k, v in saved.items() if k != 'status'} != {k: v for k, v in lineage.items() if k != 'status'}
+            or lineage['source'] != revisions[1] or lineage['parent'] != settings[1]['parent_revision']
+            or lineage['clock'] != 'accumulated' or lineage['longitudinal_gather'] != 'average'
+            or tuple(lineage.get('source_transition', ())) != tuple(transition)
+            or lineage['changed_native_leaves'] != ['x', 'dark.dt']
+            or settings[0]['shape_order'] != 5 or settings[0]['coupling'] is not None
+            or settings[0].get('momentum_seed_over_sigma_e', 0) != 0
+            or any(len(state) != 51 for pair in states for state in pair)
+            or any(not np.isfinite(record['results'][key]) or record['results'][key] < 0
+                   for record in records for key in PAPER_MAXIMA)
+            or settings[0]['dt_omega_p'] != 2 * settings[1]['dt_omega_p']):
+        raise ValueError('timestep fork lineage, model, complete leaves or halving differs')
+    hashes = [{name: hashlib.sha256((Path(folder) / name).read_bytes()).hexdigest()
+               for name in ('run.json', 'data.npz', 'initial_state.npz', 'final_state.npz')} for folder in folders]
+    donor = lineage['donor']
+    if (donor['source'] != revisions[0] or donor['parent'] != settings[0]['parent_revision']
+            or donor['leaf_count'] != 51
+            or [donor[k] for k in ('record_sha256', 'data_sha256', 'initial_archive_sha256')]
+            != [hashes[0][k] for k in ('run.json', 'data.npz', 'initial_state.npz')]):
+        raise ValueError('timestep fork donor hashes disagree')
+    hashes[1]['fork_lineage.json'] = hashlib.sha256((Path(folders[1]) / 'fork_lineage.json').read_bytes()).hexdigest()
+    old, new = states[0][0], states[1][0]
+    if (any(np.any(old[key]) for key in ('B', 'sigma', *[k for k in old if k.startswith('wall.')]))
+            or np.any(old['x'][:, 1:])):
+        raise ValueError('timestep fork needs longitudinal periodic loading without walls')
+    x, integer, velocity = _paper_fork_positions(old, float(new['dark.dt']), settings[0]['normalization']['c_m_s'])
+    _same_leaves(dict(old, x=x, **{'dark.dt': new['dark.dt']}), new)
+    if (lineage['restored_leaf_fingerprints'] != {k: _paper_native_hash(v) for k, v in old.items()}
+            or lineage['expected_fork_leaf_fingerprints'] != {k: _paper_native_hash(v) for k, v in new.items()}
+            or any(lineage['actual_canonical_loading'][k] != _paper_native_hash(v)
+                   for k, v in (('x', integer), ('v', velocity)))):
+        raise ValueError('timestep fork native scalar schema or canonical fingerprints disagree')
+    for pair, record, row in zip(states, records, data):
+        _continuation_state_checks(pair, record, row)
+    result = _replay_reduction(*folders, *sources, settings, dict(verified=True, unchanged_native_leaves=49,
+                               scalar_hash_schema='dtype:contiguous-shape plus bytes; scalar shape (1,)'),
+                               'dt', WINDOWS, 1e-5, True)
+    result.update(native_runs=records, native_sha256=hashes, scalar_histories=_pair_scalar_histories(sources),
+                  archive_diagnostics=result['endpoint_constraints'], lineage=lineage, scientific_acceptance=False)
+    for window in result['windows']:
+        start, end = window['window_omega_p']
+        selected = (data[0]['t'] >= start - 1e-5) & (data[0]['t'] <= end + 1e-5)
+        a, b = [row['mode_E'][selected] for row in data]
+        window['complex_mode'] = _pair_metric(a, b)
+        phase, weights = np.angle(b * a.conj()), abs(a)**2
+        valid = (weights > 0) & (abs(b) > 0)
+        window['complex_mode'].update(alignment=False, amplitude_weighted_phase_rms_rad=float(
+            np.sqrt(np.sum(weights[valid] * phase[valid]**2) / weights[valid].sum())) if weights[valid].sum() else None,
+            defined_phase_weight_fraction=float(weights[valid].sum() / weights.sum()) if weights.sum() else None)
+    return _paper_fork_results(result, records, states, audit)
+
+
+def _paper_fork_results(result, records, states, audit):
+    for pair, record in zip(states, records):
+        n, final = record['settings']['normalization'], pair[1]
+        scales = np.array([n['energy_scale_J_m2'], *[n['charge_density_C_m3'] / n['epsilon0_F_m']] * 2])
+        reported = np.array([record['results'][PAPER_MAXIMA[i]] for i in (0, 4, 5)]) * scales * [.001, 1, 1]
+        native = np.array([final['dark.' + key] for key in
+                           ('max_balance_error', 'max_ordinary_gauss', 'max_dark_gauss')])
+        if np.any(abs(reported - native) > 32 * np.finfo(float).eps * scales):
+            raise ValueError('timestep fork reported bounds disagree with native energy/Gauss maxima')
+    late = result['windows'][-1]
+    summaries = late['realization_summaries']
+    values = [np.r_[r['work_increment'], np.ravel(r['local_spread_increment_mean']), r['electric_mean'],
+                    r['nonzero_electric_mean'], r['injection_rate_over_wp']] for r in summaries]
+    a, b = values
+    changes = np.r_[np.divide(b[:-1], a[:-1], out=np.full(7, np.nan), where=a[:-1] != 0) - 1, b[-1] - a[-1]]
+    result['late_gates'] = {key: dict(change=float(change) if np.isfinite(change) else None,
+                                      bound=bound, passed=bool(abs(change) <= bound))
+                            for key, change, bound in zip(ENSEMBLE_OBSERVABLES, changes, ENSEMBLE_BOUNDS)}
+    clocks = [abs(float(pair[1]['time']) * r['settings']['normalization']['omega_p_rad_s']
+                  - int(pair[1]['steps']) * r['settings']['dt_omega_p']) for r, pair in zip(records, states)]
+    result['original_gates'] = dict(gauss=[r['results'][PAPER_MAXIMA[4]] <= 2e-13 for r in records],
+                                    nominal_clock=[value <= 1e-9 for value in clocks],
+                                    nominal_clock_error_omega_p=clocks)
+    selected = (result['windows'][-1]['window_omega_p'][0], result['windows'][-1]['window_omega_p'][1])
+    durations = [float(np.ptp(np.asarray(r['t'])[(np.asarray(r['t']) >= selected[0] - 1e-5)
+                                                 & (np.asarray(r['t']) <= selected[1] + 1e-5)]))
+                 for r in result['scalar_histories']]
+    result['accounting'] = _continuation_budget(records, summaries, durations)
+    result['accounting']['two_endpoint_transfer'] = [
+        2 * x if x is not None else None for x in result['accounting']['global_defect_over_abs_window_work']]
+    difference = result['accounting']['global_defect_over_abs_work_difference']
+    result['accounting']['two_endpoint_difference'] = 2 * difference if difference is not None else None
+    result['accounting']['two_endpoint_transfer_gate'] = [
+        x is not None and x < .01 for x in result['accounting']['two_endpoint_transfer']]
+    result['accounting']['two_endpoint_difference_gate'] = difference is not None and 2 * difference < .1
+    if 'wrapper_sha256' in result['lineage'] and audit is None:
+        raise ValueError('historical wrapper forks require their independent failed-result audit')
+    if audit is not None:
+        path = Path(audit)
+        witness = json.loads(path.read_text())
+        if (witness['native_record_sha256'] != result['native_sha256'][1]['run.json']
+                or witness['native_lineage_sha256'] != result['native_sha256'][1]['fork_lineage.json']
+                or {k: v for k, v in witness['lineage'].items() if k != 'status'} != {
+                    k: v for k, v in result['lineage'].items() if k != 'status'}):
+            raise ValueError('independent fork audit is bound to another native record')
+        result['independent_audit'] = dict(sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                                           retained_failures=witness['original_donor_failures'],
+                                           endpoint_gates=witness['endpoint_gates'])
+    result['notes'] += ' Complete archived-microstate fork and distinct executions; no isolated truncation claim. '
+    result['notes'] += 'Gaussian recipe-byte validation is separate from exact inherited particle arrays.'
+    return result
 
 
 def _continuation_units(data, setting):
@@ -682,7 +841,8 @@ def _continuation_node(parent, folder, transitions, tolerance):
 def _continuation_budget(records, summaries, duration):
     """Global accounting bounds retain near-zero-transfer failures, not statistical error bars."""
     defects = np.array([record['results'][PAPER_MAXIMA[0]] * .001 for record in records])
-    rates = [2 * defect / (duration * row['plasma_mean_energy']) for defect, row in zip(defects, summaries)]
+    rates = [2 * defect / (interval * row['plasma_mean_energy'])
+             for defect, row, interval in zip(defects, summaries, np.broadcast_to(duration, (2,)))]
     transfer = [float(defect / abs(row['work_increment'])) if row['work_increment'] else None
                 for defect, row in zip(defects, summaries)]
     work_difference = abs(summaries[1]['work_increment'] - summaries[0]['work_increment'])
@@ -2561,7 +2721,7 @@ if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
     print('Comparing native records', flush=True)
     if sum((implicit, picard, method_controls, bool(phase_controls), bool(pair_controls), bool(pair_repeats),
             bool(pair_tables), bool(pair_pic_steps),
-            bool(ensemble), continuation)) > 1:
+            bool(ensemble), continuation, bool(timestep_fork))) > 1:
         raise ValueError('select one comparison mode')
     if (pair_repeat_observer or pair_repeat_donor or pair_repeat_transition) and not pair_repeats:
         raise ValueError('pair repeat observer/donor inputs require pair_repeats')
@@ -2571,6 +2731,8 @@ if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
         raise ValueError('pair PIC source transition requires pair_pic_steps')
     if pair_pic_extension is not None and not pair_pic_steps:
         raise ValueError('pair PIC extension requires explicit pair_pic_steps')
+    if (timestep_fork_transition or timestep_fork_audit) and not timestep_fork:
+        raise ValueError('timestep fork transition/audit requires explicit timestep_fork folders')
     if (refined or finer_step or loading_refined or loading_repeat) and destination is None:
         raise ValueError('refinements require a publish folder')
     if finer_step and (implicit or picard or method_controls or phase_controls or pair_controls or pair_repeats
@@ -2581,10 +2743,12 @@ if __name__ == '__main__':  # noqa: C901 — sequential evidence rendering
         raise ValueError('a loading repeat requires its first record')
     if finer_mesh and not method_controls or orbit_audits and not (picard or phase_controls):
         raise ValueError('finer_mesh requires method_controls; orbit_audits requires picard or phase_controls')
-    if pair_repeats or pair_tables or pair_pic_steps:
+    if pair_repeats or pair_tables or pair_pic_steps or timestep_fork:
         if destination is not None or variant != 'repeat' or constraints or legacy:
             raise ValueError('prescribed pair comparisons write scalar JSON only')
-        result = (pair_repeat_comparison(pair_repeats, pair_repeat_observer, pair_repeat_donor, pair_repeat_transition)
+        result = (compare_timestep_fork(timestep_fork, timestep_fork_transition, timestep_fork_audit)
+                  if timestep_fork else
+                  pair_repeat_comparison(pair_repeats, pair_repeat_observer, pair_repeat_donor, pair_repeat_transition)
                   if pair_repeats else pair_table_comparison(pair_tables, pair_table_transition) if pair_tables else
                   pair_pic_step_comparison(pair_pic_steps, pair_pic_transition, extension=pair_pic_extension))
         source, root = Path(__file__).resolve(), Path(__file__).resolve().parents[2]

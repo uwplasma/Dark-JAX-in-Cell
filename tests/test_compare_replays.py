@@ -133,6 +133,45 @@ def test_matching_top_source_cannot_hide_a_continued_prefix(records, side):
         compare_replays(*records, windows=((0, 1),))
 
 
+@pytest.mark.parametrize('side', [0, 1])
+def test_archived_timestep_fork_requires_its_complete_lineage_audit(records, side):
+    change_settings(records[side], timestep_fork={'changed_native_leaves': ['x', 'dark.dt']})
+    with pytest.raises(ValueError, match='complete-microstate lineage audit'):
+        compare_replays(*records, variant='dt', windows=((0, 1),))
+
+
+def test_periodic_timestep_fork_preserves_canonical_positions_and_proper_momenta():
+    from docs.scripts.compare_replays import _paper_fork_positions
+
+    integer = np.array([[-.99, 0, 0], [.99, 0, 0], [.1, 0, 0]])
+    proper = np.array([[-2., 0, 0], [2., 0, 0], [.3, 0, 0]])
+    velocity = proper / np.sqrt(1 + np.sum(proper**2, axis=1))[:, None]
+    staggered = integer.copy()
+    staggered[:, 0] = (integer[:, 0] + .25 * velocity[:, 0] / 2 + 1) % 2 - 1
+    state = {'x': staggered, 'u': proper, 'dark.length': np.array(2.), 'dark.dt': np.array(.25)}
+    following, canonical, actual_velocity = _paper_fork_positions(state, .125, 1.)
+    # Forward/inverse wrapping includes rounded additions at the box boundaries.
+    np.testing.assert_allclose(canonical, integer, rtol=0, atol=4 * np.finfo(float).eps)
+    np.testing.assert_array_equal(actual_velocity, velocity)
+    np.testing.assert_allclose(following[:, 0], (integer[:, 0] + .125 * velocity[:, 0] / 2 + 1) % 2 - 1,
+                               rtol=0, atol=4 * np.finfo(float).eps)
+    np.testing.assert_array_equal(state['u'], proper)
+
+
+@pytest.mark.parametrize('index', [0, 4, 5])
+def test_timestep_fork_cannot_publish_bounds_that_disagree_with_native_ledgers(index):
+    from docs.scripts.compare_replays import PAPER_MAXIMA, _paper_fork_results
+
+    record = {'settings': {'normalization': {'energy_scale_J_m2': 8000.,
+                                             'charge_density_C_m3': 2., 'epsilon0_F_m': .25}},
+              'results': {PAPER_MAXIMA[0]: .125, PAPER_MAXIMA[4]: .03125, PAPER_MAXIMA[5]: .0625}}
+    native = {'dark.max_balance_error': np.array(1.), 'dark.max_ordinary_gauss': np.array(.25),
+              'dark.max_dark_gauss': np.array(.5)}
+    record['results'][PAPER_MAXIMA[index]] *= 2
+    with pytest.raises(ValueError, match='native energy/Gauss maxima'):
+        _paper_fork_results({}, [record], [[None, native]], None)
+
+
 @pytest.fixture
 def continued_records(tmp_path):
     """NumPy-only native bookkeeping fixture; no simulated physics or frame replicates."""

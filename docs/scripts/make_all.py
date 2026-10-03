@@ -34,7 +34,7 @@ def provenance(record, folder):
     return {**{key: record[key] for key in keys}, "run": run}
 
 
-def fold_pic_finer(record, finer, folder):
+def fold_pic_finer(record, finer, folder, prefix='fixed_pic_finer_', field='finer_step', reference_index=0):
     """Append one validated step comparison, sharing its already archived donor."""
     try:
         from compare_replays import fingerprint
@@ -44,14 +44,14 @@ def fold_pic_finer(record, finer, folder):
     for key in ('native_runs', 'native_sha256', 'scalar_histories', 'archive_diagnostics'):
         if finer[key][0] != record[key][0]:
             raise ValueError('finer PIC companion must share the exact archived donor')
-    if 'finer_step' in record:
+    if field in record:
         raise ValueError('finer PIC companion is already archived')
     history = finer['scalar_histories'][1]
     required = {'t', 'mean_E', 'mode_E', 'electric', 'nonzero_electric', 'kinetic', 'spread', 'local_spread',
                 'rms', 'momentum', 'local_density_rms', 'density_rms', 'magnetic', 'work'}
     if history.keys() != required:
         raise ValueError('finer PIC companion requires all fourteen normalized scalar histories')
-    arrays = {'fixed_pic_finer_' + key: np.asarray(value['real']) + 1j * np.asarray(value['imag'])
+    arrays = {prefix + key: np.asarray(value['real']) + 1j * np.asarray(value['imag'])
               if isinstance(value, dict) else np.asarray(value) for key, value in history.items()}
     path = Path(folder) / 'data.npz'
     with np.load(path, allow_pickle=False) as stored:
@@ -65,13 +65,36 @@ def fold_pic_finer(record, finer, folder):
             raise ValueError('finer PIC companion changed a prior native scalar array')
     companion = {key: value for key, value in finer.items()
                  if key not in ('native_runs', 'native_sha256', 'scalar_histories', 'archive_diagnostics')}
-    companion.update(reference_native_index=0, reference_native_sha256=record['native_sha256'][0],
+    companion.update(reference_native_index=reference_index, reference_native_sha256=record['native_sha256'][0],
                      native_run=finer['native_runs'][1], native_sha256=finer['native_sha256'][1],
                      archive_diagnostics=finer['archive_diagnostics'][1],
                      scalar_histories=dict(file='data.npz', file_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
-                                           keys={key: 'fixed_pic_finer_' + key for key in history},
+                                           keys={key: prefix + key for key in history},
                                            array_sha256={key: fingerprint(value) for key, value in arrays.items()}))
-    return dict(record, finer_step=companion)
+    return dict(record, **{field: companion})
+
+
+def fold_hook_fork(record, fork, folder):
+    """Share the published joint donor, adding only one fork's compressed scalars."""
+    try:
+        from compare_replays import fingerprint
+    except ModuleNotFoundError:
+        from docs.scripts.compare_replays import fingerprint
+
+    previous = record['results']['refinement_comparison']['sources'][1]
+    if (record['results']['native_runs'][2] != fork['native_runs'][0]
+            or previous['run_sha256'] != fork['native_sha256'][0]['run.json']
+            or previous['data_sha256'] != fork['native_sha256'][0]['data.npz']
+            or 'timestep_fork_comparison' in record['results']):
+        raise ValueError('Hook fork must share the exact published joint donor')
+    with np.load(Path(folder) / 'data.npz', allow_pickle=False) as stored:
+        for key, value in fork['scalar_histories'][0].items():
+            actual = np.asarray(value['real']) + 1j * np.asarray(value['imag']) if isinstance(value, dict) else value
+            if fingerprint(actual) != fingerprint(stored['refined_' + key]):
+                raise ValueError('Hook fork donor histories differ from published arrays')
+    shared = {key: fork[key][:1] for key in ('native_runs', 'native_sha256', 'scalar_histories', 'archive_diagnostics')}
+    packed = fold_pic_finer(shared, fork, folder, 'hook_fork_', 'timestep_fork_comparison', 2)
+    return dict(record, results=dict(record['results'], timestep_fork_comparison=packed['timestep_fork_comparison']))
 
 
 def replay_measurements(record, labels):
@@ -748,9 +771,20 @@ run_example('docs/scripts/compare_replays.py', first=shape_dt, second=shape_mesh
             variant='mesh', constraints=True, refined=shape_joint, refined_variant='resolution',
             refined_against='first', destination=mesh_folder)
 mesh_record = json.loads((mesh_folder / 'run.json').read_text())
+shape_fork = ROOT / 'artifacts' / 'shape_controls' / 'late_s5_joint4000_824000_dt00125_fork'
+run_example('examples/dark_reservoir.py', study='paper_dt', dt=.00125,
+            initial_state=shape_joint / 'initial_state.npz', output=shape_fork)
+run_example('docs/scripts/compare_replays.py', timestep_fork=(shape_joint, shape_fork),
+            output=shape_fork / 'comparison.json')
+if not records_only:
+    fork_record = json.loads((shape_fork / 'comparison.json').read_text())
+    mesh_record = fold_hook_fork(mesh_record, fork_record, mesh_folder)
+    (mesh_folder / 'run.json').write_text(json.dumps(mesh_record, indent=1) + '\n')
+fork_present = 'timestep_fork_comparison' in mesh_record['results']
+fork_labels = (("shape_joint_dt", "timestep_fork_comparison", ".4f"),) if fork_present else ()
 joint_present = 'refinement_comparison' in mesh_record['results']
 joint_labels = (("shape_joint", "refinement_comparison", ".4f"),) if joint_present else ()
-replay_measurements(mesh_record, (("shape_mesh", "comparison", ".4f"),) + joint_labels)
+replay_measurements(mesh_record, (("shape_mesh", "comparison", ".4f"),) + joint_labels + fork_labels)
 replay_measurements(shape_record, (("shape", "comparison", ".4f"), ("shape_dt", "refinement_comparison", ".4f"),
                                    ("shape_finer", "third_step_comparison", ".4f")))
 for label, record, key in (("late_repeat", late_record, "comparison"),
@@ -758,7 +792,9 @@ for label, record, key in (("late_repeat", late_record, "comparison"),
                            ("shape_dt", shape_record, "refinement_comparison"),
                            ("shape_finer", shape_record, "third_step_comparison"),
                            ("shape_mesh", mesh_record, "comparison")) + (
-                               (("shape_joint", mesh_record, "refinement_comparison"),) if joint_present else ()):
+                               (("shape_joint", mesh_record, "refinement_comparison"),) if joint_present else ()) + (
+                                   (("shape_joint_dt", mesh_record, "timestep_fork_comparison"),)
+                                   if fork_present else ()):
     a, b = record['results'][key]['windows'][-1]['realization_summaries']
     for observable in ('electric_mean', 'work'):
         field = 'work_increment' if observable == 'work' else observable
@@ -771,6 +807,16 @@ for label, record, key in (("late_repeat", late_record, "comparison"),
 measured['_provenance']['late_step_controls'] = provenance(late_record, late_folder.name)
 measured['_provenance']['shape_controls'] = provenance(shape_record, shape_folder.name)
 measured['_provenance']['shape_mesh_controls'] = provenance(mesh_record, mesh_folder.name)
+if fork_present:
+    companion = mesh_record['results']['timestep_fork_comparison']
+    measured['_provenance']['shape_joint_dt'] = dict(
+        run='shape_mesh_controls/run.json', record_key='results.timestep_fork_comparison',
+        validation_source=companion['validation_source'])
+    for key in ('compile_s', 'warm_primal_s', 'compiler_temporary_MiB', 'process_peak_MiB'):
+        measured['shape_joint_dt_' + key] = f"{companion['native_run']['results'][key]:.5g}"
+    for suffix, key in (('balance', 'max_ordinary_work_defect_over_nmc2L'),
+                        ('momentum', 'max_momentum_defect_over_nmecL'), ('gauss', 'max_ordinary_gauss_over_en_eps0')):
+        measured['shape_joint_dt_' + suffix] = f"{companion['native_run']['results'][key]:.3e}"
 pilot_pairs = [(shape_runs[1], shape_dt)]
 for seed in (1, 2):
     pair = []
@@ -822,7 +868,7 @@ for label, source, index in (('shape_dt', shape_record, 2), ('shape_finer', shap
     for suffix, key in (('balance', 'max_ordinary_work_defect_over_nmc2L'),
                         ('momentum', 'max_momentum_defect_over_nmecL'), ('gauss', 'max_ordinary_gauss_over_en_eps0')):
         measured[f'{label}_{suffix}'] = f'{source["results"]["native_runs"][index]["results"][key]:.3e}'
-for label, key, _ in (("shape_mesh", "comparison", ".4f"),) + joint_labels:
+for label, key, _ in (("shape_mesh", "comparison", ".4f"),) + joint_labels + fork_labels:
     comparison = mesh_record['results'][key]
     summaries = comparison['windows'][-1]['realization_summaries']
     bounds = [row['max_ordinary_work_defect_over_nmc2L'] for row in comparison['native_all_step_maxima']]
@@ -835,13 +881,15 @@ for label, key, _ in (("shape_mesh", "comparison", ".4f"),) + joint_labels:
     measured[f'{label}_two_endpoint_difference_percent'] = f'{200 * sum(bounds) / difference:.4f}'
     start, end = comparison['windows'][-1]['window_omega_p']
     with np.load(mesh_folder / 'data.npz', allow_pickle=False) as stored:
-        times = [stored[name + '_t'] for name in ('first', 'refined' if label == 'shape_joint' else 'second')]
+        names = ('refined', 'hook_fork') if label == 'shape_joint_dt' else (
+            'first', 'refined' if label == 'shape_joint' else 'second')
+        times = [stored[name + '_t'] for name in names]
     intervals = [float(np.ptp(time[(time >= start - 1e-5) & (time <= end + 1e-5)])) for time in times]
     rates = [2 * bound / (interval * summary['plasma_mean_energy'])
              for bound, summary, interval in zip(bounds, summaries, intervals)]
     rate_difference = abs(summaries[1]['injection_rate_over_wp'] - summaries[0]['injection_rate_over_wp'])
     measured[f'{label}_two_endpoint_rate_percent'] = f'{100 * sum(rates) / rate_difference:.3f}'
-    if label == 'shape_joint':
+    if label in ('shape_joint', 'shape_joint_dt'):
         for species in range(2):
             values = [row['local_spread_increment_mean'][species][1] for row in summaries]
             measured[f'{label}_local_spread_increment_{species}_scale1_change_percent'] = (
