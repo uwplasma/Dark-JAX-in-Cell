@@ -447,6 +447,12 @@ The homogeneous cold limit has two frequencies, $\omega_\pm/\omega_p=\sqrt{1+\et
 
 At $\Delta t\omega_p=.1$, midpoint's largest mode-phase error is **0.838 rad** and its ordinary-energy transfer-fraction error is **0.00676**; the hybrid transfer error is **0.0377**. At `.003125`, transfer errors fall to **$5.12\times10^{-6}$ / $3.29\times10^{-6}$**. Both one-step maps preserve the cold quadratic energy; saved matrix powers have energy defects below $1.64\times10^{-11}$, exceeding the strict $2\times10^{-13}$ bound. The hybrid also splits the zero-coupling resonance. This verifies a linear analytical limit and guides timestep selection; late kinetic conversion remains unconfirmed.
 
+### Particle–field momentum balance
+
+An experimental closed midpoint scheme pairs particle work with mesh current. A warm, three-velocity test nevertheless changes physical momentum by **$1.90\times10^{-6}nm_ecL$ in one step**. Its signed force audit identifies a magnetic transfer mismatch of nearly the same size; the Boris correction is only **$6.46\times10^{-13}nm_ecL$**. Energy, both Gauss laws, mean current and momentum need separate checks. This scheme remains unadopted; [the archived audit, temporal checks and remaining validation](docs/performance.md#experimental-midpoint-force-accounting) explain its scope.
+
+[Companion analysis and figure](docs/scripts/audit_paired_midpoint.py) · recomputes the saved force budget without advancing particles; [selected map and measurements](docs/_static/figures/paired_midpoint/evidence.json).
+
 ## Differentiate and optimize a physical objective
 
 JAX derivatives pass through particle loading and weights, fields, the PIC run and the measured objective. The [density calibration](examples/optimize_dark_photon.py) maximizes coherent electric plus cold bulk energy on one fixed physical interval, with $p=n/n_{\rm ref}$:

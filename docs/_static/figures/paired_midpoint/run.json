@@ -1,0 +1,55 @@
+{
+ "jaxincell": "unknown",
+ "jax": "0.10.2",
+ "numpy": "2.2.2",
+ "python": "3.11.14",
+ "platform": "Darwin arm64",
+ "jax_enable_x64": true,
+ "backend": "cpu",
+ "git": "00e47143ec102f962133e2c5d8bbfd38a915fd9f-dirty",
+ "example": "audit_paired_midpoint",
+ "settings": {
+  "archived_map_only": true,
+  "native_steps": 0,
+  "source_sha256": "9a8873bc205df3967883407192e118aa2dcf3848e675134a3aff3322ceefb255",
+  "analysis_sha256": "e65a95497fff3381ec8910dafb1c69b0633d058c229103829a79dcdb5858e218"
+ },
+ "results": {
+  "physical_momentum_change": [
+   1.4080269287453615e-07,
+   -1.89668737013797e-06,
+   -5.005848896669601e-10
+  ],
+  "signed_terms": {
+   "electric_mismatch": [
+    8.203455013536297e-10,
+    -4.4787568334187055e-11,
+    1.296826734447856e-11
+   ],
+   "magnetic_mismatch": [
+    1.3998232896046274e-07,
+    -1.896641936432338e-06,
+    -5.135425345693149e-10
+   ],
+   "Boris_correction": [
+    1.840112594918443e-14,
+    -6.46139412338801e-13,
+    -1.0620350065650612e-14
+   ],
+   "pusher_residual": [
+    1.153286737019341e-17,
+    2.0877111581604887e-18,
+    -2.064981817657522e-18
+   ],
+   "field_grid_residual": [
+    6.090988942239889e-20,
+    2.4988672583548262e-20,
+    -2.7076349282300757e-20
+   ]
+  },
+  "momentum_gate": false,
+  "bound": 2e-13,
+  "production_adoption": false,
+  "source_evidence_sha256": "38b01c34dfd77d22f6f0a1cfd1782aab04db30e713f38a2a9d429a8fae72b872"
+ }
+}

@@ -148,6 +148,76 @@ This gap must be small relative to the physical splitting $|\eta|$ and the accum
 
 The pinned parent provides an ordinary Crank–Nicolson PIC method with fixed Picard iterations and particle substeps. Its longitudinal force is the discrete gradient conjugate to the trajectory continuity current; transverse current is the transpose of the field gather. Once the particle orbit and fields converge together, particle work cancels mesh work. This is the mechanism of [Chen, Chacón and Barnes](https://arxiv.org/abs/1101.3701) and the discrete-gradient construction of [Kormann and Sonnendrücker](https://arxiv.org/abs/1910.04000). Energy and Gauss can be conserved together while momentum has a finite error. The coupled Proca method uses the explicit compatible split described in [the equations](physics.md).
 
+### Experimental midpoint force accounting
+
+A separate **unreleased prototype** couples relativistic particle substeps to closed Maxwell–Proca midpoint fields. Its quintic longitudinal orbit weights and transverse gather have a matching current transpose. This pairing targets the discrete work identity; it does not supply a physical-momentum theorem. The package and pinned parent retain their existing algorithms.
+
+The archived fixture has 8 cells, 32 weighted electron–positron markers, three velocity components, $\Omega_D/\omega_p=.83$, $\eta=.17$, eight Picard iterations, two particle substeps and $h=\omega_p\Delta t=.04$. It is a short algorithm test, not a resolved plasma benchmark. Its continuum momentum, evaluated with the declared face-to-centre average $C$, includes the massive potential:
+
+$$
+\mathbf P=\sum_p m_pw_p\mathbf u_p+\epsilon_0\Delta x\sum_i
+\left[(C\mathbf E)_i\times\mathbf B_i+
+(C\mathbf E_D)_i\times\mathbf B_{D,i}+
+\frac{\Omega_D^2}{c^2}\phi_{D,i}(C\mathbf A_D)_i\right].
+$$
+
+For midpoint effective fields $\mathbf F=\overline{\mathbf E}+\eta\overline{\mathbf E}_D$ and $\mathbf H=\overline{\mathbf B}+\eta\overline{\mathbf B}_D$, define the mobile and fixed-background impulses
+
+$$
+\mathbf G_m=\Delta t\Delta x\sum_i
+\left[\bar\rho_i(C\mathbf F)_i+(C\bar{\mathbf J})_i\times\mathbf H_i\right],
+\qquad \mathbf G_b=\Delta t L\rho_b\langle\mathbf F\rangle.
+$$
+
+The field check is $\Delta\mathbf P_f+\mathbf G_m+\mathbf G_b$; the complete balance is $\Delta\mathbf P+\mathbf G_b$. The particle audit splits the accepted impulse into electric force, magnetic force using the kinetic-energy discrete-gradient velocity, the difference between that velocity and the Boris rotation velocity, and the pusher residual. All three components and the original background are retained.
+
+![Signed momentum budget for one actual warm midpoint step](_static/figures/paired_midpoint/figure.png)
+
+[Companion analysis](scripts/audit_paired_midpoint.py) · `python docs/scripts/audit_paired_midpoint.py`; [compressed selected map](_static/figures/paired_midpoint/data.npz), [audit and temporal evidence](_static/figures/paired_midpoint/evidence.json), and [figure provenance](_static/figures/paired_midpoint/run.json). The script recomputes saved impulses and the figure; it does not execute or distribute the prototype integrator. Bars show magnitudes on a logarithmic axis, with signs in their labels; $P_\star=nm_ecL$.
+
+| One forward step, $y$ component | Signed impulse / $P_\star$ |
+|---|---:|
+| Complete physical momentum change | {{ paired_momentum_y }} |
+| Magnetic particle/grid transfer mismatch | {{ paired_magnetic_y }} |
+| Electric particle/grid transfer mismatch | {{ paired_electric_y }} |
+| Boris minus discrete-gradient velocity correction | {{ paired_boris_y }} |
+| Field plus grid impulse residual | {{ paired_field_grid_y }} |
+
+All **19** independent accounting/interpolation checks pass at the unchanged $2\times10^{-13}$ normalized bound. The physical-momentum check fails. Independent Cox–de Boor splines and knot-split three-point Gauss integration check the actual saved gather/current at 80 and 100 decimal digits; precision agreement is a control, not an interval certificate. The dominant magnetic transfer mismatch persists with negligible accepted/used-field lag. This identifies the leading term in this fixture, without proving a universal cause or a failure of the separate one-dimensional prescribed-drive replay. All fourteen original signed-map momentum failures and its post-save reporting failure remain recorded.
+
+#### Signed composition and temporal refinement
+
+For the autonomous closed physical map $C_h$, the tested composition is
+
+$$
+Q_h=C_{ah}C_{bh}C_{ah},\qquad
+a=(2-2^{1/3})^{-1},\qquad b=1-2a.
+$$
+
+The order construction assumes a converged self-adjoint map. A finite Picard solve, negative substeps and restart bookkeeping require additional checks; random keys, step counts and cumulative maxima are not an inverse physical trajectory. A prescribed cosine drive requires consistent stage times and is outside this autonomous test.
+
+Nine trajectories use the same complete initial state and fixed grid through $\omega_pt=.4$, with $h=.04,.02,.01,.005$ and a discrete $Q_{.0025}$ reference. Across **1,080 accepted submaps**, the largest complete-energy change is **{{ paired_temporal_energy }} $nm_ec^2L$**, while cumulative physical momentum changes remain near **{{ paired_temporal_momentum }} $nm_ecL$**. Energy alone therefore gives no acceptance of this method. Eighteen momentum gates and six refined continuity gates fail; the finest reference is unqualified.
+
+The coarse $Q_h$ triplet $.04,.02,.01$ has aggregate self-convergence order **{{ paired_temporal_order }}**, with nineteen resolved components and four below the declared resolution floor. Its other step controls pass; its momentum gates still fail. The finer composition triplet and both midpoint triplets fail continuity controls, so their apparent orders are unqualified. There is no continuum-reference, long-time, initialized-derivative, complete-restart or performance qualification of this prototype.
+
+[Companion reduction](scripts/audit_paired_midpoint.py) also recomputes aggregate orders from the archived differences and prints their qualification flags. This is an algorithmic observation, with no new physical effect or literature contradiction established.
+
+### Research checkpoint and remaining validation
+
+As of **3 October 2026**, [the 1.648-million-particle timestep fork](kinetic.md#higher-count-timestep-fork) remains unconverged: late work changes **+37.39%**, nonzero electric energy **+26.53%**, and the residual-rate difference exceeds its bound. The small energy/work defect does not account for those changes. An additional fixed-particle mesh diagnostic is incomplete and supplies no new late-time result. The Hook–Huang–Shalaby nonlinear conversion curve is neither reproduced nor contradicted here; no novel late suppression result is established.
+
+The numerical priorities follow the distinction in [SHARP, §3 and §6](https://arxiv.org/abs/1702.04732), between momentum-preserving interpolation and joint particle/grid refinement, and the energy/charge identities of [Chen, Chacón and Barnes](https://arxiv.org/abs/1101.3701). These ordinary-plasma results do not establish a Maxwell–Proca momentum or accuracy theorem. [Hook, Huang and Shalaby, Appendix B](https://arxiv.org/abs/2510.13956) use one-dimensional SHARP with fifth-order weighting; its Appendix C extends to $\omega_pt=80{,}000$, beyond the resolved evidence here.
+
+The next work, in order, is:
+
+1. Verify and back up the paused grid diagnostic's returned state, raw histories and inherited SI conservation bounds; finish a companion that restores those saved bytes directly.
+2. Resolve the experimental vector momentum transfer and fine continuity failures before considering a new production integrator. Check mean current, both Gauss laws, full potential energy/work, background momentum, initialized derivatives and complete restart independently.
+3. Choose a step from unaligned carrier/beat phase and physical transfer errors, then benchmark synchronized warm primal/gradient time and memory. Vacuum energy conservation or exact free-field evolution alone is insufficient.
+4. Separate timestep, grid, particle/velocity loading, seed and execution effects at fixed physical smoothing lengths. Use paired realizations and held-out/refined replays; require conservation budgets smaller than the differences being resolved.
+5. Extend accepted runs into the paper's late windows, compare its specified parameters and plots, then test a closed finite dark reservoir. Report uncertainty and distinguish published-limit reproduction from supported new results.
+
+No additional run or automatic continuation is queued. The ordinary implicit hook remains an unmerged [parent draft PR](https://github.com/uwplasma/JAX-in-Cell/pull/71); the experimental paired scheme is not a package option.
+
 ### Conservation with the same particles
 
 The [coupled benchmark](scripts/benchmark_pic_conservation.py) loads two warm electron beams and mobile ions identically in each row: 8,192 markers per population, $u_e=\pm0.05c$, $\sigma_e=0.003c$, $m_i/m_e=1836$, $T_i=T_e$, $ku_e/\omega_p=0.5$ and a $10^{-4}$ density seed on one beam. Here $\omega_p$ is the total **electron** plasma frequency. The inherited three-velocity solver evolves a longitudinal, Newtonian experiment through $\omega_pt=40$. The massive-field counterpart has $\Omega_D/\omega_p=0.7$, $\eta=0.3$ and the specified bare initialization $E_D=\eta E$, $\phi_D=0$. These Proca rows change the physical interaction; the ordinary rows compare algorithms for the same equations.

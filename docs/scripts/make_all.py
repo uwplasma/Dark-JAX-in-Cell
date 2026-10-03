@@ -1117,6 +1117,20 @@ for method in ('cn', 'hybrid'):
         measured[f'resonant_{method}_transfer_{label}'] = f"{row['transfer_error']:.3e}"
 measured['resonant_energy_max'] = f"{max(r['energy_error'] for r in resonant_record['results']['methods']):.3e}"
 measured['_provenance']['resonant_integrators'] = provenance(resonant_record, resonant_folder.name)
+paired_folder = EVIDENCE.parent / 'paired_midpoint'
+run_example('docs/scripts/audit_paired_midpoint.py', output=paired_folder)
+paired_record = json.loads((paired_folder / 'run.json').read_text())
+paired_evidence = json.loads((paired_folder / 'evidence.json').read_text())
+paired_result = paired_record['results']
+measured['paired_momentum_y'] = f"{paired_result['physical_momentum_change'][1]:+.3e}"
+for label, key in (('magnetic', 'magnetic_mismatch'), ('electric', 'electric_mismatch'),
+                   ('boris', 'Boris_correction'), ('field_grid', 'field_grid_residual')):
+    measured[f'paired_{label}_y'] = f"{paired_result['signed_terms'][key][1]:+.3e}"
+rows = paired_evidence['temporal']['records']
+measured['paired_temporal_energy'] = f"{max(r['all_step_maxima']['global_energy'] for r in rows):.3e}"
+measured['paired_temporal_momentum'] = f"{max(r['all_step_maxima']['cumulative_physical_P'] for r in rows):.3e}"
+measured['paired_temporal_order'] = f"{paired_evidence['temporal']['self_convergence']['Q4'][0]['order'][-1]:.6f}"
+measured['_provenance']['paired_midpoint'] = provenance(paired_record, paired_folder.name)
 (EVIDENCE.parent / "measurements.json").write_text(json.dumps(measured, indent=2) + "\n")
 
 print("Saved measured documentation substitutions", flush=True)

@@ -616,6 +616,17 @@
       "backend": "cpu",
       "git": "ba945277d8b280e04459d85fce042cf0940537f4-dirty",
       "run": "resonant_integrators/run.json"
+    },
+    "paired_midpoint": {
+      "jaxincell": "unknown",
+      "jax": "0.10.2",
+      "numpy": "2.2.2",
+      "python": "3.11.14",
+      "platform": "Darwin arm64",
+      "jax_enable_x64": true,
+      "backend": "cpu",
+      "git": "00e47143ec102f962133e2c5d8bbfd38a915fd9f-dirty",
+      "run": "paired_midpoint/run.json"
     }
   },
   "drive_wave_error": "7.488e-05",
@@ -1624,5 +1635,13 @@
   "resonant_hybrid_transfer_coarse": "3.767e-02",
   "resonant_hybrid_phase_fine": "4.888e-04",
   "resonant_hybrid_transfer_fine": "3.293e-06",
-  "resonant_energy_max": "1.633e-11"
+  "resonant_energy_max": "1.633e-11",
+  "paired_momentum_y": "-1.897e-06",
+  "paired_magnetic_y": "-1.897e-06",
+  "paired_electric_y": "-4.479e-11",
+  "paired_boris_y": "-6.461e-13",
+  "paired_field_grid_y": "+2.499e-20",
+  "paired_temporal_energy": "5.950e-17",
+  "paired_temporal_momentum": "1.540e-05",
+  "paired_temporal_order": "3.997711"
 }
