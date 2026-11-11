@@ -28,8 +28,8 @@ def test_divergence_gradient_adjoint():
 
 def test_kick_drift_preserve_finite_state():
     E, B, A, phi, J = _fields(1)
-    E1, phi1 = jax.jit(kick, static_argnums=(5, 6, 7, 8))(E, B, A, phi, J, H, DX, OMEGA, ETA)
-    B1, A1 = jax.jit(drift, static_argnums=(5, 6))(E1, B, A, phi1, H, DX)
+    E1, phi1 = jax.jit(lambda *a: kick(*a, H, DX, OMEGA, ETA))(E, B, A, phi, J)
+    B1, A1 = jax.jit(lambda *a: drift(*a, H, DX))(E1, B, A, phi1)
     assert all(bool(jnp.all(jnp.isfinite(x))) for x in (E1, phi1, B1, A1))
     assert B1.shape == B.shape and A1.shape == A.shape
 
