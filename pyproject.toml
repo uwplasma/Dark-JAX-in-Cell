@@ -33,6 +33,7 @@ packages = ["darkjaxincell"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["gpu: small checks that also run on a GPU backend"]
 
 [tool.coverage.run]
 source = ["darkjaxincell"]
