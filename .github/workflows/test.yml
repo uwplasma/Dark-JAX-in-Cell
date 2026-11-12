@@ -1,11 +1,15 @@
 name: Midnight checks
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 permissions: {contents: read}
 jobs:
   lint:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -17,7 +21,7 @@ jobs:
       - run: python -m flake8 darkjaxincell tests examples docs/scripts
       - run: python -c "import darkjaxincell"
   test:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: (github.event_name != 'pull_request' || !github.event.pull_request.draft) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, uwplasma-cpu]
     timeout-minutes: 45
     strategy:
