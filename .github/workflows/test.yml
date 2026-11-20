@@ -34,7 +34,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: false
-      - run: uv venv && uv pip install -e '.[test,docs]'
+      - name: Select the job environment
+        run: |
+          echo "VIRTUAL_ENV=$RUNNER_TEMP/venv" >> "$GITHUB_ENV"
+          echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/venv" >> "$GITHUB_ENV"
+      - run: uv venv "$VIRTUAL_ENV" && uv pip install -e '.[test,docs]'
       - run: uv run python -m flake8 darkjaxincell tests examples docs/scripts
       - run: uv run python -m pytest -q --cov=darkjaxincell --cov-report=term
       - run: uv run python examples/dark_photon.py
